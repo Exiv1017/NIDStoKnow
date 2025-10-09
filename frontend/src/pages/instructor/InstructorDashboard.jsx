@@ -1,0 +1,506 @@
+import { useState, useContext, useEffect } from 'react';
+import AuthContext from '../../context/AuthContext';
+import InstructorSidebar from '../../components/InstructorSidebar';
+import { Pie, Bar } from 'react-chartjs-2';
+import InstructorNotificationsBell from '../../components/instructor/InstructorNotificationsBell';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  PointElement,
+  LineElement,
+  Title,
+} from 'chart.js';
+
+ChartJS.register(
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  PointElement,
+  LineElement,
+  Title
+);
+
+const InstructorDashboard = () => {
+  const { user } = useContext(AuthContext);
+  // Notifications handled by shared bell component
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  // --- Student progress state ---
+  const [studentProgress, setStudentProgress] = useState([]);
+  const [loadingProgress, setLoadingProgress] = useState(true);
+  const [progressError, setProgressError] = useState(null);
+
+  // --- State for dynamic dashboard data ---
+  const [modules, setModules] = useState([]);
+  const [stats, setStats] = useState({ totalStudents: 0, activeModules: 0, avgCompletion: 0, feedbackCount: 0 });
+  const [notifications, setNotifications] = useState([]);
+  const [assessmentTrend, setAssessmentTrend] = useState([]); // Array of numbers (avg scores per week)
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [atRiskCount, setAtRiskCount] = useState(0);
+  const [moduleRequestCounts, setModuleRequestCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
+
+  // Helper: build Authorization header if token present
+  const authHeader = () => (user?.token ? { 'Authorization': `Bearer ${user.token}` } : {});
+
+  // Function to fetch notifications
+  const fetchNotifications = () => {
+    fetch('/api/instructor/notifications', {
+      headers: authHeader()
+    })
+      .then(res => res.json())
+      .then(data => Array.isArray(data) ? setNotifications(data) : setNotifications([]))
+      .catch((err) => { setNotifications([]); console.error('Notifications fetch error:', err); });
+  };
+
+  // Fetch unread notification count
+  const fetchNotificationsCount = () => {
+    fetch('/api/instructor/notifications/count', {
+      headers: authHeader()
+    })
+      .then(res => res.json())
+      .then(data => setUnreadCount(typeof data?.count === 'number' ? data.count : 0))
+      .catch((err) => { setUnreadCount(0); console.error('Notifications count error:', err); });
+  };
+
+  // --- Fetch dashboard data from backend ---
+  // Helper to fetch stats (for event-driven refresh)
+  const fetchStats = () => {
+    fetch('/api/instructor/stats', {
+      headers: authHeader()
+    })
+      .then(res => res.json())
+      .then(data => setStats(data && typeof data === 'object' ? data : { totalStudents: 0, activeModules: 0, avgCompletion: 0, feedbackCount: 0 }))
+      .catch((err) => { setStats({ totalStudents: 0, activeModules: 0, avgCompletion: 0, feedbackCount: 0 }); console.error('Stats fetch error:', err); });
+  };
+
+  useEffect(() => {
+    // Fetch modules
+    fetch('/api/instructor/modules', {
+      headers: authHeader()
+    })
+      .then(res => res.json())
+      .then(data => Array.isArray(data) ? setModules(data) : setModules([]))
+      .catch((err) => { setModules([]); console.error('Modules fetch error:', err); });
+    // Fetch stats
+    fetchStats();
+  // Fetch notifications initially
+  fetchNotifications();
+  fetchNotificationsCount();
+    // Fetch module requests (for instructor's own submissions)
+    fetch('/api/instructor/module-requests', { headers: authHeader() })
+      .then(res => res.json())
+      .then(data => {
+        if(Array.isArray(data)){
+          const pending = data.filter(r=>r.status==='pending').length;
+          const approved = data.filter(r=>r.status==='approved').length;
+            const rejected = data.filter(r=>r.status==='rejected').length;
+          setModuleRequestCounts({ pending, approved, rejected });
+        } else {
+          setModuleRequestCounts({ pending:0, approved:0, rejected:0 });
+        }
+      })
+      .catch(()=> setModuleRequestCounts({ pending:0, approved:0, rejected:0 }));
+    // Fetch assessment performance trend (quiz scores). Fallback to feedback-trend if needed.
+    fetch('/api/instructor/assessment-trend', { headers: authHeader() })
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        if(Array.isArray(data) && data.length){
+          setAssessmentTrend(data);
+        } else {
+          // fallback
+          fetch('/api/instructor/feedback-trend', { headers: authHeader() })
+            .then(r=>r.json())
+            .then(d=> setAssessmentTrend(Array.isArray(d)? d: []))
+            .catch(()=> setAssessmentTrend([]));
+        }
+      })
+      .catch(()=> setAssessmentTrend([]));
+    // Fetch recent activity
+    fetch('/api/instructor/recent-activity', {
+      headers: authHeader()
+    })
+      .then(res => res.json())
+      .then(data => Array.isArray(data) ? setRecentActivity(data) : setRecentActivity([]))
+      .catch((err) => { setRecentActivity([]); console.error('Recent activity fetch error:', err); });
+
+    // Listen for studentsChanged event to refresh stats
+    const handleStudentsChanged = () => {
+      fetchStats();
+    };
+    window.addEventListener('studentsChanged', handleStudentsChanged);
+
+    // Set up periodic refresh every 30 seconds (notifications + requests)
+    const interval = setInterval(() => {
+      fetchNotifications();
+      fetchNotificationsCount();
+      fetch('/api/instructor/module-requests', { headers: authHeader() })
+        .then(res=>res.json())
+        .then(data=>{
+          if(Array.isArray(data)){
+            const pending = data.filter(r=>r.status==='pending').length;
+            const approved = data.filter(r=>r.status==='approved').length;
+            const rejected = data.filter(r=>r.status==='rejected').length;
+            setModuleRequestCounts({ pending, approved, rejected });
+          }
+        })
+        .catch(()=>{});
+    }, 30000);
+
+    // Cleanup interval and event listener on component unmount
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('studentsChanged', handleStudentsChanged);
+    };
+  }, []);
+  // Removed duplicate notification interval useEffect (merged into single effect above)
+
+  // Defensive chart data
+  const studentEnrollmentData = {
+    labels: Array.isArray(modules) ? modules.map((m) => m.name) : [],
+    datasets: [
+      {
+        data: Array.isArray(modules) ? modules.map((m) => m.students) : [],
+        backgroundColor: ['#1E5780', '#206EA6', '#A3A3A3'],
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const moduleCompletionData = {
+    labels: Array.isArray(modules) ? modules.map((m) => m.name) : [],
+    datasets: [
+      {
+        label: 'Completion %',
+        data: Array.isArray(modules) ? modules.map((m) => m.completion) : [],
+        backgroundColor: '#22c55e',
+        borderRadius: 6,
+      },
+    ],
+  };
+
+  const assessmentTrendData = {
+    labels: Array.isArray(assessmentTrend) ? assessmentTrend.map((_, i) => `Week ${i + 1}`) : [],
+    datasets: [
+      {
+        label: 'Avg Score',
+        data: Array.isArray(assessmentTrend) ? assessmentTrend : [],
+        backgroundColor: '#60a5fa',
+        borderRadius: 6,
+      },
+    ],
+  };
+
+  // --- Fetch student progress from backend ---
+  useEffect(() => {
+    setLoadingProgress(true);
+    fetch('/api/instructor/progress', {
+      headers: authHeader()
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch progress');
+        return res.json();
+      })
+      .then(data => {
+        setStudentProgress(data);
+        setLoadingProgress(false);
+      })
+      .catch(err => {
+        setProgressError(err.message);
+        setLoadingProgress(false);
+      });
+  }, []);
+
+  // Derive At-Risk Students count from studentProgress
+  useEffect(() => {
+    if (!Array.isArray(studentProgress)) {
+      setAtRiskCount(0);
+      return;
+    }
+    const count = studentProgress.reduce((acc, row) => {
+      const total = Number(row.totalLessons) || 0;
+      const completed = Number(row.lessonsCompleted) || 0;
+      const engagement = Number(row.engagementScore) || 0;
+      const timeSpent = Number(row.timeSpent) || 0; // seconds
+      const progressPct = total > 0 ? (completed / total) * 100 : 0;
+      const isAtRisk = total > 0 && (progressPct < 20) && (engagement <= 1 || timeSpent < 120);
+      return acc + (isAtRisk ? 1 : 0);
+    }, 0);
+    setAtRiskCount(count);
+  }, [studentProgress]);
+
+  // Helper function to format notification time
+  const formatNotificationTime = (timeString) => {
+    try {
+      const date = new Date(timeString);
+      const now = new Date();
+      const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+      const diffInHours = Math.floor(diffInMinutes / 60);
+      const diffInDays = Math.floor(diffInHours / 24);
+      
+      if (diffInMinutes < 1) return 'Just now';
+      if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
+      if (diffInHours < 24) return `${diffInHours} hours ago`;
+      if (diffInDays < 7) return `${diffInDays} days ago`;
+      
+      // For older notifications, show the actual date
+      return date.toLocaleDateString();
+    } catch (error) {
+      return timeString; // Fallback to original string if parsing fails
+    }
+  };
+
+  // Function to delete a specific notification
+  const deleteNotification = async (notificationId) => {
+    try {
+      console.log('Deleting notification:', notificationId);
+      const response = await fetch(`http://localhost:8000/api/instructor/notifications/${notificationId}`, {
+        method: 'DELETE',
+        headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
+      });
+      
+      if (response.ok) {
+        console.log('Notification deleted successfully');
+        // Remove the notification from the local state
+        setNotifications(prevNotifications => {
+          const updated = prevNotifications.filter(n => n.id !== notificationId);
+          console.log('Updated notifications:', updated);
+          return updated;
+        });
+        // Also refresh unread count
+        fetchNotificationsCount();
+      } else {
+        console.error('Failed to delete notification:', response.status);
+        const errorText = await response.text();
+        console.error('Error details:', errorText);
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
+  };
+
+  // Function to mark a specific notification as read (without deletion)
+  const markNotificationRead = async (notificationId) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/instructor/notifications/${notificationId}/read`, {
+        method: 'PATCH',
+        headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
+      });
+      if (response.ok) {
+        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+        fetchNotificationsCount();
+      } else {
+        console.error('Failed to mark notification read:', response.status);
+      }
+    } catch (e) {
+      console.error('Error marking notification read:', e);
+    }
+  };
+
+  // Function to mark all notifications as read
+  const markAllAsRead = async () => {
+    try {
+      console.log('Marking all notifications as read');
+      const response = await fetch('http://localhost:8000/api/instructor/notifications/mark-all-read', {
+        method: 'POST',
+        headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
+      });
+      
+      if (response.ok) {
+        console.log('All notifications marked as read');
+        // Clear all notifications from the local state
+        setNotifications([]);
+        setIsNotificationOpen(false);
+        fetchNotificationsCount();
+      } else {
+        console.error('Failed to mark all notifications as read:', response.status);
+        const errorText = await response.text();
+        console.error('Error details:', errorText);
+      }
+    } catch (error) {
+      console.error('Error marking notifications as read:', error);
+    }
+  };
+
+  // Function to manually trigger a test notification (for testing purposes)
+  const createTestNotification = async () => {
+    try {
+      const response = await fetch('/api/instructor/notifications/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: `Test notification created at ${new Date().toLocaleTimeString()}`,
+          notification_type: 'info'
+        })
+      });
+      
+      if (response.ok) {
+        console.log('Test notification created');
+        // Refresh notifications immediately
+        fetchNotifications();
+      }
+    } catch (error) {
+      console.error('Error creating test notification:', error);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-white">
+      <InstructorSidebar />
+      <main className="ml-64 overflow-y-auto">
+        <div className="p-4 sm:p-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-black mb-1">Welcome Back, {user?.name}</h1>
+              <p className="text-gray-600 text-base">Here are your instructor insights</p>
+            </div>
+            <div className="relative">
+              <InstructorNotificationsBell refreshIntervalMs={30000} appearance="light" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-10">
+            <div className="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-shadow border border-gray-100 flex flex-col items-center">
+              <h3 className="text-lg font-medium text-gray-600 mb-1">Total Students</h3>
+              <p className="text-4xl font-extrabold text-[#1E5780] mt-2">{stats.totalStudents}</p>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-shadow border border-gray-100 flex flex-col items-center">
+              <h3 className="text-lg font-medium text-gray-600 mb-1">Active Modules</h3>
+              <p className="text-4xl font-extrabold text-[#1E5780] mt-2">{stats.activeModules}</p>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-shadow border border-gray-100 flex flex-col items-center">
+              <h3 className="text-lg font-medium text-gray-600 mb-1">Avg. Completion</h3>
+              <p className="text-4xl font-extrabold text-[#1E5780] mt-2">{stats.avgCompletion}%</p>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-shadow border border-gray-100 flex flex-col items-center">
+              <h3 className="text-lg font-medium text-gray-600 mb-1">At‑Risk Students</h3>
+              <p className="text-4xl font-extrabold text-[#1E5780] mt-2">{atRiskCount}</p>
+              <span className="text-xs text-gray-400 mt-1">Progress &lt; 20% &amp; low engagement</span>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-shadow border border-gray-100 flex flex-col items-center">
+              <h3 className="text-lg font-medium text-gray-600 mb-1">My Module Requests</h3>
+              <p className="text-4xl font-extrabold text-[#1E5780] mt-2">{moduleRequestCounts.pending}</p>
+              <div className="flex gap-2 text-[10px] mt-2">
+                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-semibold">A {moduleRequestCounts.approved}</span>
+                <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 font-semibold">R {moduleRequestCounts.rejected}</span>
+              </div>
+              <a href="/instructor/manage-modules" className="mt-3 text-xs text-blue-600 hover:underline">Manage</a>
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <hr className="border-t border-gray-300" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+            <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow p-6 flex flex-col items-center border border-gray-100">
+              <h3 className="text-lg font-semibold mb-4 text-[#1E5780]">Student Enrollment</h3>
+              <div className="w-full max-w-xs">
+                <Pie data={studentEnrollmentData} options={{ plugins: { legend: { position: 'bottom' } } }} />
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow p-6 flex flex-col items-center border border-gray-100">
+              <h3 className="text-lg font-semibold mb-4 text-[#1E5780]">Module Completion</h3>
+              <div className="w-full max-w-2xl h-96">
+                <Bar data={moduleCompletionData} options={{
+                  plugins: { legend: { display: false } },
+                  scales: { y: { min: 0, max: 100, ticks: { stepSize: 20 } } },
+                  maintainAspectRatio: false,
+                }} />
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow p-6 flex flex-col items-center border border-gray-100">
+              <h3 className="text-lg font-semibold mb-1 text-[#1E5780]">Assessment Performance Trend</h3>
+              <span className="text-xs text-gray-400 mb-4">Weekly Avg Quiz %</span>
+              <div className="w-full max-w-xs">
+                <Bar data={assessmentTrendData} options={{
+                  plugins: { legend: { display: false } },
+                  scales: { y: { beginAtZero: true, max: 100, ticks: { stepSize: 20 } } },
+                }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <hr className="border-t border-gray-300" />
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow border border-gray-100 mb-12">
+            <div className="p-6 border-b">
+              <h2 className="text-xl font-bold text-[#1E5780]">Recent Activity</h2>
+            </div>
+            <div className="p-6">
+              <ul className="space-y-4">
+                {recentActivity.map((item) => (
+                  <li key={item.id} className="flex items-center justify-between">
+                    <span className="text-gray-800 font-medium">{item.activity}</span>
+                    <span className="text-xs text-gray-400">{item.time}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <hr className="border-t border-gray-300" />
+          </div>
+
+          {/* Student Progress Table */}
+          <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow border border-gray-100 mb-12">
+            <div className="p-6 border-b">
+              <h2 className="text-xl font-bold text-[#1E5780]">Student Progress</h2>
+            </div>
+            <div className="p-6 overflow-x-auto">
+              {loadingProgress ? (
+                <div className="text-gray-500">Loading student progress...</div>
+              ) : progressError ? (
+                <div className="text-red-500">{progressError}</div>
+              ) : (
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Student</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Module</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">% Completed</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words max-w-xs">Last Lesson</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Time Spent</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Engagement</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {studentProgress.length === 0 ? (
+                      <tr><td colSpan={6} className="text-center text-gray-400 py-4">No student progress data available.</td></tr>
+                    ) : (
+                      studentProgress.map((row, idx) => (
+                        <tr key={idx}>
+                          <td className="px-4 py-2 break-words font-medium text-gray-800">{row.studentName}</td>
+                          <td className="px-4 py-2 break-words">{row.moduleName}</td>
+                          <td className="px-4 py-2 break-words">{row.totalLessons ? Math.round((row.lessonsCompleted / row.totalLessons) * 100) : 0}%</td>
+                          <td className="px-4 py-2 break-words max-w-xs">{row.lastLesson}</td>
+                          <td className="px-4 py-2 break-words">{row.timeSpent} secs</td>
+                          <td className="px-4 py-2 break-words">{row.engagementScore}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+              <div className="text-xs text-gray-400 mt-2">* This data is live from backend. Add more columns as needed.</div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default InstructorDashboard;

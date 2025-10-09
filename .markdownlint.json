@@ -1,0 +1,11 @@
+{
+  "default": true,
+  "MD033": {
+    "allowed_elements": ["card", "accordion", "key-points", "div", "img"]
+  },
+  "MD036": false,
+  "MD041": false,
+  "MD010": {
+    "code_blocks": false
+  }
+}

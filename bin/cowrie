@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import os
+import sys
+import subprocess
+import signal
+import time
+import argparse
+from pathlib import Path
+
+def get_pid(pidfile):
+    try:
+        with open(pidfile, 'r') as f:
+            return int(f.read().strip())
+    except (IOError, ValueError):
+        return None
+
+def is_running(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+def start():
+    pidfile = Path('var/run/cowrie.pid')
+    if pidfile.exists():
+        pid = get_pid(pidfile)
+        if pid and is_running(pid):
+            print("Cowrie is already running (PID: {}).".format(pid))
+            return
+        else:
+            pidfile.unlink()
+
+    print("Starting cowrie...")
+    env = os.environ.copy()
+    env['PYTHONPATH'] = str(Path.cwd()) + ':' + env.get('PYTHONPATH', '')
+    
+    cmd = [
+        'twistd',
+        '--umask=0022',
+        '--pidfile=var/run/cowrie.pid',
+        '--logger=cowrie.python.logfile.logger',
+        'cowrie'
+    ]
+    
+    subprocess.Popen(cmd, env=env)
+    time.sleep(1)
+    
+    pid = get_pid(pidfile)
+    if pid and is_running(pid):
+        print("Cowrie started successfully (PID: {}).".format(pid))
+    else:
+        print("Failed to start Cowrie.")
+        sys.exit(1)
+
+def stop():
+    pidfile = Path('var/run/cowrie.pid')
+    if not pidfile.exists():
+        print("Cowrie is not running.")
+        return
+
+    pid = get_pid(pidfile)
+    if not pid:
+        print("Cowrie is not running.")
+        return
+
+    print("Stopping cowrie...")
+    try:
+        os.kill(pid, signal.SIGTERM)
+        time.sleep(1)
+        if is_running(pid):
+            print("Failed to stop Cowrie.")
+            sys.exit(1)
+        else:
+            print("Cowrie stopped successfully.")
+            pidfile.unlink()
+    except OSError:
+        print("Failed to stop Cowrie.")
+        sys.exit(1)
+
+def status():
+    pidfile = Path('var/run/cowrie.pid')
+    if not pidfile.exists():
+        print("Cowrie is not running.")
+        return
+
+    pid = get_pid(pidfile)
+    if not pid:
+        print("Cowrie is not running.")
+        return
+
+    if is_running(pid):
+        print("Cowrie is running (PID: {}).".format(pid))
+    else:
+        print("Cowrie is not running.")
+        pidfile.unlink()
+
+def main():
+    parser = argparse.ArgumentParser(description='Cowrie SSH/Telnet Honeypot')
+    parser.add_argument('action', choices=['start', 'stop', 'restart', 'status'])
+    args = parser.parse_args()
+
+    if args.action == 'start':
+        start()
+    elif args.action == 'stop':
+        stop()
+    elif args.action == 'restart':
+        stop()
+        start()
+    elif args.action == 'status':
+        status()
+
+if __name__ == '__main__':
+    main() 

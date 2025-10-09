@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom animations and glass effect for enhanced theory pages */
+@layer utilities {
+  /* Force justified text in lesson content containers */
+  .prose-override-justify p,
+  .prose-override-justify li,
+  .prose-override-justify dd,
+  .prose-override-justify blockquote,
+  .prose-override-justify figcaption {
+    text-align: justify;
+    text-justify: inter-word;
+    hyphens: auto;
+  }
+  /* Make markdown ## headings larger (approx +2 steps) */
+  .prose-override-justify h2 {
+    font-size: 1.5rem;       /* ~text-3xl */
+    line-height: 1.25;     /* tighter for headings */
+  }
+  /* Override any list paragraph left-alignment set by prose or component styles */
+  .prose-override-justify li > p { text-align: justify !important; }
+  /* Keep headings and UI labels not affected */
+  .prose-override-justify h1,
+  .prose-override-justify h2,
+  .prose-override-justify h3,
+  .prose-override-justify h4,
+  .prose-override-justify h5,
+  .prose-override-justify h6,
+  .prose-override-justify .text-center { text-align: center; }
+  .prose-override-justify .text-right { text-align: right; }
+  /* Avoid justifying code blocks and preformatted */
+  .prose-override-justify code,
+  .prose-override-justify pre { text-align: left; hyphens: none; }
+
+  .glass-effect {
+    backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .animate-pulse-gentle {
+    animation: pulseGentle 2s infinite;
+  }
+  
+  @keyframes pulseGentle {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.8;
+    }
+  }
+
+  /* Hide the global fixed sidebar when a page requests it (used by theory pages) */
+  body.hide-global-sidebar .global-sidebar {
+    display: none !important;
+  }
+
+  /* Remove the left margin reserved for the sidebar so pages can use full viewport width */
+  body.hide-global-sidebar main {
+    margin-left: 0 !important;
+  }
+
+  /* Also clear utility class based margins if present */
+  body.hide-global-sidebar .ml-64 {
+    margin-left: 0 !important;
+  }
+
+  .shake { animation: shake 300ms ease-in-out; }
+  @keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    50% { transform: translateX(3px); }
+    75% { transform: translateX(-2px); }
+    100% { transform: translateX(0); }
+  }
+}

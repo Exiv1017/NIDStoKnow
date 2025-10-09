@@ -1,0 +1,139 @@
+{
+  "$schema": "https://example.com/nids-rules.schema.json",
+  "version": 1,
+  "rules": [
+    {
+      "id": "R-1001",
+      "name": "SQLi probe in query",
+      "field": "query",
+      "type": "regex",
+      "match": "(\\bOR\\b\\s*1=1|union\\s+select|\\'\\s*OR\\s*\\'1\\'=\\'1)",
+      "severity": "high",
+      "rationale": "Classic SQL injection probe patterns from theory (OR 1=1 / UNION SELECT).",
+      "threshold": { "by": "ip", "window": "10m", "count": 3 }
+    },
+    {
+      "id": "R-1002",
+      "name": "Path traversal / sensitive file",
+      "field": "path",
+      "type": "regex",
+      "match": "(\\.\\./|%2e%2e%2f|/etc/passwd)",
+      "severity": "high",
+      "rationale": "Traversal indicators and sensitive file access from rule anatomy/patterns."
+    },
+    {
+      "id": "R-1003",
+      "name": "Recon tooling user-agent",
+      "field": "ua",
+      "type": "any",
+      "match": ["sqlmap", "Nikto", "curl/", "python-requests"],
+      "severity": "medium",
+      "rationale": "Known scanner/tool UAs from reconnaissance lesson."
+    },
+    {
+      "id": "R-1004",
+      "name": "WP brute-force POSTs",
+      "field": "path",
+      "type": "exact",
+      "match": "/wp-login.php",
+      "method": "POST",
+      "severity": "medium",
+      "rationale": "Login brute-force pattern; promote via threshold to reduce noise.",
+      "threshold": { "by": "ip", "window": "1m", "count": 3 }
+    },
+    {
+      "id": "R-1005",
+      "name": "Reflected XSS probe",
+      "field": "query",
+      "type": "regex",
+      "match": "(<script>|%3Cscript%3E|onerror%3D|onload%3D)",
+      "severity": "medium",
+      "rationale": "Common XSS markers from the attacks overview (script tags/handlers)."
+    },
+    {
+      "id": "R-1006",
+      "name": "Local File Inclusion (LFI)",
+      "field": "query",
+      "type": "regex",
+  "match": "(\\.\\./|%2e%2e%2f|\\bfile=\\.\\.)",
+      "severity": "high",
+      "rationale": "Path traversal used to include local files (LFI)."
+    },
+    {
+      "id": "R-1007",
+      "name": "Remote File Inclusion (RFI)",
+      "field": "query",
+      "type": "regex",
+      "match": "(http:\/\/|https:\/\/).*(shell|x.txt|drop)",
+      "severity": "high",
+      "rationale": "Including remote resources (RFI) as covered in web attacks."
+    },
+    {
+      "id": "R-1008",
+      "name": "Admin/Tooling probe",
+      "field": "path",
+      "type": "any",
+      "match": ["/phpmyadmin", "/phpinfo.php", "/server-status", "/.git/config", "/.env"],
+      "severity": "medium",
+      "rationale": "Reconnaissance for admin panels and secrets, from reconnaissance lesson."
+    },
+    {
+      "id": "R-1009",
+      "name": "Suspicious upload / webshell extension",
+      "field": "path",
+      "type": "regex",
+  "match": "(\\.php\\?|/uploads/.*\\.php$|/shell\\.php$)",
+      "severity": "high",
+      "rationale": "Malicious uploads/webshell indicators as discussed in signatures."
+    },
+    {
+      "id": "R-1010",
+      "name": "WordPress XML-RPC abuse",
+      "field": "path",
+      "type": "exact",
+      "match": "/xmlrpc.php",
+      "method": "POST",
+      "severity": "medium",
+      "rationale": "xmlrpc.php used for brute-forcing; recommend thresholding.",
+      "threshold": { "by": "ip", "window": "10m", "count": 5 }
+    },
+    {
+      "id": "R-1011",
+      "name": "Additional scanner/tool UAs",
+      "field": "ua",
+      "type": "any",
+      "match": ["Wget/", "Go-http-client", "nessus", "nmap ", "curl/"],
+      "severity": "low",
+      "rationale": "Broaden known tooling user-agents beyond the initial set."
+    },
+    {
+      "id": "R-1012",
+      "name": "SSH dropper via pipe",
+      "field": "cmd",
+      "type": "regex",
+  "match": "(wget .*\\|\\s*(sh|bash)|curl .*\\|\\s*(sh|bash))",
+      "severity": "high",
+      "rationale": "Cowrie-style command pattern: download-and-execute via pipe.",
+      "threshold": { "by": "ip", "window": "15m", "count": 2 }
+    },
+    {
+      "id": "R-1013",
+      "name": "Reverse shell commands",
+      "field": "cmd",
+      "type": "regex",
+      "match": "(bash -i .*\/(tcp|udp)\/|nc -e|python -c .*socket|\/dev\/tcp\/)",
+      "severity": "high",
+      "rationale": "Reverse shell techniques from command indicators section."
+    },
+    {
+      "id": "R-1014",
+      "name": "Post-exec staging",
+      "field": "cmd",
+      "type": "regex",
+  "match": "(chmod \\+x \\/tmp\\/|mv \\/tmp\\/.* \\/usr\\/local\\/bin\\/)",
+      "severity": "medium",
+      "rationale": "Post-download staging commands often following droppers.",
+      "threshold": { "by": "ip", "window": "30m", "count": 2 }
+    }
+  ]
+}

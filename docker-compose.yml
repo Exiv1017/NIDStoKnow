@@ -1,0 +1,47 @@
+services:
+  cowrie:
+    image: cowrie/cowrie
+    ports:
+      - "2224:2224"  # SSH (updated port)
+      - "2225:2225"  # Telnet (updated port)
+    volumes:
+      - ./cowrie/cowrie-git/etc:/cowrie/cowrie-git/etc
+      - ./cowrie/cowrie-git/var:/cowrie/cowrie-git/var
+    networks:
+      - nids_network
+
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./cowrie/cowrie-git/var/log:/cowrie_logs:ro
+      - ./backend:/app
+      - ./cowrie/cowrie-git/etc:/cowrie/cowrie-git/etc:ro  # Added Cowrie config access
+    environment:
+      - COWRIE_LOG_PATH=/cowrie_logs/cowrie.json
+    depends_on:
+      - cowrie
+    networks:
+      - nids_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"  # Updated to match Vite's default port
+    volumes:
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - nids_network
+
+networks:
+  nids_network:
+    driver: bridge 

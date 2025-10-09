@@ -1,0 +1,16 @@
+[Unit]
+Description=Cowrie SSH/Telnet Honeypot
+After=network.target
+
+[Service]
+Type=simple
+User=hanz
+Group=hanz
+WorkingDirectory=/home/hanz/NIDSToKnow/cowrie/cowrie-git
+Environment="PYTHONPATH=${PYTHONPATH}:/home/hanz/NIDSToKnow/cowrie/cowrie-git"
+ExecStart=/home/hanz/NIDSToKnow/cowrie/cowrie-git/cowrie-env/bin/python /home/hanz/NIDSToKnow/cowrie/cowrie-git/bin/cowrie start
+ExecStop=/home/hanz/NIDSToKnow/cowrie/cowrie-git/bin/cowrie stop
+Restart=always
+
+[Install]
+WantedBy=multi-user.target 

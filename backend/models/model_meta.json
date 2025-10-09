@@ -1,0 +1,28 @@
+{
+  "feature_names": [
+    "command_length",
+    "arg_count",
+    "special_chars_count",
+    "path_separators_count",
+    "digit_ratio",
+    "entropy",
+    "uppercase_ratio",
+    "suspicious_keyword_flag"
+  ],
+  "min_df": -0.13478514496864324,
+  "max_df": 0.22274176690293102,
+  "trained_at": "2025-09-30T03:27:54.156396+00:00",
+  "version": "6239fff5",
+  "config": {
+    "id": 1,
+    "model_name": "hybrid_detection",
+    "n_trees": 100,
+    "max_depth": 8,
+    "contamination": 0.1,
+    "sample_size": 256,
+    "threshold": 0.6,
+    "created_at": "2025-07-12 15:47:39",
+    "updated_at": "2025-07-12 15:47:39",
+    "is_active": 1
+  }
+}

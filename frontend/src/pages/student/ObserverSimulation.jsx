@@ -1,0 +1,502 @@
+import React, { useState, useEffect, useRef, useContext } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import AuthContext from '../../context/AuthContext';
+
+const ObserverSimulation = () => {
+  const { user } = useContext(AuthContext);
+  const location = useLocation();
+  const navigate = useNavigate();
+  let { lobbyCode, participants, role } = location.state || {};
+  const [name, setName] = useState(() => {
+    try { const saved = JSON.parse(sessionStorage.getItem('simCtx')); return saved?.name || 'Observer'; } catch { return 'Observer'; }
+  });
+  if (!lobbyCode && typeof window !== 'undefined') {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('simCtx'));
+      if (saved) {
+        lobbyCode = saved.lobbyCode;
+        participants = saved.participants;
+        role = saved.role;
+      }
+    } catch {}
+  }
+  
+  const [attackerView, setAttackerView] = useState({
+    commands: [],
+    objectives: [],
+    score: 0
+  });
+  const [defenderView, setDefenderView] = useState({
+    detections: [],
+    blockedIPs: [],
+    config: {},
+    score: 0
+  });
+  const [simulationTime, setSimulationTime] = useState(0);
+  const [selectedView, setSelectedView] = useState('overview');
+  const [learningNotes, setLearningNotes] = useState('');
+  const [keyInsights, setKeyInsights] = useState([]);
+  const [eventTimeline, setEventTimeline] = useState([]);
+  const wsRef = useRef(null);
+  const [scores, setScores] = useState({});
+  const [showGuide, setShowGuide] = useState(true);
+  
+  useEffect(() => {
+    if (!lobbyCode) {
+      navigate('/simulation-lobby');
+      return;
+    }
+    
+    // Connect to simulation WebSocket using current origin
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const host = window.location.hostname;
+  wsRef.current = new WebSocket(`${proto}://${host}:8000/simulation/${lobbyCode}${user?.token ? `?token=${encodeURIComponent(user.token)}` : ''}`);
+    wsRef.current.onopen = () => {
+      wsRef.current?.send(JSON.stringify({ type: 'join', name, role }));
+    };
+    
+    wsRef.current.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      switch (data.type) {
+        case 'attacker_action':
+          handleAttackerAction(data);
+          break;
+        case 'attack_event':
+          // Normalize to existing handler: data.event contains the command
+          handleAttackerAction({
+            command: data.event?.command,
+            success: true,
+            score: undefined
+          });
+          break;
+        case 'defender_action':
+          handleDefenderAction(data);
+          break;
+        case 'detection_event':
+          handleDetectionEvent(data);
+          break;
+        case 'score_update':
+          setScores(prev => ({ ...prev, [data.name]: data.score }));
+          break;
+        case 'simulation_end':
+          generateFinalReport();
+          break;
+      }
+    };
+    wsRef.current.onclose = (e) => {
+      if (e && (e.code === 4401 || e.code === 4403)) {
+        alert('Session expired. Please log in again.');
+      }
+    };
+    
+    // Start timer
+    const timer = setInterval(() => {
+      setSimulationTime(prev => prev + 1);
+    }, 1000);
+    
+    return () => {
+      clearInterval(timer);
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [lobbyCode, navigate]);
+  
+  const handleAttackerAction = (data) => {
+    setAttackerView(prev => ({
+      ...prev,
+      commands: [...prev.commands, {
+        id: Date.now(),
+        command: data.command,
+        timestamp: new Date(),
+        success: data.success
+      }],
+      score: data.score || prev.score
+    }));
+    
+    addToTimeline('attack', data.command, data.success);
+    
+    // Auto-generate learning insights
+    if (data.command.includes('nmap')) {
+      addInsight('Reconnaissance', 'Attacker is performing network scanning to discover targets');
+    } else if (data.command.includes('ssh') || data.command.includes('hydra')) {
+      addInsight('Brute Force', 'Attacker is attempting credential-based attacks');
+    }
+  };
+  
+  const handleDefenderAction = (data) => {
+    setDefenderView(prev => ({
+      ...prev,
+      detections: [...prev.detections, {
+        id: Date.now(),
+        type: data.detectionType,
+        confidence: data.confidence,
+        timestamp: new Date()
+      }],
+      score: data.score || prev.score
+    }));
+    
+    addToTimeline('defense', data.action, data.success);
+    
+    if (data.detectionType && data.confidence > 0.8) {
+      addInsight('Detection', `High confidence ${data.detectionType} detection - effective monitoring`);
+    }
+  };
+  
+  const handleDetectionEvent = (data) => {
+    addToTimeline('detection', `${data.method} detected threat`, data.detected);
+    
+    if (!data.detected && data.shouldHaveDetected) {
+      addInsight('Missed Detection', 'Attack technique bypassed current detection methods');
+    }
+  };
+  
+  const addToTimeline = (type, description, success) => {
+    setEventTimeline(prev => [...prev, {
+      id: Date.now(),
+      type,
+      description,
+      success,
+      timestamp: new Date()
+    }]);
+  };
+  
+  const addInsight = (category, description) => {
+    setKeyInsights(prev => {
+      // Avoid duplicates
+      if (prev.some(insight => insight.description === description)) {
+        return prev;
+      }
+      
+      return [...prev, {
+        id: Date.now(),
+        category,
+        description,
+        timestamp: new Date()
+      }];
+    });
+  };
+  
+  const generateFinalReport = () => {
+    const report = {
+      simulationDuration: simulationTime,
+      attackerScore: attackerView.score,
+      defenderScore: defenderView.score,
+      totalEvents: eventTimeline.length,
+      successfulAttacks: eventTimeline.filter(e => e.type === 'attack' && e.success).length,
+      successfulDefenses: eventTimeline.filter(e => e.type === 'defense' && e.success).length,
+      keyInsights: keyInsights,
+      learningNotes: learningNotes
+    };
+    
+    // Could save this report or display it
+    console.log('Simulation Report:', report);
+  };
+  
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-blue-400 p-6">
+      {showGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="bg-gray-800 border border-blue-400 rounded-lg w-full max-w-2xl p-6 text-white">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-xl font-bold text-yellow-300">Simulation Guide</h2>
+              <button onClick={() => setShowGuide(false)} className="text-gray-300 hover:text-white">✕</button>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div className="flex flex-wrap gap-2">
+                <span className="bg-gray-700 px-2 py-1 rounded">Role: Observer</span>
+              </div>
+              <div>
+                <div className="font-semibold text-blue-300 mb-1">How to use</div>
+                <ul className="list-disc list-inside text-gray-200 space-y-1">
+                  <li>Switch views to monitor attacker, defender, and timeline.</li>
+                  <li>Take learning notes; insights will auto-populate from events.</li>
+                </ul>
+              </div>
+              <div>
+                <div className="font-semibold text-blue-300 mb-1">Scoring context</div>
+                <ul className="list-disc list-inside text-gray-200 space-y-1">
+                  <li>Attacker: objectives are 10 pts each; some are 20 pts (hard).</li>
+                  <li>Defender: correct classification awards the objective’s points.</li>
+                </ul>
+              </div>
+            </div>
+            <div className="mt-4 text-right">
+              <button onClick={() => setShowGuide(false)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">Got it</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-blue-400">Observer</h1>
+          <p className="text-gray-400">Lobby {lobbyCode} · {role}</p>
+        </div>
+        <div className="flex space-x-4">
+          <div className="bg-gray-800 px-4 py-2 rounded">
+            <span className="text-yellow-400">Events {eventTimeline.length}</span>
+          </div>
+          <div className="bg-gray-800 px-4 py-2 rounded">
+            <span className="text-blue-400">Time {formatTime(simulationTime)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* View Selector */}
+      <div className="mb-6">
+        <div className="flex space-x-2 bg-gray-800 p-2 rounded-lg">
+          {['overview', 'attacker', 'defender', 'timeline', 'insights'].map(view => (
+            <button
+              key={view}
+              onClick={() => setSelectedView(view)}
+              className={`px-4 py-2 rounded capitalize ${
+                selectedView === view
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              {view}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content Based on Selected View */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          {selectedView === 'overview' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-red-900 p-6 rounded-lg">
+                  <h3 className="text-xl font-bold text-red-400 mb-2">Attacker Progress</h3>
+                  <div className="text-3xl font-bold text-white">{attackerView.score}</div>
+                  <div className="text-red-200">Score Points</div>
+                  <div className="mt-2 text-sm text-red-300">
+                    Commands executed: {attackerView.commands.length}
+                  </div>
+                </div>
+                
+                <div className="bg-green-900 p-6 rounded-lg">
+                  <h3 className="text-xl font-bold text-green-400 mb-2">Defender Progress</h3>
+                  <div className="text-3xl font-bold text-white">{defenderView.score}</div>
+                  <div className="text-green-200">Score Points</div>
+                  <div className="mt-2 text-sm text-green-300">
+                    Detections made: {defenderView.detections.length}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gray-800 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold mb-4">Live Event Stream</h3>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {eventTimeline.slice(-10).reverse().map(event => (
+                    <div
+                      key={event.id}
+                      className={`p-3 rounded border-l-4 ${
+                        event.type === 'attack' ? 'bg-red-900 border-red-400' :
+                        event.type === 'defense' ? 'bg-green-900 border-green-400' :
+                        'bg-blue-900 border-blue-400'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-semibold capitalize">{event.type}</div>
+                          <div className="text-sm text-gray-300">{event.description}</div>
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {event.timestamp.toLocaleTimeString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {selectedView === 'attacker' && (
+            <div className="bg-gray-800 p-6 rounded-lg">
+              <h3 className="text-lg font-semibold mb-4 text-red-400">Attacker Activity</h3>
+              <div className="space-y-3">
+                {attackerView.commands.map(cmd => (
+                  <div key={cmd.id} className="bg-red-900 p-3 rounded">
+                    <div className="font-mono text-sm text-red-200">{cmd.command}</div>
+                    <div className="flex justify-between text-xs text-red-300 mt-1">
+                      <span>{cmd.success ? '✓ Success' : '✗ Failed'}</span>
+                      <span>{cmd.timestamp.toLocaleTimeString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selectedView === 'defender' && (
+            <div className="bg-gray-800 p-6 rounded-lg">
+              <h3 className="text-lg font-semibold mb-4 text-green-400">Defender Activity</h3>
+              <div className="space-y-3">
+                {defenderView.detections.map(detection => (
+                  <div key={detection.id} className="bg-green-900 p-3 rounded">
+                    <div className="font-semibold text-green-200">{detection.type}</div>
+                    <div className="text-sm text-green-300">
+                      Confidence: {(detection.confidence * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-xs text-green-400 mt-1">
+                      {detection.timestamp.toLocaleTimeString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selectedView === 'timeline' && (
+            <div className="bg-gray-800 p-6 rounded-lg">
+              <h3 className="text-lg font-semibold mb-4">Event Timeline</h3>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {eventTimeline.map(event => (
+                  <div
+                    key={event.id}
+                    className={`p-3 rounded-l-lg border-l-4 ${
+                      event.type === 'attack' ? 'border-red-400 bg-red-900' :
+                      event.type === 'defense' ? 'border-green-400 bg-green-900' :
+                      'border-blue-400 bg-blue-900'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="font-semibold capitalize">{event.type}: </span>
+                        <span>{event.description}</span>
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        {event.timestamp.toLocaleTimeString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {selectedView === 'insights' && (
+            <div className="bg-gray-800 p-6 rounded-lg">
+              <h3 className="text-lg font-semibold mb-4 text-yellow-400">Key Learning Insights</h3>
+              <div className="space-y-3">
+                {keyInsights.map(insight => (
+                  <div key={insight.id} className="bg-yellow-900 p-4 rounded">
+                    <div className="font-semibold text-yellow-400">{insight.category}</div>
+                    <div className="text-yellow-200 mt-1">{insight.description}</div>
+                    <div className="text-xs text-yellow-300 mt-2">
+                      {insight.timestamp.toLocaleTimeString()}
+                    </div>
+                  </div>
+                ))}
+                
+                {keyInsights.length === 0 && (
+                  <p className="text-gray-400">No insights generated yet. Insights will appear as the simulation progresses.</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Side Panel */}
+        <div className="space-y-6">
+          {/* Participants */}
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-4 text-blue-400">Participants</h3>
+            <div className="space-y-2">
+              {participants?.map((participant, index) => (
+                <div key={index} className="flex justify-between items-center">
+                  <span className={
+                    participant.role === 'Attacker' ? 'text-red-400' :
+                    participant.role === 'Defender' ? 'text-green-400' :
+                    'text-blue-400'
+                  }>
+                    {participant.name}
+                  </span>
+                  <span className="text-gray-400 text-sm">{participant.role}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Learning Notes */}
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-4 text-purple-400">Learning Notes</h3>
+            <textarea
+              value={learningNotes}
+              onChange={(e) => setLearningNotes(e.target.value)}
+              placeholder="Take notes about what you're learning from this simulation..."
+              className="w-full h-32 bg-gray-700 border border-gray-600 rounded p-3 text-white resize-none"
+            />
+          </div>
+
+          {/* Educational Tips */}
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-4 text-purple-400">Educational Tips</h3>
+            <div className="space-y-3 text-sm">
+              <div className="bg-purple-900 p-3 rounded">
+                <div className="font-semibold text-purple-300">Watch for Patterns</div>
+                <div className="text-purple-200">
+                  Notice how attackers and defenders adapt their strategies based on each other's actions.
+                </div>
+              </div>
+              
+              <div className="bg-purple-900 p-3 rounded">
+                <div className="font-semibold text-purple-300">Detection Timing</div>
+                <div className="text-purple-200">
+                  Observe the delay between attack execution and detection alerts.
+                </div>
+              </div>
+              
+              <div className="bg-purple-900 p-3 rounded">
+                <div className="font-semibold text-purple-300">False Positives</div>
+                <div className="text-purple-200">
+                  Notice when legitimate activity triggers security alerts.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Simulation Stats */}
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-4 text-blue-400">Simulation Stats</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Duration:</span>
+                <span className="text-blue-300">{formatTime(simulationTime)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Total Events:</span>
+                <span className="text-blue-300">{eventTimeline.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Attack Actions:</span>
+                <span className="text-red-300">{eventTimeline.filter(e => e.type === 'attack').length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Defense Actions:</span>
+                <span className="text-green-300">{eventTimeline.filter(e => e.type === 'defense').length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Insights Generated:</span>
+                <span className="text-yellow-300">{keyInsights.length}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ObserverSimulation;

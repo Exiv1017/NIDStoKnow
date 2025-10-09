@@ -1,0 +1,34 @@
+# Ignore database dumps and backups
+*.sql
+backups/
+*.sql.bak
+*.bak
+
+# Node and Python
+node_modules/
+**/__pycache__/
+*.pyc
+.venv/
+env/
+venv/
+
+# Env
+.env
+.env.*
+
+# Cowrie runtime data and logs
+cowrie/cowrie-git/var/
+cowrie/etc/
+cowrie/var/
+cowrie/cowrie-git/.git/
+cowrie/cowrie-git/
+
+# Local logs and noise
+nohup.out
+*.log
+
+# Uploaded user content (optional to keep out of git)
+uploads/
+
+# Build outputs
+frontend/dist/

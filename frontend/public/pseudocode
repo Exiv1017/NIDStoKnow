@@ -1,0 +1,10 @@
+"""Stub Notice
+---------------
+The Aho–Corasick pseudocode content has moved to:
+  frontend/public/pseudocode_lib/aho_corasick.txt
+
+See also library index:
+  frontend/public/pseudocode_lib/README.md
+
+Reason: provide a single clean source of truth for manuscript figures.
+"""
