@@ -18,6 +18,7 @@ venv/
 
 # Cowrie runtime data and logs
 cowrie/cowrie-git/var/
+cowrie/var/
 cowrie/etc/
 cowrie/var/
 cowrie/cowrie-git/.git/
