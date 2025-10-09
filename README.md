@@ -1,5 +1,7 @@
 # NIDS to Know
 
+![CI](https://github.com/Exiv1017/NIDStoKnow/actions/workflows/ci.yml/badge.svg)
+
 A training platform for Network Intrusion Detection Systems (NIDS) with:
 - Backend: FastAPI (Uvicorn)
 - Frontend: Vite/React
