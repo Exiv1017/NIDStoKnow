@@ -1,4 +1,5 @@
 import json
+import pytest
 from fastapi.testclient import TestClient
 from main import app
 
@@ -11,6 +12,7 @@ STUDENT_ID = 99999
 MODULE = 'signature-based-detection'
 
 
+@pytest.mark.integration
 def test_summary_gating_flow():
     # 1. Initial summary should return an entry or empty; we proceed idempotently by marking overview.
     r = client.get(f"/api/student/{STUDENT_ID}/modules/summary")
