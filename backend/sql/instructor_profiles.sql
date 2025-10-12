@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS instructor_profiles (
+  instructor_id INT NOT NULL,
+  join_date DATE NULL,
+  avatar_url VARCHAR(512) NULL,
+  updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (instructor_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

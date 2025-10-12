@@ -1,0 +1,19 @@
+-- Create all tables used by the app if they don't exist
+SOURCE backend/sql/notifications.sql;
+SOURCE backend/sql/assignments.sql;
+SOURCE backend/sql/module_requests.sql;
+SOURCE backend/sql/signatures.sql;
+SOURCE backend/sql/isolation_forest.sql;
+SOURCE backend/sql/20251005_student_profiles_and_settings.sql;
+SOURCE backend/sql/student_lesson_progress.sql;
+SOURCE backend/sql/student_module_quiz.sql;
+SOURCE backend/sql/student_progress.sql;
+SOURCE backend/sql/student_progress_add_unique.sql;
+SOURCE backend/sql/enhanced_signatures.sql;
+SOURCE backend/sql/enforce_lspu_and_sync_names.sql;
+SOURCE backend/sql/20250927_add_module_unit_columns.sql;
+SOURCE backend/sql/instructor_profiles.sql;
+SOURCE backend/sql/feedback.sql;
+SOURCE backend/sql/simulation_sessions.sql;
+SOURCE backend/sql/student_section_progress.sql;
+SOURCE backend/sql/student_progress_backup.sql;
