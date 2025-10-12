@@ -1,25 +1,23 @@
 """
-Reset the database to a fresh state for users/instructors/students and admins,
-then seed a new admin account.
+Reset the database to a clean state by removing all application data but preserving
+existing admin accounts in the `admins` table. No new admin will be inserted.
 
 Actions performed (idempotent and safe to re-run):
 - Disable foreign key checks
-- TRUNCATE progress/notification tables: student_lesson_progress, student_module_quiz,
-  student_progress, notifications, recent_activity, feedback
-- TRUNCATE users (students/instructors) and admins
-- Optionally TRUNCATE auxiliary admin tables if they exist: admin_notifications,
-  admin_system_settings, admin_audit_logs, instructor_settings
-- Re-create a new admin with the email 'nidstoknowadmin@admin.com'
+- TRUNCATE app data tables: student_* tables, notifications, recent_activity, feedback,
+    submissions, assignments, module_requests, and users (students/instructors only)
+- TRUNCATE auxiliary admin tables if they exist: admin_notifications, admin_system_settings,
+    admin_audit_logs, instructor_settings
+- DO NOT touch the `admins` table contents. No inserts are performed.
 
 Usage:
-  python backend/scripts/reset_and_seed.py
+    python backend/scripts/reset_and_seed.py
 
-Requires: mysql-connector-python, werkzeug
+Requires: mysql-connector-python
 """
 
 import sys
 import mysql.connector
-from werkzeug.security import generate_password_hash
 
 
 from config import MYSQL_CONFIG
@@ -30,10 +28,17 @@ TABLES_TO_TRUNCATE_IN_ORDER = [
     'student_lesson_progress',
     'student_module_quiz',
     'student_progress',
+    # Student profile/settings
+    'student_profiles',
+    'student_settings',
+    # Assignments and requests
+    'assignments',
+    'module_requests',
     # Misc app data
     'notifications',
     'recent_activity',
     'feedback',
+    'submissions',
     # Users last (students/instructors)
     'users',
     # Admin-supporting tables (optional, if present)
@@ -41,17 +46,11 @@ TABLES_TO_TRUNCATE_IN_ORDER = [
     'admin_system_settings',
     'admin_audit_logs',
     'instructor_settings',
-    # Finally, admins (so we can insert the new one after)
-    'admins',
+    # DO NOT touch 'admins' — keep existing admin users
 ]
 
 
 def main():
-    admin_email = 'nidstoknowadmin@admin.com'
-    admin_name = 'NIDSToKnow Admin'
-    admin_password = 'Nidstoknowadmin123'
-    admin_hash = generate_password_hash(admin_password)
-
     conn = mysql.connector.connect(**MYSQL_CONFIG)
     try:
         cur = conn.cursor()
@@ -69,39 +68,11 @@ def main():
                 cur.execute(f'TRUNCATE TABLE `{tbl}`')
                 truncated.append(tbl)
 
-        # Recreate the admin
-        if 'admins' in existing:
-            cur.execute(
-                'INSERT INTO admins (name, email, password_hash) VALUES (%s, %s, %s)',
-                (admin_name, admin_email, admin_hash),
-            )
-        else:
-            # If admins table is missing, surface a clear message
-            print('[WARN] admins table not found; skipping admin creation.', file=sys.stderr)
-
-        # Seed specific demo users/instructor (approved)
-        if 'users' in existing:
-            try:
-                demo_password = generate_password_hash('Password123!')
-                # Instructor One
-                cur.execute(
-                    'INSERT INTO users (name, email, password_hash, userType, status) VALUES (%s, %s, %s, %s, %s)',
-                    ('Instructor One', 'instructor.1@lspu.edu.ph', demo_password, 'instructor', 'approved')
-                )
-                # Student: John Dela Cruz
-                cur.execute(
-                    'INSERT INTO users (name, email, password_hash, userType, status) VALUES (%s, %s, %s, %s, %s)',
-                    ('John Dela Cruz', 'john.delacruz@lspu.edu.ph', demo_password, 'student', 'approved')
-                )
-                # Student One
-                cur.execute(
-                    'INSERT INTO users (name, email, password_hash, userType, status) VALUES (%s, %s, %s, %s, %s)',
-                    ('Student One', 'student.1@lspu.edu.ph', demo_password, 'student', 'approved')
-                )
-            except Exception as e:
-                print(f'[WARN] Failed to seed demo users: {e}', file=sys.stderr)
-        else:
-            print('[WARN] users table not found; skipping demo user creation.', file=sys.stderr)
+        # Preserve existing admins and do not insert any new admin accounts
+        if 'admins' not in existing:
+            print('[WARN] admins table not found; nothing to preserve.', file=sys.stderr)
+        if 'users' not in existing:
+            print('[WARN] users table not found; nothing to truncate for users.', file=sys.stderr)
 
         # Re-enable FKs
         cur.execute('SET FOREIGN_KEY_CHECKS = 1')
@@ -111,8 +82,7 @@ def main():
         print('Reset complete.')
         if truncated:
             print('Truncated tables:', ', '.join(truncated))
-        print(f"Created admin: {admin_email} (password set)")
-        print("Seeded demo users: instructor.1@lspu.edu.ph (instructor, approved), John Dela Cruz <john.delacruz@lspu.edu.ph> (student, approved), student.1@lspu.edu.ph (student, approved)")
+        print('Admins preserved. No users or demo data inserted.')
     finally:
         try:
             cur.close()

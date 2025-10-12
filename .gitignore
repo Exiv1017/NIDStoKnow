@@ -4,6 +4,12 @@ backups/
 *.sql.bak
 *.bak
 
+# Keep schema/migrations in version control
+!backend/sql/*.sql
+
+# Also keep the provided full schema dump in repo root
+!nids_to_know.sql
+
 # Node and Python
 node_modules/
 **/__pycache__/
