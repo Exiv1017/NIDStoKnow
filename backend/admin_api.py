@@ -12,6 +12,23 @@ from auth import create_access_token
 from auth import require_role
 from notifications_helper import ensure_notifications_table, create_notification, migrate_notifications_schema
 
+def ensure_admins_table(cursor):
+        """Create minimal admins table if missing to avoid 1146 errors during login.
+        This keeps schema consistent without requiring full migrations here.
+        """
+        cursor.execute(
+                '''
+                CREATE TABLE IF NOT EXISTS admins (
+                    id INT NOT NULL AUTO_INCREMENT,
+                    name VARCHAR(255) NOT NULL,
+                    email VARCHAR(255) NOT NULL,
+                    password_hash TEXT,
+                    PRIMARY KEY (id),
+                    UNIQUE KEY email (email)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+                '''
+        )
+
 class AdminLoginRequest(BaseModel):
     email: str
     password: str
@@ -63,6 +80,8 @@ class ModuleRequestStatusUpdate(BaseModel):
 def admin_login(req: AdminLoginRequest):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Ensure table exists to avoid 1146 on fresh deployments
+    ensure_admins_table(cursor)
     cursor.execute("SELECT * FROM admins WHERE email=%s", (req.email,))
     admin = cursor.fetchone()
     cursor.close()
