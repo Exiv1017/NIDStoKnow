@@ -1,4 +1,23 @@
 services:
+  mysql:
+    image: mysql:8.0
+    container_name: nidstoknow-mysql
+    environment:
+      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-${DB_PASSWORD}}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/conf.d:/etc/mysql/conf.d:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - nids_network
   cowrie:
     image: cowrie/cowrie
     ports:
@@ -18,8 +37,16 @@ services:
       - ./cowrie/cowrie-git/var/log:/cowrie_logs:ro
       - ./cowrie/cowrie-git/etc:/cowrie/cowrie-git/etc:ro  # Added Cowrie config access
     environment:
-      - COWRIE_LOG_PATH=/cowrie_logs/cowrie.json
+      - DB_HOST=${DB_HOST:-mysql}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - COWRIE_LOG_PATH=${COWRIE_LOG_PATH:-/cowrie/cowrie-git/var/log/cowrie.json}
+      - DEV_MODE=${DEV_MODE:-false}
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-me}
     depends_on:
+      - mysql
       - cowrie
     networks:
       - nids_network
@@ -60,3 +87,4 @@ networks:
 volumes:
   caddy_data:
   caddy_config:
+  mysql_data:
