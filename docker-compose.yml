@@ -28,8 +28,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "80:80"  # Serve frontend on standard HTTP port for ALB/Route53
     volumes:
       - /app/node_modules
     depends_on:
@@ -37,6 +35,25 @@ services:
     networks:
       - nids_network
 
+  caddy:
+    image: caddy:2
+    container_name: nidstoknow-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+    networks:
+      - nids_network
+
 networks:
   nids_network:
     driver: bridge 
+
+volumes:
+  caddy_data:
+  caddy_config:
