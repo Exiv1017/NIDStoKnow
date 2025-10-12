@@ -168,7 +168,7 @@ const UserManagement = () => {
       <aside className="w-64 h-screen bg-gradient-to-b from-[#0C2A40] to-[#206EA6] text-white flex flex-col fixed top-0 left-0 z-50">
         <div className="p-6 flex items-center justify-start pr-4">
           <Link to="/admin-dashboard" className="ml-2">
-            <img src="/logo2.svg" alt="NIDSToKnow Logo" className="h-10 w-auto" />
+            <img src="/NIDStoKnowLogo.svg" alt="NIDSToKnow Logo" className="h-10 w-auto" />
           </Link>
         </div>
         <nav className="flex-1 px-4">

@@ -159,6 +159,9 @@ class StudentProgressRequest(BaseModel):
 class LessonCompletionRequest(BaseModel):
     lesson_id: str
     completed: Optional[bool] = True
+    lesson_title: Optional[str] = None
+    # When true, only update last_lesson on student_progress; do not change student_lesson_progress
+    touch_only: Optional[bool] = False
     # Optional legacy fields to avoid 422 if an older frontend still sends them
     student_id: Optional[int] = None
     module_name: Optional[str] = None
@@ -1251,22 +1254,37 @@ def set_student_lesson_completion(request: Request, student_id: int, module_name
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        completed_val = 1 if req.completed else 0
-        # Upsert into student_lesson_progress
-        cursor.execute('''
-            INSERT INTO student_lesson_progress (student_id, module_name, lesson_id, completed)
-            VALUES (%s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE completed=VALUES(completed), completed_at=CURRENT_TIMESTAMP
-        ''', (student_id, module_name, req.lesson_id, completed_val))
-        conn.commit()
+        # Normalize module and ensure progress row exists so we can update last_lesson
+        norm_mod = _normalize_module_key(module_name)
+        _upsert_progress_row(cursor, student_id, norm_mod)
+        # If touch_only, skip changing completion state; just update last_lesson below
+        if not req.touch_only:
+            completed_val = 1 if req.completed else 0
+            # Upsert into student_lesson_progress
+            cursor.execute('''
+                INSERT INTO student_lesson_progress (student_id, module_name, lesson_id, completed)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE completed=VALUES(completed), completed_at=CURRENT_TIMESTAMP
+            ''', (student_id, norm_mod, req.lesson_id, completed_val))
+            conn.commit()
+        # Persist the last_lesson field on the aggregate progress row using provided title when available
+        try:
+            last_label = (req.lesson_title or '').strip() or req.lesson_id
+            cursor.execute('UPDATE student_progress SET last_lesson=%s WHERE student_id=%s AND module_name=%s', (last_label, student_id, norm_mod))
+            conn.commit()
+        except Exception as le:
+            print(f"[WARN] could not update last_lesson: {le}")
         # Optional: log practical completion as recent activity when relevant
         try:
-            if req.completed and (req.lesson_id or '').lower().startswith('practical'):
-                cursor.execute('INSERT INTO recent_activity (activity) VALUES (%s)', (f"Student {student_id} marked Practical complete for {module_name}",))
+            if (req.completed or (not req.touch_only and (req.completed is None or req.completed))) and (req.lesson_id or '').lower().startswith('practical'):
+                cursor.execute('INSERT INTO recent_activity (activity) VALUES (%s)', (f"Student {student_id} marked Practical complete for {norm_mod}",))
                 conn.commit()
         except Exception as _:
             pass
-        return {"status": "success", "lesson_id": req.lesson_id, "completed": bool(completed_val)}
+        resp = {"status": "success", "lesson_id": req.lesson_id}
+        if not req.touch_only:
+            resp["completed"] = bool(1 if req.completed else 0)
+        return resp
     except Exception as e:
         print(f"[ERROR] set_student_lesson_completion: {e}")
         raise HTTPException(status_code=500, detail='Failed to set lesson completion')
@@ -1634,6 +1652,24 @@ class SimulationCompletedRequest(BaseModel):
     score: Optional[int] = None
     lobby_code: Optional[str] = None
 
+def ensure_simulation_sessions_table(cursor):
+    """Ensure a simple table exists to record per-student simulation completions and scores."""
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS simulation_sessions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            student_id INT NOT NULL,
+            student_name VARCHAR(255) NULL,
+            role ENUM('attacker','defender') NOT NULL,
+            score INT DEFAULT 0,
+            lobby_code VARCHAR(64) NULL,
+            created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_student_role_time (student_id, role, created_at),
+            INDEX idx_created_at (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        '''
+    )
+
 @router.post('/student/{student_id}/simulation-completed')
 @rbac_required('student', audit_action='simulation_completed', audit_logger=_audit_log)
 def simulation_completed(request: Request, student_id: int, body: SimulationCompletedRequest):
@@ -1641,11 +1677,29 @@ def simulation_completed(request: Request, student_id: int, body: SimulationComp
     conn = get_db_connection(); cursor = conn.cursor()
     try:
         ensure_notifications_table(cursor)
+        ensure_simulation_sessions_table(cursor)
         role = (body.role or '').strip().lower()
         if role not in ('defender','attacker'):
             role = 'defender'
         msg = f"Simulation completed as {role.capitalize()}" + (f": Score {int(body.score)}" if body.score is not None else '')
         cursor.execute('INSERT INTO notifications (recipient_id, recipient_role, message, type) VALUES (%s,%s,%s,%s)', (student_id, 'student', msg, 'success'))
+        # Persist simulation score snapshot for instructor reports
+        try:
+            # Try to get student name if available
+            sname = None
+            try:
+                c2 = conn.cursor(); c2.execute('SELECT name FROM users WHERE id=%s', (student_id,)); row = c2.fetchone();
+                if row:
+                    # row can be tuple or dict depending on cursor type
+                    sname = row[0] if isinstance(row, tuple) else (row.get('name') if isinstance(row, dict) else None)
+            except Exception as _e:
+                sname = None
+            cursor.execute(
+                'INSERT INTO simulation_sessions (student_id, student_name, role, score, lobby_code) VALUES (%s,%s,%s,%s,%s)',
+                (student_id, sname, role, int(body.score or 0), body.lobby_code)
+            )
+        except Exception as se:
+            print(f"[WARN] failed to record simulation session: {se}")
         conn.commit()
         return {'status':'success'}
     except Exception as e:

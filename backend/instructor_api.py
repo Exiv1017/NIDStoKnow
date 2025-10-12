@@ -984,14 +984,50 @@ def instructor_recent_activity():
 def list_submissions():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Best-effort ensure simulation_sessions exists for subqueries
+    try:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS simulation_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                student_id INT NOT NULL,
+                student_name VARCHAR(255) NULL,
+                role ENUM('attacker','defender') NOT NULL,
+                score INT DEFAULT 0,
+                lobby_code VARCHAR(64) NULL,
+                created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_student_role_time (student_id, role, created_at),
+                INDEX idx_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """
+        )
+    except Exception:
+        pass
     try:
         cursor.execute('''
-            SELECT id, student_id as studentId, student_name as studentName,
-                   module_slug as moduleSlug, module_title as moduleTitle,
-                   submission_type as submissionType, totals_rule_count as ruleCount,
-                   totals_total_matches as totalMatches, created_at as createdAt
-            FROM submissions
-            ORDER BY created_at DESC
+            SELECT s.id,
+                   s.student_id as studentId,
+                   s.student_name as studentName,
+                   s.module_slug as moduleSlug,
+                   s.module_title as moduleTitle,
+                   s.submission_type as submissionType,
+                   s.totals_rule_count as ruleCount,
+                   s.totals_total_matches as totalMatches,
+                   s.created_at as createdAt,
+                   (
+                     SELECT ss.score FROM simulation_sessions ss
+                     WHERE ss.student_id = s.student_id AND ss.role = 'attacker'
+                     ORDER BY ss.created_at DESC
+                     LIMIT 1
+                   ) AS attackerScore,
+                   (
+                     SELECT ss.score FROM simulation_sessions ss
+                     WHERE ss.student_id = s.student_id AND ss.role = 'defender'
+                     ORDER BY ss.created_at DESC
+                     LIMIT 1
+                   ) AS defenderScore
+            FROM submissions s
+            ORDER BY s.created_at DESC
             LIMIT 200
         ''')
         rows = cursor.fetchall()

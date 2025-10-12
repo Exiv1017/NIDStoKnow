@@ -106,7 +106,28 @@ export default function ModuleCard({ module, progress, isAssigned, assignedOnly,
         {module.sections.map((section, i) => {
           const accessible = canAccessSection({ moduleObj: module, sectionName: section.name, progress: canonicalPercent, assignedOnly, isAssigned, userId, serverSummary });
           const baseClasses = 'px-6 py-2 rounded-md transition-colors text-sm font-medium';
-          const style = !accessible ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : section.completed ? 'bg-green-100 text-green-800 hover:bg-green-200' : section.name==='Overview' ? 'bg-[#206EA6] hover:bg-[#185785] text-white cursor-pointer' : 'bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-200';
+          // Compute completion status from authoritative flags and counts
+          const computedCompleted = (() => {
+            switch (section.name) {
+              case 'Overview':
+                return !!overviewCompleted;
+              case 'Theory':
+                return (lessonTotal > 0 && lessonsCompleted >= lessonTotal) || (serverSummary && serverSummary.theory_completed === true);
+              case 'Practical Exercise':
+                return !!practicalCompleted;
+              case 'Assessment':
+                return !!assessmentCompleted;
+              default:
+                return !!section.completed;
+            }
+          })();
+          const style = !accessible
+            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            : computedCompleted
+              ? 'bg-green-100 text-green-800 hover:bg-green-200'
+              : section.name==='Overview'
+                ? 'bg-[#206EA6] hover:bg-[#185785] text-white cursor-pointer'
+                : 'bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-200';
           const targetUrl = section.name === 'Theory' ? getTheoryUrl(module.title) : `/student/theoretical/${slug}/${section.name === 'Practical Exercise' ? 'practical' : section.name.toLowerCase()}`;
           return (
             <div key={i} className="flex flex-col gap-2">
@@ -125,7 +146,7 @@ export default function ModuleCard({ module, progress, isAssigned, assignedOnly,
               >
                 {section.name}
                 {!accessible && <span className="ml-2 text-xs">🔒</span>}
-                {section.completed && <span className="ml-2 text-green-600">✔</span>}
+                {computedCompleted && <span className="ml-2 text-green-600">✔</span>}
               </Link>
             </div>
           );

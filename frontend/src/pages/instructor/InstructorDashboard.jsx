@@ -163,7 +163,17 @@ const InstructorDashboard = () => {
   // Removed duplicate notification interval useEffect (merged into single effect above)
 
   // Defensive chart data
+  // Helper to abbreviate module names for display in charts
+  const abbreviateModule = (name) => {
+    const n = (name || '').toLowerCase();
+    if (n.includes('anomaly')) return 'ABD'; // Anomaly-Based Detection
+    if (n.includes('hybrid')) return 'HD';   // Hybrid Detection
+    if (n.includes('signature')) return 'SBD'; // Signature-Based Detection
+    return name || '';
+  };
+
   const studentEnrollmentData = {
+    // Show full names in the legend
     labels: Array.isArray(modules) ? modules.map((m) => m.name) : [],
     datasets: [
       {
@@ -174,8 +184,11 @@ const InstructorDashboard = () => {
     ],
   };
 
+  // Build multi-line labels to show index on top line and abbreviation under it (e.g., "0\nSBD")
   const moduleCompletionData = {
-    labels: Array.isArray(modules) ? modules.map((m) => m.name) : [],
+    labels: Array.isArray(modules)
+      ? modules.map((m, i) => [String(i), abbreviateModule(m.name)])
+      : [],
     datasets: [
       {
         label: 'Completion %',
@@ -284,6 +297,15 @@ const InstructorDashboard = () => {
     } catch (error) {
       console.error('Error deleting notification:', error);
     }
+  };
+
+  // Format seconds into h m s
+  const formatDuration = (seconds) => {
+    const total = Math.max(0, Math.round(Number(seconds) || 0));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return `${h}h ${m}m ${s}s`;
   };
 
   // Function to mark a specific notification as read (without deletion)
@@ -401,30 +423,38 @@ const InstructorDashboard = () => {
             <hr className="border-t border-gray-300" />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-            <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow p-6 flex flex-col items-center border border-gray-100">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12 items-stretch">
+            <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow p-6 flex flex-col items-center border border-gray-100 h-full">
               <h3 className="text-lg font-semibold mb-4 text-[#1E5780]">Student Enrollment</h3>
-              <div className="w-full max-w-xs">
-                <Pie data={studentEnrollmentData} options={{ plugins: { legend: { position: 'bottom' } } }} />
+              <div className="w-full h-80">
+                <Pie data={studentEnrollmentData} options={{ plugins: { legend: { position: 'bottom' } }, maintainAspectRatio: false }} />
               </div>
             </div>
-            <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow p-6 flex flex-col items-center border border-gray-100">
+            <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow p-6 flex flex-col items-center border border-gray-100 h-full">
               <h3 className="text-lg font-semibold mb-4 text-[#1E5780]">Module Completion</h3>
-              <div className="w-full max-w-2xl h-96">
+              <div className="w-full h-80">
                 <Bar data={moduleCompletionData} options={{
                   plugins: { legend: { display: false } },
-                  scales: { y: { min: 0, max: 100, ticks: { stepSize: 20 } } },
+                  scales: {
+                    y: { min: 0, max: 100, ticks: { stepSize: 20, autoSkip: false } },
+                    x: { ticks: { autoSkip: false } }
+                  },
                   maintainAspectRatio: false,
                 }} />
               </div>
+              {/* Minimal legend for abbreviations */}
+              <div className="text-xs text-gray-500 mt-3 text-center">
+                <span className="font-medium text-gray-600">ABD</span> = Anomaly‑Based Detection, <span className="font-medium text-gray-600">HD</span> = Hybrid Detection, <span className="font-medium text-gray-600">SBD</span> = Signature‑Based Detection
+              </div>
             </div>
-            <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow p-6 flex flex-col items-center border border-gray-100">
+            <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow p-6 flex flex-col items-center border border-gray-100 h-full">
               <h3 className="text-lg font-semibold mb-1 text-[#1E5780]">Assessment Performance Trend</h3>
               <span className="text-xs text-gray-400 mb-4">Weekly Avg Quiz %</span>
-              <div className="w-full max-w-xs">
+              <div className="w-full h-80">
                 <Bar data={assessmentTrendData} options={{
                   plugins: { legend: { display: false } },
                   scales: { y: { beginAtZero: true, max: 100, ticks: { stepSize: 20 } } },
+                  maintainAspectRatio: false,
                 }} />
               </div>
             </div>
@@ -473,12 +503,11 @@ const InstructorDashboard = () => {
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">% Completed</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words max-w-xs">Last Lesson</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Time Spent</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Engagement</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
                     {studentProgress.length === 0 ? (
-                      <tr><td colSpan={6} className="text-center text-gray-400 py-4">No student progress data available.</td></tr>
+                      <tr><td colSpan={5} className="text-center text-gray-400 py-4">No student progress data available.</td></tr>
                     ) : (
                       studentProgress.map((row, idx) => (
                         <tr key={idx}>
@@ -486,8 +515,7 @@ const InstructorDashboard = () => {
                           <td className="px-4 py-2 break-words">{row.moduleName}</td>
                           <td className="px-4 py-2 break-words">{row.totalLessons ? Math.round((row.lessonsCompleted / row.totalLessons) * 100) : 0}%</td>
                           <td className="px-4 py-2 break-words max-w-xs">{row.lastLesson}</td>
-                          <td className="px-4 py-2 break-words">{row.timeSpent} secs</td>
-                          <td className="px-4 py-2 break-words">{row.engagementScore}</td>
+                          <td className="px-4 py-2 break-words">{formatDuration(row.timeSpent)}</td>
                         </tr>
                       ))
                     )}

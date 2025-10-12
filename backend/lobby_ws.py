@@ -56,7 +56,8 @@ async def lobby_websocket(websocket: WebSocket, lobby_code: str):
                 await websocket.send_json({
                     "type": "join_success",
                     "participants": lobby["participants"],
-                    "isInstructor": is_instructor
+                    "isInstructor": is_instructor,
+                    "difficulty": lobby.get("difficulty", "Beginner")
                 })
                 
                 # Broadcast participant update to all others
@@ -96,6 +97,12 @@ async def lobby_websocket(websocket: WebSocket, lobby_code: str):
             elif action == "start_simulation":
                 # Broadcast simulation start to all participants
                 await broadcast_simulation_start(lobby_code)
+
+            elif action == "set_difficulty":
+                # Update lobby difficulty and broadcast to participants (pre-simulation)
+                diff = payload.get("difficulty") or "Beginner"
+                lobby["difficulty"] = diff
+                await broadcast_difficulty(lobby_code, diff)
                 
     except WebSocketDisconnect:
         if lobby_code in lobby_connections:
@@ -145,18 +152,30 @@ async def broadcast_simulation_start(lobby_code: str):
             # Remove dead connections
             lobby_connections[lobby_code].remove(ws)
 
+async def broadcast_difficulty(lobby_code: str, difficulty: str):
+    """Broadcast difficulty change to all lobby connections"""
+    data = {"type": "difficulty_updated", "difficulty": difficulty}
+    for ws in list(lobby_connections.get(lobby_code, [])):
+        try:
+            await ws.send_json(data)
+        except Exception:
+            try:
+                lobby_connections[lobby_code].remove(ws)
+            except Exception:
+                pass
+
 async def broadcast_lobby(lobby_code: str):
     """Legacy function - keeping for compatibility"""
     await broadcast_participant_update(lobby_code)
 
 def create_lobby(lobby_code: str):
     if lobby_code not in lobbies:
-        lobbies[lobby_code] = {"participants": [], "chat": []}
+        lobbies[lobby_code] = {"participants": [], "chat": [], "difficulty": "Beginner"}
 
 @router.post("/create_lobby/{lobby_code}")
 async def api_create_lobby(lobby_code: str):
     if lobby_code not in lobbies:
-        lobbies[lobby_code] = {"participants": [], "chat": []}
+        lobbies[lobby_code] = {"participants": [], "chat": [], "difficulty": "Beginner"}
     return {"success": True}
 
 @router.post("/close_lobby/{lobby_code}")

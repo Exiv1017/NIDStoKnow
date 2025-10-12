@@ -32,6 +32,7 @@ from isolation_forest_api import IsolationForestDB
 from isolation_forest_runtime import ensure_model_loaded
 from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
+from fastapi import Body
 
 app = FastAPI()
 
@@ -87,6 +88,9 @@ except Exception as e:
 
 # Initialize Isolation Forest database
 isolation_forest_db = IsolationForestDB()
+
+# Dev simulator flag
+DEV_SIMULATOR_ENABLED = os.getenv("DEV_SIMULATOR_ENABLED", "false").lower() in ("1", "true", "yes")
 
 # Configuration
 COWRIE_LOG_PATH = os.getenv("COWRIE_LOG_PATH", "/cowrie_logs/cowrie.json")
@@ -353,6 +357,11 @@ def init_room(lobby_code: str):
             # Hints tracking per attacker
             "hint_usage": {},          # name -> total count of hints returned
             "hint_progress": {},       # name -> {objective_id -> hint_index}
+            "metrics": {               # simple counters for instructor dashboard
+                "totalEvents": 0,
+                "attacksLaunched": 0,
+                "detectionsTriggered": 0,
+            },
         }
 
 def assign_objectives_for_attacker(lobby_code: str, name: str):
@@ -411,6 +420,60 @@ def log_and_notify_instructors(lobby_code: str, event_type: str, description: st
         })
     # Notify instructor listeners using existing function
     return asyncio.create_task(log_simulation_event(lobby_code, event_type, description, participant_name))
+
+# --- Instructor push helpers ---
+async def push_metrics_to_instructors(lobby_code: str):
+    room = simulation_rooms.get(lobby_code) or {}
+    metrics = room.get("metrics") or {"totalEvents": 0, "attacksLaunched": 0, "detectionsTriggered": 0}
+    # include participantsCount for convenience (exclude instructors)
+    try:
+        parts = room.get("participants") or {}
+        participants_count = sum(1 for _n, p in parts.items() if (p.get("role") or "") != "Instructor")
+        metrics = {**metrics, "participantsCount": participants_count}
+    except Exception:
+        pass
+    if lobby_code in instructor_simulation_connections:
+        for ws in list(instructor_simulation_connections[lobby_code]):
+            try:
+                await ws.send_json({"type": "simulation_metrics", "metrics": metrics})
+                await ws.send_json({"type": "metrics_update", "metrics": metrics})
+            except Exception:
+                try:
+                    instructor_simulation_connections[lobby_code] = [w for w in instructor_simulation_connections[lobby_code] if w != ws]
+                except Exception:
+                    pass
+
+async def push_score_to_instructors(lobby_code: str, participant_name: str, score: int):
+    """Send a typed score update to connected instructor dashboards."""
+    if lobby_code in instructor_simulation_connections:
+        for ws in list(instructor_simulation_connections[lobby_code]):
+            try:
+                await ws.send_json({
+                    "type": "participant_score_update",
+                    "participantId": participant_name,
+                    "name": participant_name,
+                    "score": int(score)
+                })
+            except Exception:
+                try:
+                    instructor_simulation_connections[lobby_code] = [w for w in instructor_simulation_connections[lobby_code] if w != ws]
+                except Exception:
+                    pass
+
+async def push_participants_to_instructors(lobby_code: str):
+    room = simulation_rooms.get(lobby_code) or {}
+    parts = []
+    for n, p in (room.get("participants") or {}).items():
+        parts.append({"id": n, "name": n, "role": p.get("role"), "connected": bool(p.get("ws"))})
+    if lobby_code in instructor_simulation_connections:
+        for ws in list(instructor_simulation_connections[lobby_code]):
+            try:
+                await ws.send_json({"type": "participant_update", "participants": parts})
+            except Exception:
+                try:
+                    instructor_simulation_connections[lobby_code] = [w for w in instructor_simulation_connections[lobby_code] if w != ws]
+                except Exception:
+                    pass
 
 def categorize_command(command: str) -> List[str]:
     """Rudimentary mapping of command text to high-level categories."""
@@ -471,7 +534,7 @@ def objective_hints(lobby_code: str, name: str) -> List[Dict]:
     room.setdefault("hint_usage", {})[name] = used + len(hints)
     return hints
 
-def check_objective_completion(lobby_code: str, attacker_name: str, command: str):
+def check_objective_completion(lobby_code: str, attacker_name: str, command: str, event_id: int = None):
     room = simulation_rooms.get(lobby_code)
     if not room:
         return []
@@ -495,7 +558,8 @@ def check_objective_completion(lobby_code: str, attacker_name: str, command: str
                     "category": cat,
                     "points": int(obj["points"]),
                     "defended_by": None,
-                    "ts": time.time()
+                    "ts": time.time(),
+                    "event_id": event_id
                 })
             except Exception:
                 pass
@@ -515,6 +579,29 @@ def objective_id_to_category(obj_id: str) -> str:
         "log_clean": "persistence",
     }
     return mapping.get(obj_id, "")
+
+def normalize_category_text(txt: str) -> List[str]:
+    """Normalize free-text classification/objective strings into canonical category tokens.
+
+    Returns a list of candidate category keys like ['recon','brute','priv','persistence'] if present.
+    """
+    if not txt:
+        return []
+    t = (txt or "").strip().lower()
+    tokens = set()
+    # Reconnaissance synonyms
+    if any(k in t for k in ["recon", "reconnaissance", "scan", "scanning", "enumeration", "enum", "nmap", "nikto", "gobuster", "dirb"]):
+        tokens.add("recon")
+    # Brute force / credentials
+    if any(k in t for k in ["brute", "bruteforce", "password", "credential", "login", "hydra", "ssh brute", "telnet brute"]):
+        tokens.add("brute")
+    # Privilege escalation
+    if any(k in t for k in ["priv", "privilege", "escalation", "privesc", "sudo", "root", "suid", "setuid"]):
+        tokens.add("priv")
+    # Persistence / backdoor
+    if any(k in t for k in ["persist", "persistence", "backdoor", "cron", "crontab", "service", "systemctl", "autorun", "rc.local", ".bashrc"]):
+        tokens.add("persistence")
+    return list(tokens)
 
 from auth import decode_token
 
@@ -542,7 +629,7 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
     try:
         while True:
             data = await websocket.receive_json()
-            msg_type = data.get("type") or data.get("action")
+            msg_type = (data.get("type") or data.get("action") or "").lower()
 
             # Normalize payloads
             if msg_type == "join":
@@ -554,11 +641,22 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                 # Register participant
                 simulation_rooms[lobby_code]["participants"][name] = {"role": role, "ws": websocket}
                 simulation_rooms[lobby_code]["scores"].setdefault(name, 0)
+                # Initialize metrics if missing
+                simulation_rooms[lobby_code].setdefault("metrics", {"totalEvents": 0, "attacksLaunched": 0, "detectionsTriggered": 0})
                 if role.lower() == "attacker":
                     objs = assign_objectives_for_attacker(lobby_code, name)
                     await websocket.send_json({"type": "objectives", "objectives": objs})
                 # notify observers of participant join
                 room_broadcast(lobby_code, {"type": "participant_joined", "name": name, "role": role}, roles=["Observer"])
+                # notify instructors of participant list update
+                try:
+                    await push_participants_to_instructors(lobby_code)
+                except Exception:
+                    pass
+                try:
+                    await push_metrics_to_instructors(lobby_code)
+                except Exception:
+                    pass
                 # Include pass threshold in join ack for clarity
                 diff = simulation_rooms[lobby_code]["difficulty"]
                 rules = DIFFICULTY_SETTINGS.get(diff, DIFFICULTY_SETTINGS["Beginner"])
@@ -570,7 +668,7 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                 })
                 continue
 
-            if msg_type == "execute_command":
+            if msg_type == "execute_command" or msg_type == "attack_command":
                 command = data.get("command", "")
                 cmd_role = (data.get("role") or role or "").lower()
                 actor = data.get("name") or name or "Attacker"
@@ -628,11 +726,21 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                 }
                 room_broadcast(lobby_code, event, roles=["Defender", "Observer"])
                 log_and_notify_instructors(lobby_code, "attack", f"{actor} executed: {command}", actor)
+                # metrics: attack launched
+                try:
+                    room = simulation_rooms.get(lobby_code)
+                    if room is not None:
+                        m = room.setdefault("metrics", {"totalEvents": 0, "attacksLaunched": 0, "detectionsTriggered": 0})
+                        m["attacksLaunched"] = int(m.get("attacksLaunched", 0)) + 1
+                        m["totalEvents"] = int(m.get("totalEvents", 0)) + 1
+                        await push_metrics_to_instructors(lobby_code)
+                except Exception:
+                    pass
 
                 # Objective completion
                 completed = []
                 if cmd_role == "attacker":
-                    completed = check_objective_completion(lobby_code, actor, command)
+                    completed = check_objective_completion(lobby_code, actor, command, event_id)
                     if completed:
                         # Send to attacker and broadcast scoreboard update
                         total_score = simulation_rooms[lobby_code]["scores"].get(actor, 0)
@@ -643,6 +751,10 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                             "remaining": sum(1 for o in simulation_rooms[lobby_code]["attacker_objectives"].get(actor, []) if not o.get("completed"))
                         })
                         room_broadcast(lobby_code, {"type": "score_update", "name": actor, "score": total_score})
+                        try:
+                            asyncio.create_task(push_score_to_instructors(lobby_code, actor, total_score))
+                        except Exception:
+                            pass
                         # Notify defenders/observers about a defendable event for each completed objective
                         for obj_id in completed:
                             room_broadcast(lobby_code, {
@@ -682,6 +794,7 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                     "threats": [m.get('description', m.get('pattern')) for m in matches],
                 }
                 room_broadcast(lobby_code, detection, roles=["Observer"])
+                # Defender legacy envelope
                 room_broadcast(lobby_code, {"type": "detection_result", "result": {
                     "eventId": int(time.time()*1000),
                     "detected": detection["detected"],
@@ -689,6 +802,23 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                     "threats": detection["threats"],
                     "method": "signature"
                 }}, roles=["Defender"])
+                # Defender typed variant
+                room_broadcast(lobby_code, {
+                    "type": "detection_event",
+                    "detected": detection["detected"],
+                    "confidence": 0.7 if detection["detected"] else 0.2,
+                    "threats": detection["threats"],
+                }, roles=["Defender"])
+                # metrics: detection event (whether detected or not, we count detection processing)
+                try:
+                    room = simulation_rooms.get(lobby_code)
+                    if room is not None:
+                        m = room.setdefault("metrics", {"totalEvents": 0, "attacksLaunched": 0, "detectionsTriggered": 0})
+                        m["detectionsTriggered"] = int(m.get("detectionsTriggered", 0)) + 1
+                        m["totalEvents"] = int(m.get("totalEvents", 0)) + 1
+                        await push_metrics_to_instructors(lobby_code)
+                except Exception:
+                    pass
                 if detection["detected"]:
                     await websocket.send_json({"type": "detection_alert", "message": "Threat signature detected!", "severity": "medium"})
 
@@ -716,6 +846,10 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                                 room["scores"][actor] = new_score
                                 await websocket.send_json({"type": "command_result", "command": command, "output": f"Irrelevant/typo detected: -3 points. Current score: {new_score}"})
                                 room_broadcast(lobby_code, {"type": "score_update", "name": actor, "score": new_score})
+                                try:
+                                    asyncio.create_task(push_score_to_instructors(lobby_code, actor, new_score))
+                                except Exception:
+                                    pass
                 except Exception:
                     pass
 
@@ -751,12 +885,13 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                 await websocket.send_json({"type": "objectives", "objectives": objs})
                 continue
 
-            if msg_type == "defender_classify":
+            if msg_type == "defender_classify" or msg_type == "defense_classify":
                 actor = data.get("name") or name or "Defender"
-                classification = (data.get("classification") or "").lower()
+                classification = (data.get("classification") or data.get("category") or "").lower()
                 objective_guess = (data.get("objective") or "").lower()
                 confidence = float(data.get("confidence", 0.7))
                 confidence = max(0.0, min(1.0, confidence))
+                detection_profile = (data.get("detection_profile") or "").lower() or "hybrid"
 
                 room = simulation_rooms.get(lobby_code)
                 if room is None:
@@ -776,6 +911,18 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                         "cooldown": remaining,
                         "message": f"Please wait {remaining}s before classifying again"
                     })
+                    # Typed variant for migration
+                    try:
+                        await websocket.send_json({
+                            "type": "defense_result",
+                            "correct": False,
+                            "award": 0,
+                            "total": room["scores"].get(actor, 0),
+                            "cooldown": True,
+                            "message": f"Please wait {remaining}s before classifying again"
+                        })
+                    except Exception:
+                        pass
                     continue
 
                 # Validate against the oldest pending defended objective (FIFO)
@@ -790,13 +937,70 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                         "total": room["scores"].get(actor, 0),
                         "message": "No pending attacks to defend"
                     })
+                    # Typed variant for migration
+                    try:
+                        await websocket.send_json({
+                            "type": "defense_result",
+                            "correct": False,
+                            "award": 0,
+                            "total": room["scores"].get(actor, 0),
+                            "message": "No pending attacks to defend"
+                        })
+                    except Exception:
+                        pass
                     continue
 
-                pend = queue[0]
-                expected_cat = (pend.get("category") or "").lower()
-                # Determine correctness strictly by matching the objective's category
-                correct = (expected_cat and (expected_cat in classification or expected_cat in objective_guess))
+                # Beginner assistance: try to match any pending item by normalized categories
+                diff = room.get("difficulty", "Beginner")
+                # If client specifies a target event, pick that pending item
+                target_event_id = data.get("attackId") or data.get("event_id")
+                pend = None
+                if target_event_id is not None:
+                    try:
+                        tgt = int(target_event_id)
+                    except Exception:
+                        tgt = target_event_id
+                    for item in queue:
+                        if item.get("defended_by"):
+                            continue
+                        if item.get("event_id") == tgt:
+                            pend = item
+                            break
+                if pend is None:
+                    pend = queue[0] if queue else None
+                expected_cat = (pend.get("category") or "").lower() if pend else ""
+                norm_cats = set(normalize_category_text(classification) + normalize_category_text(objective_guess))
+                if diff == "Beginner" and queue and norm_cats:
+                    best = None
+                    for item in queue:
+                        cat = (item.get("category") or "").lower()
+                        if cat and cat in norm_cats:
+                            best = item
+                            break
+                    if best is not None:
+                        pend = best
+                        expected_cat = (pend.get("category") or "").lower()
+                # Determine correctness by matching the (possibly assisted) pend's category
+                correct = bool(expected_cat) and (
+                    expected_cat in classification or expected_cat in objective_guess or expected_cat in norm_cats
+                )
                 base = pend.get("points", 0) if correct else 0
+
+                # Small educational bonus when profile choice aligns with the attack style
+                bonus = 0
+                if correct:
+                    # Map objective categories to likely detection style
+                    style_map = {
+                        "recon": "signature",
+                        "brute": "signature",
+                        "priv": "anomaly",
+                        "persistence": "anomaly",
+                    }
+                    expected_style = style_map.get(expected_cat)
+                    if detection_profile == "hybrid":
+                        bonus = 1  # small consistent bonus for hybrid
+                    elif expected_style and detection_profile == expected_style:
+                        bonus = 2  # slightly higher when matching style
 
                 # Award exactly the objective's points on correct defense (no extra scaling)
                 awarded = int(base)
@@ -804,11 +1008,15 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                 # Update cooldown and score
                 room["defender_cooldowns"][actor] = now_ts
                 # Mark this objective as defended and remove from queue on success to prevent double credit
-                if awarded > 0:
+                if awarded > 0 and pend:
                     pend["defended_by"] = actor
-                    # Remove the head safely if it still matches
-                    if room.get("pending_defenses") and room["pending_defenses"][0] is pend:
-                        room["pending_defenses"].pop(0)
+                    # Remove the defended item from queue (not necessarily head in Beginner)
+                    try:
+                        room["pending_defenses"].remove(pend)
+                    except ValueError:
+                        # fallback: pop head if still present
+                        if room.get("pending_defenses") and room["pending_defenses"][0] is pend:
+                            room["pending_defenses"].pop(0)
                     # Notify participants
                     room_broadcast(lobby_code, {
                         "type": "objective_defended",
@@ -817,28 +1025,208 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                         "objective_id": pend.get("objective_id"),
                         "category": expected_cat
                     }, roles=["Defender", "Observer"])
-                simulation_rooms[lobby_code]["scores"][actor] = simulation_rooms[lobby_code]["scores"].get(actor, 0) + awarded
+                simulation_rooms[lobby_code]["scores"][actor] = simulation_rooms[lobby_code]["scores"].get(actor, 0) + awarded + bonus
                 # Notify
                 total = simulation_rooms[lobby_code]["scores"][actor]
-                # Prepare a helpful message when not awarded
+                # Prepare a learner-friendly message
                 msg = None
-                if awarded == 0:
-                    msg = "No pending attacks to defend" if not expected_cat else f"Incorrect category, expected: {expected_cat}"
+                if awarded > 0:
+                    if bonus > 0:
+                        # Brief profile alignment hint
+                        profile_hint = {
+                            "signature": "Your Signature-focused profile fit this kind of attack.",
+                            "anomaly": "Your Anomaly-focused profile fit this kind of attack.",
+                            "hybrid": "Hybrid profile gives a small, consistent bonus.",
+                        }.get(detection_profile, "")
+                        msg = f"You earned {awarded} points +{bonus} bonus for correctly classifying a real attack. {profile_hint}".strip()
+                    else:
+                        msg = f"You earned {awarded} points for correctly classifying a real attack."
+                else:
+                    msg = "No pending attacks to defend" if not expected_cat else f"Close! Incorrect category — expected: {expected_cat}."
                 await websocket.send_json({
                     "type": "classification_result",
                     "awarded": awarded,
+                    "bonus": bonus,
                     "total": total,
                     "correct": correct,
                     "confidence_used": confidence,
                     "objective_id": pend.get("objective_id"),
                     "message": msg
                 })
+                # Typed variant for migration
+                try:
+                    await websocket.send_json({
+                        "type": "defense_result",
+                        "correct": bool(correct),
+                        "award": int(awarded + bonus),
+                        "total": int(total),
+                        "message": msg if msg else None
+                    })
+                except Exception:
+                    pass
                 room_broadcast(lobby_code, {"type": "defender_action", "action": f"Classified: {classification}", "success": awarded > 0}, roles=["Observer"])
                 room_broadcast(lobby_code, {"type": "score_update", "name": actor, "score": total})
+                try:
+                    asyncio.create_task(push_score_to_instructors(lobby_code, actor, total))
+                except Exception:
+                    pass
                 log_and_notify_instructors(lobby_code, "detection", f"{actor} classified attack ({classification})", actor)
                 continue
 
-            if msg_type == "update_detection_config":
+            if msg_type == "defense_triage":
+                # Beginner-friendly flow: simple TP/FP triage without category guessing
+                actor = data.get("name") or name or "Defender"
+                label = (data.get("label") or "").lower()  # 'tp' or 'fp'
+                confidence = float(data.get("confidence", 0.7))
+                confidence = max(0.0, min(1.0, confidence))
+
+                room = simulation_rooms.get(lobby_code)
+                if room is None:
+                    await websocket.send_json({
+                        "type": "defense_result",
+                        "correct": False,
+                        "award": 0,
+                        "total": 0,
+                        "message": "Room not found"
+                    })
+                    continue
+
+                # Only award in Beginner difficulty; in others, nudge to use full classification
+                diff = room.get("difficulty", "Beginner")
+
+                # Cooldown per defender to prevent spamming
+                last_ts = room.setdefault("defender_cooldowns", {}).get(actor, 0)
+                now_ts = time.time()
+                cooldown_s = 2
+                if now_ts - last_ts < cooldown_s:
+                    remaining = int(max(1, round(cooldown_s - (now_ts - last_ts))))
+                    await websocket.send_json({
+                        "type": "defense_result",
+                        "correct": False,
+                        "award": 0,
+                        "total": room["scores"].get(actor, 0),
+                        "cooldown": True,
+                        "message": f"Please wait {remaining}s before triaging again"
+                    })
+                    continue
+
+                # Normalize queue: remove defended heads
+                queue = room.get("pending_defenses", [])
+                while queue and queue[0].get("defended_by"):
+                    queue.pop(0)
+
+                # Determine correctness and award
+                award = 0
+                correct = False
+                msg = None
+                had_pending = bool(queue)
+                if diff == "Beginner":
+                    if label == "tp":
+                        if had_pending:
+                            # Small fixed award for recognizing an attack in Beginner mode
+                            pend = queue[0]
+                            award = 5
+                            correct = True
+                            # Mark as defended and pop
+                            pend["defended_by"] = actor
+                            if room.get("pending_defenses") and room["pending_defenses"][0] is pend:
+                                room["pending_defenses"].pop(0)
+                            # Notify others about successful defense (no category requirement)
+                            room_broadcast(lobby_code, {
+                                "type": "objective_defended",
+                                "defender": actor,
+                                "attacker": pend.get("attacker"),
+                                "objective_id": pend.get("objective_id"),
+                                "category": pend.get("category")
+                            }, roles=["Defender", "Observer"])
+                        else:
+                            correct = False
+                            msg = "No pending attacks to mark as malicious"
+                    elif label == "fp":
+                        # Consider it correct if nothing is pending; no score change
+                        correct = not had_pending
+                        if had_pending:
+                            msg = "An attack is pending; this is unlikely a false positive"
+                    else:
+                        msg = "Invalid triage label (use 'tp' or 'fp')"
+                else:
+                    # Non-Beginner: encourage using full classification
+                    msg = "Use full classification in this difficulty"
+
+                # Update cooldown and score
+                room["defender_cooldowns"][actor] = now_ts
+                if award:
+                    room["scores"][actor] = room["scores"].get(actor, 0) + int(award)
+
+                total = room["scores"].get(actor, 0)
+
+                # Friendly learner message if not set yet
+                if not msg:
+                    if award > 0:
+                        msg = "You earned points for recognizing a real attack (True Positive)."
+                    elif label == "fp" and not had_pending:
+                        msg = "Correct: This looked like a false alarm (False Positive)."
+                    elif label == "tp" and not had_pending:
+                        msg = "No attacks are pending right now. Try again when you see a new attack event."
+                    elif label == "fp" and had_pending:
+                        msg = "An attack is actually pending — this is likely not a false positive."
+
+                # Respond with both variants for client compatibility
+                await websocket.send_json({
+                    "type": "defense_result",
+                    "correct": bool(correct),
+                    "award": int(award),
+                    "total": int(total),
+                    "message": msg if msg else None
+                })
+                try:
+                    await websocket.send_json({
+                        "type": "classification_result",
+                        "awarded": int(award),
+                        "total": int(total),
+                        "correct": bool(correct),
+                        "confidence_used": confidence,
+                        "message": msg if msg else None
+                    })
+                except Exception:
+                    pass
+
+                # Broadcast score update and action log
+                room_broadcast(lobby_code, {"type": "score_update", "name": actor, "score": total})
+                room_broadcast(lobby_code, {"type": "defender_action", "action": f"Triage: {label}", "success": award > 0}, roles=["Observer"])
+                try:
+                    asyncio.create_task(push_score_to_instructors(lobby_code, actor, total))
+                except Exception:
+                    pass
+                log_and_notify_instructors(lobby_code, "detection", f"{actor} triaged: {label}", actor)
+                continue
+
+            if msg_type == "chat_message":
+                # Forward participant chat to all roles (Attacker/Defender/Observer)
+                sender = data.get("sender") or name or "Participant"
+                msg = data.get("message") or ""
+                room_broadcast(lobby_code, {"type": "chat_message", "sender": sender, "message": msg})
+                # Also forward directly to any connected instructor dashboards
+                try:
+                    if lobby_code in instructor_simulation_connections:
+                        for ws in list(instructor_simulation_connections[lobby_code]):
+                            try:
+                                await ws.send_json({"type": "chat_message", "sender": sender, "message": msg})
+                            except Exception:
+                                try:
+                                    instructor_simulation_connections[lobby_code] = [w for w in instructor_simulation_connections[lobby_code] if w != ws]
+                                except Exception:
+                                    pass
+                except Exception:
+                    pass
+                try:
+                    # Log for instructor timeline as an info event
+                    log_and_notify_instructors(lobby_code, "chat", f"{sender}: {msg}", sender)
+                except Exception:
+                    pass
+                continue
+
+            if msg_type == "update_detection_config" or msg_type == "defense_config":
                 actor = data.get("name") or name or "Defender"
                 log_and_notify_instructors(lobby_code, "config", f"{actor} updated detection config", actor)
                 continue
@@ -867,6 +1255,14 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
         room = simulation_rooms.get(lobby_code)
         if room and name:
             room["participants"].pop(name, None)
+            try:
+                await push_participants_to_instructors(lobby_code)
+            except Exception:
+                pass
+            try:
+                await push_metrics_to_instructors(lobby_code)
+            except Exception:
+                pass
 
 
 class AttackDetector:
@@ -1330,23 +1726,25 @@ async def instructor_simulation_websocket(websocket: WebSocket, lobby_code: str)
         while True:
             # Listen for instructor commands
             data = await websocket.receive_json()
+            # Support both legacy {action: '...'} and typed {type: 'instructor_control', action: 'pause'|'resume'|'end'}
+            msg_type = (data.get("type") or "").lower()
             action = data.get("action")
             
-            if action == "pause_simulation":
+            if action == "pause_simulation" or (msg_type == "instructor_control" and action == "pause"):
                 # Broadcast pause to all participants
                 await broadcast_to_simulation_participants(lobby_code, {
                     "type": "simulation_paused",
                     "message": "Simulation paused by instructor"
                 })
                 
-            elif action == "resume_simulation":
+            elif action == "resume_simulation" or (msg_type == "instructor_control" and action == "resume"):
                 # Broadcast resume to all participants
                 await broadcast_to_simulation_participants(lobby_code, {
                     "type": "simulation_resumed", 
                     "message": "Simulation resumed by instructor"
                 })
                 
-            elif action == "end_simulation":
+            elif action == "end_simulation" or (msg_type == "instructor_control" and action == "end"):
                 # Broadcast end to all participants
                 await broadcast_to_simulation_participants(lobby_code, {
                     "type": "simulation_ended",
@@ -1354,21 +1752,21 @@ async def instructor_simulation_websocket(websocket: WebSocket, lobby_code: str)
                 })
                 break
                 
-            elif action == "broadcast":
+            elif action == "broadcast" or msg_type == "broadcast":
                 # Broadcast message to all participants
-                message = data.get("payload", {}).get("message", "")
+                message = data.get("payload", {}).get("message", "") if "payload" in data else data.get("message", "")
                 await broadcast_to_simulation_participants(lobby_code, {
                     "type": "instructor_broadcast",
                     "message": message
                 })
                 
-            elif action == "chat":
+            elif action == "chat" or msg_type == "chat_message":
                 # Handle instructor chat messages
                 payload = data.get("payload", {})
                 chat_message = {
                     "type": "chat_message",
-                    "sender": payload.get("sender", "Instructor"),
-                    "message": payload.get("message", "")
+                    "sender": payload.get("sender") or data.get("sender", "Instructor"),
+                    "message": payload.get("message") or data.get("message", "")
                 }
                 await broadcast_to_simulation_participants(lobby_code, chat_message)
             elif action == "set_difficulty":
@@ -1394,26 +1792,72 @@ async def instructor_simulation_websocket(websocket: WebSocket, lobby_code: str)
 
 async def broadcast_to_simulation_participants(lobby_code: str, message: dict):
     """Broadcast a message to all participants in a simulation"""
-    # This would connect to the student simulation connections
-    # For now, we'll just log it
-    if lobby_code not in simulation_logs:
-        simulation_logs[lobby_code] = []
-    
-    simulation_logs[lobby_code].append({
-        "timestamp": datetime.now().isoformat(),
-        "type": message.get("type"),
-        "data": message
-    })
-    
-    # Also send to any connected instructors
-    if lobby_code in instructor_simulation_connections:
-        for ws in instructor_simulation_connections[lobby_code]:
+    # Log event for instructor timeline (skip chat messages, they go to Communication panel only)
+    if (message.get("type") or "").lower() != "chat_message":
+        if lobby_code not in simulation_logs:
+            simulation_logs[lobby_code] = []
+        simulation_logs[lobby_code].append({
+            "timestamp": datetime.now().isoformat(),
+            "type": message.get("type"),
+            "data": message
+        })
+
+    # Forward to student participants via room broadcast
+    try:
+        msg_type = (message.get("type") or "").lower()
+        # Default: send to all roles unless filtered later
+        target_roles = ["Attacker", "Defender", "Observer"]
+        # Known instructor-originated types we forward
+        if msg_type in {"simulation_paused", "simulation_resumed", "simulation_ended", "instructor_broadcast", "broadcast", "chat_message", "difficulty_updated"}:
+            room_broadcast(lobby_code, message, roles=target_roles)
+            # Also publish a session_state convenience event for clients
             try:
+                if msg_type == "simulation_paused":
+                    room_broadcast(lobby_code, {"type": "session_state", "status": "paused"}, roles=target_roles)
+                elif msg_type == "simulation_resumed":
+                    room_broadcast(lobby_code, {"type": "session_state", "status": "running"}, roles=target_roles)
+                elif msg_type == "simulation_ended":
+                    room_broadcast(lobby_code, {"type": "session_state", "status": "ended"}, roles=target_roles)
+            except Exception:
+                pass
+            # Compatibility: also emit legacy variant when ending
+            if msg_type == "simulation_ended":
+                room_broadcast(lobby_code, {"type": "simulation_end"}, roles=target_roles)
+        else:
+            # Fallback: forward as-is
+            room_broadcast(lobby_code, message, roles=None)
+
+        # Metrics tracking for instructor dashboard (avoid double-counting; and don't count chat as events)
+        try:
+            room = simulation_rooms.get(lobby_code)
+            if room is not None:
+                metrics = room.setdefault("metrics", {"totalEvents": 0, "attacksLaunched": 0, "detectionsTriggered": 0})
+                if msg_type in {"broadcast", "instructor_broadcast", "simulation_event"}:
+                    metrics["totalEvents"] = int(metrics.get("totalEvents", 0)) + 1
+        except Exception:
+            pass
+    except Exception as _e:
+        # Non-fatal; still notify instructors below
+        pass
+
+    # Also send a summary event to any connected instructors (skip chat, only send metrics update)
+    if lobby_code in instructor_simulation_connections:
+        # Also push a metrics snapshot
+        room = simulation_rooms.get(lobby_code, {})
+        metrics = (room or {}).get("metrics") or {"totalEvents": 0, "attacksLaunched": 0, "detectionsTriggered": 0}
+        for ws in list(instructor_simulation_connections[lobby_code]):
+            try:
+                # Only push simulation_event for non-chat messages
+                if (message.get("type") or "").lower() != "chat_message":
+                    await ws.send_json({
+                        "type": "simulation_event",
+                        "eventType": message.get("type", "info"),
+                        "description": message.get("message", ""),
+                        "participantName": message.get("sender")
+                    })
                 await ws.send_json({
-                    "type": "simulation_event",
-                    "eventType": message.get("type", "info"),
-                    "description": message.get("message", ""),
-                    "participantName": message.get("sender")
+                    "type": "simulation_metrics",
+                    "metrics": metrics
                 })
             except:
                 # Remove disconnected websockets
@@ -1453,3 +1897,125 @@ async def log_simulation_event(lobby_code: str, event_type: str, description: st
                 ]
 
 # ===================== END INSTRUCTOR SIMULATION =====================
+
+# ===================== DEV SIMULATOR (GATED) =====================
+
+@app.post("/api/dev/sim-event")
+async def dev_sim_event(payload: dict = Body(...)):
+    """Inject mock events into a lobby for rapid UI testing.
+
+    Gated by env DEV_SIMULATOR_ENABLED=true. Not for production use.
+
+    JSON body:
+      { lobby: string, kind: 'attack'|'detection'|'defense_result'|'objectives'|'score'|'off_threat'|'chat'|'broadcast', ... }
+    """
+    if not DEV_SIMULATOR_ENABLED:
+        raise HTTPException(status_code=403, detail="Dev simulator disabled")
+
+    lobby = payload.get("lobby") or payload.get("lobby_code")
+    if not lobby:
+        raise HTTPException(status_code=400, detail="Missing 'lobby'")
+    init_room(lobby)
+
+    kind = payload.get("kind")
+    if kind not in {"attack", "detection", "defense_result", "objectives", "score", "off_threat", "chat", "broadcast"}:
+        raise HTTPException(status_code=400, detail="Invalid kind")
+
+    # Build and dispatch according to kind
+    if kind == "attack":
+        cmd = payload.get("command", "nmap -A 10.0.0.5")
+        evt = {"type": "attack_event", "event": {"id": int(time.time()*1000), "command": cmd, "sourceIP": "10.0.0.2"}}
+        room_broadcast(lobby, evt, roles=["Defender", "Observer"])
+        await log_simulation_event(lobby, "attack", f"(dev) executed: {cmd}")
+        return {"success": True, "sent": evt}
+
+    if kind == "detection":
+        detected = bool(payload.get("detected", True))
+        conf = float(payload.get("confidence", 0.8))
+        threats = payload.get("threats", ["SSH Brute Force"]) or []
+        # Observer
+        room_broadcast(lobby, {"type": "detection_event", "method": "signature", "detected": detected, "threats": threats}, roles=["Observer"])
+        # Defender legacy + typed
+        room_broadcast(lobby, {"type": "detection_result", "result": {"eventId": int(time.time()*1000), "detected": detected, "confidence": conf, "threats": threats, "method": "signature"}}, roles=["Defender"])
+        room_broadcast(lobby, {"type": "detection_event", "detected": detected, "confidence": conf, "threats": threats}, roles=["Defender"])
+        await log_simulation_event(lobby, "detection", f"(dev) detection: {detected}")
+        return {"success": True}
+
+    if kind == "defense_result":
+        correct = bool(payload.get("correct", True))
+        award = int(payload.get("award", 10))
+        total = int(payload.get("total", 20))
+        msg = payload.get("message")
+        # Simulate send to a specific defender if provided
+        target = payload.get("defender")
+        room = simulation_rooms.get(lobby)
+        if room and target and target in room.get("participants", {}):
+            try:
+                ws = room["participants"][target]["ws"]
+                await ws.send_json({"type": "defense_result", "correct": correct, "award": award, "total": total, "message": msg})
+            except Exception:
+                pass
+        else:
+            room_broadcast(lobby, {"type": "defense_result", "correct": correct, "award": award, "total": total, "message": msg}, roles=["Defender"])
+        return {"success": True}
+
+    if kind == "objectives":
+        who = payload.get("attacker", "Attacker")
+        objs = payload.get("objectives") or [
+            {"id": "recon_scan", "description": "Perform reconnaissance scan", "points": 10, "completed": False}
+        ]
+        # Send to specific attacker if connected else broadcast to attackers
+        room = simulation_rooms.get(lobby)
+        sent = False
+        if room and who in room.get("participants", {}):
+            try:
+                await room["participants"][who]["ws"].send_json({"type": "objectives", "objectives": objs})
+                sent = True
+            except Exception:
+                pass
+        if not sent:
+            room_broadcast(lobby, {"type": "objectives", "objectives": objs}, roles=["Attacker"])
+        return {"success": True}
+
+    if kind == "score":
+        name = payload.get("name", "Alice")
+        score = int(payload.get("score", 10))
+        simulation_rooms[lobby]["scores"][name] = score
+        room_broadcast(lobby, {"type": "score_update", "name": name, "score": score})
+        return {"success": True}
+
+    if kind == "off_threat":
+        att = payload.get("attacker", "Alice")
+        cmd = payload.get("command", "curl http://malware")
+        threats = payload.get("threats", ["Malware Download"]) or []
+        room_broadcast(lobby, {"type": "off_objective_threat", "attacker": att, "command": cmd, "threats": threats}, roles=["Defender", "Observer"])
+        return {"success": True}
+
+    if kind == "chat":
+        msg = payload.get("message", "Hello")
+        sender = payload.get("sender", "Instructor")
+        room_broadcast(lobby, {"type": "chat_message", "sender": sender, "message": msg})
+        try:
+            room = simulation_rooms.get(lobby)
+            if room is not None:
+                m = room.setdefault("metrics", {"totalEvents": 0, "attacksLaunched": 0, "detectionsTriggered": 0})
+                m["totalEvents"] = int(m.get("totalEvents", 0)) + 1
+                await push_metrics_to_instructors(lobby)
+        except Exception:
+            pass
+        return {"success": True}
+
+    if kind == "broadcast":
+        msg = payload.get("message", "Remember to collaborate!")
+        await broadcast_to_simulation_participants(lobby, {"type": "instructor_broadcast", "message": msg})
+        try:
+            room = simulation_rooms.get(lobby)
+            if room is not None:
+                m = room.setdefault("metrics", {"totalEvents": 0, "attacksLaunched": 0, "detectionsTriggered": 0})
+                m["totalEvents"] = int(m.get("totalEvents", 0)) + 1
+                await push_metrics_to_instructors(lobby)
+        except Exception:
+            pass
+        return {"success": True}
+
+    return {"success": False, "error": "Unhandled kind"}

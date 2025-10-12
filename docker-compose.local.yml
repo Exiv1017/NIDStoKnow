@@ -1,0 +1,11 @@
+services:
+  backend:
+    # Remap host port to avoid conflicts with a locally running backend on 8000
+    ports:
+      - "8001:8000"
+
+  mysql:
+    # Expose MySQL to the host for local development tools (DBeaver, MySQL Workbench, etc.)
+    # WARNING: Do not use this override in production. It opens 3306 on the host.
+    ports:
+      - "3306:3306"

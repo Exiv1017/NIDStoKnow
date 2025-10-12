@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
+import ChatPanel from '../../components/ChatPanel';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AuthContext from '../../context/AuthContext';
+import { MessageTypes } from '../../simulation/messages';
+import { buildWsUrl, safeSend } from '../../simulation/ws';
 
 const ObserverSimulation = () => {
   const { user } = useContext(AuthContext);
@@ -39,20 +42,40 @@ const ObserverSimulation = () => {
   const [eventTimeline, setEventTimeline] = useState([]);
   const wsRef = useRef(null);
   const [scores, setScores] = useState({});
+  const [obParticipants, setObParticipants] = useState(participants || []);
+  const [rolesByName, setRolesByName] = useState(() => {
+    const map = {};
+    (participants || []).forEach(p => { if (p?.name) map[p.name] = p.role; });
+    return map;
+  });
   const [showGuide, setShowGuide] = useState(true);
+  const [paused, setPaused] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
+  const [chat, setChat] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  
+  // Communication helper
+  const sendChat = () => {
+    if (!chatInput.trim()) return;
+    const msg = chatInput;
+    setChat(prev => [...prev, { id: Date.now(), sender: name, message: msg, timestamp: new Date() }]);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      safeSend(wsRef.current, { type: MessageTypes.CHAT_MESSAGE, sender: name, message: msg });
+    }
+    setChatInput('');
+  };
   
   useEffect(() => {
     if (!lobbyCode) {
-      navigate('/simulation-lobby');
+      navigate('/student/lobby');
       return;
     }
     
     // Connect to simulation WebSocket using current origin
-  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const host = window.location.hostname;
-  wsRef.current = new WebSocket(`${proto}://${host}:8000/simulation/${lobbyCode}${user?.token ? `?token=${encodeURIComponent(user.token)}` : ''}`);
+  wsRef.current = new WebSocket(buildWsUrl(`/simulation/${lobbyCode}`, user?.token));
     wsRef.current.onopen = () => {
-      wsRef.current?.send(JSON.stringify({ type: 'join', name, role }));
+  safeSend(wsRef.current, { type: MessageTypes.JOIN, name, role });
     };
     
     wsRef.current.onmessage = (event) => {
@@ -62,7 +85,7 @@ const ObserverSimulation = () => {
         case 'attacker_action':
           handleAttackerAction(data);
           break;
-        case 'attack_event':
+        case MessageTypes.ATTACK_EVENT:
           // Normalize to existing handler: data.event contains the command
           handleAttackerAction({
             command: data.event?.command,
@@ -70,18 +93,74 @@ const ObserverSimulation = () => {
             score: undefined
           });
           break;
-        case 'defender_action':
+        case MessageTypes.DEFENDER_ACTION:
           handleDefenderAction(data);
           break;
-        case 'detection_event':
+        case MessageTypes.DETECTION_EVENT:
           handleDetectionEvent(data);
           break;
-        case 'score_update':
-          setScores(prev => ({ ...prev, [data.name]: data.score }));
+        case MessageTypes.SESSION_STATE: {
+          const s = (data.state || '').toLowerCase();
+          if (s === 'paused') setPaused(true);
+          if (s === 'running') setPaused(false);
+          if (s === 'ended') {
+            setPaused(false);
+            // Non-blocking end notice
+            setToastMsg('Simulation ended by instructor');
+            setShowToast(true);
+            generateFinalReport();
+            setTimeout(() => navigate('/student/lobby'), 2500);
+          }
           break;
-        case 'simulation_end':
+        }
+        case MessageTypes.SIMULATION_PAUSED:
+          setPaused(true);
+          break;
+        case MessageTypes.SIMULATION_RESUMED:
+          setPaused(false);
+          break;
+        case MessageTypes.SIMULATION_ENDED:
+          setPaused(false);
+          setToastMsg('Simulation ended by instructor');
+          setShowToast(true);
           generateFinalReport();
+          setTimeout(() => navigate('/student/lobby'), 2500);
           break;
+        case MessageTypes.SCORE_UPDATE: {
+          const pname = data.name;
+          const pscore = data.score;
+          setScores(prev => ({ ...prev, [pname]: pscore }));
+          const role = rolesByName[pname];
+          if (role === 'Attacker') {
+            setAttackerView(prev => ({ ...prev, score: pscore }));
+          } else if (role === 'Defender') {
+            setDefenderView(prev => ({ ...prev, score: pscore }));
+          }
+          break;
+        }
+        case MessageTypes.SIMULATION_END:
+          // Legacy end event compatibility
+          setPaused(false);
+          setToastMsg('Simulation ended');
+          setShowToast(true);
+          generateFinalReport();
+          setTimeout(() => navigate('/student/lobby'), 2500);
+          break;
+        case MessageTypes.BROADCAST:
+          setChat(prev => [...prev, { id: Date.now(), sender: 'Broadcast', message: data.message, timestamp: new Date() }]);
+          break;
+        case 'instructor_broadcast':
+          setChat(prev => [...prev, { id: Date.now(), sender: 'Instructor', message: data.message, timestamp: new Date() }]);
+          break;
+        case MessageTypes.CHAT_MESSAGE:
+          setChat(prev => [...prev, { id: Date.now(), sender: data.sender || 'Message', message: data.message, timestamp: new Date() }]);
+          break;
+        case MessageTypes.PARTICIPANT_JOINED: {
+          const entry = { name: data.name, role: data.role };
+          setObParticipants(prev => Array.isArray(prev) ? [...prev, entry] : [entry]);
+          setRolesByName(prev => ({ ...prev, [entry.name]: entry.role }));
+          break;
+        }
       }
     };
     wsRef.current.onclose = (e) => {
@@ -90,18 +169,26 @@ const ObserverSimulation = () => {
       }
     };
     
-    // Start timer
-    const timer = setInterval(() => {
-      setSimulationTime(prev => prev + 1);
-    }, 1000);
-    
     return () => {
-      clearInterval(timer);
       if (wsRef.current) {
         wsRef.current.close();
       }
     };
   }, [lobbyCode, navigate]);
+
+  // Pause-aware timer
+  useEffect(() => {
+    if (paused) return;
+    const timer = setInterval(() => setSimulationTime(prev => prev + 1), 1000);
+    return () => clearInterval(timer);
+  }, [paused]);
+
+  const handleLeave = () => {
+    const ok = window.confirm('Leave the simulation?');
+    if (!ok) return;
+    try { wsRef.current?.close(); } catch {}
+    navigate('/student/lobby');
+  };
   
   const handleAttackerAction = (data) => {
     setAttackerView(prev => ({
@@ -202,6 +289,21 @@ const ObserverSimulation = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-blue-400 p-6">
+      {/* Toast */}
+      {showToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-800 border border-blue-400 text-white px-4 py-2 rounded shadow">
+          {toastMsg}
+        </div>
+      )}
+      {/* Paused overlay */}
+      {paused && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60">
+          <div className="bg-gray-800 border border-yellow-400 rounded-lg px-6 py-4 text-center">
+            <div className="text-yellow-300 font-semibold text-lg">Paused by instructor</div>
+            <div className="text-gray-300 text-sm mt-1">You can continue observing when the session resumes.</div>
+          </div>
+        </div>
+      )}
       {showGuide && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="bg-gray-800 border border-blue-400 rounded-lg w-full max-w-2xl p-6 text-white">
@@ -240,19 +342,23 @@ const ObserverSimulation = () => {
           <h1 className="text-2xl font-bold text-blue-400">Observer</h1>
           <p className="text-gray-400">Lobby {lobbyCode} · {role}</p>
         </div>
-        <div className="flex space-x-4">
+        <div className="flex items-center space-x-3">
+          {paused && (
+            <span className="px-3 py-1 rounded bg-yellow-600/20 text-yellow-300 border border-yellow-500 text-sm">Paused</span>
+          )}
           <div className="bg-gray-800 px-4 py-2 rounded">
             <span className="text-yellow-400">Events {eventTimeline.length}</span>
           </div>
           <div className="bg-gray-800 px-4 py-2 rounded">
             <span className="text-blue-400">Time {formatTime(simulationTime)}</span>
           </div>
+          <button onClick={handleLeave} className="bg-gray-700 hover:bg-gray-600 text-gray-100 px-3 py-2 rounded border border-gray-600">Leave</button>
         </div>
       </div>
 
       {/* View Selector */}
       <div className="mb-6">
-        <div className="flex space-x-2 bg-gray-800 p-2 rounded-lg">
+        <div className="flex space-x-2 bg-[#111827] border border-slate-800 p-2 rounded-xl">
           {['overview', 'attacker', 'defender', 'timeline', 'insights'].map(view => (
             <button
               key={view}
@@ -275,7 +381,7 @@ const ObserverSimulation = () => {
           {selectedView === 'overview' && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-red-900 p-6 rounded-lg">
+                <div className="bg-[#111827] p-6 rounded-xl border border-slate-800">
                   <h3 className="text-xl font-bold text-red-400 mb-2">Attacker Progress</h3>
                   <div className="text-3xl font-bold text-white">{attackerView.score}</div>
                   <div className="text-red-200">Score Points</div>
@@ -284,7 +390,7 @@ const ObserverSimulation = () => {
                   </div>
                 </div>
                 
-                <div className="bg-green-900 p-6 rounded-lg">
+                <div className="bg-[#111827] p-6 rounded-xl border border-slate-800">
                   <h3 className="text-xl font-bold text-green-400 mb-2">Defender Progress</h3>
                   <div className="text-3xl font-bold text-white">{defenderView.score}</div>
                   <div className="text-green-200">Score Points</div>
@@ -294,7 +400,7 @@ const ObserverSimulation = () => {
                 </div>
               </div>
               
-              <div className="bg-gray-800 p-6 rounded-lg">
+              <div className="bg-[#111827] p-6 rounded-xl border border-slate-800">
                 <h3 className="text-lg font-semibold mb-4">Live Event Stream</h3>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {eventTimeline.slice(-10).reverse().map(event => (
@@ -318,16 +424,45 @@ const ObserverSimulation = () => {
                     </div>
                   ))}
                 </div>
+                {/* Educational Tips under stream */}
+                <div className="mt-6">
+                  <h4 className="text-md font-semibold mb-3 text-purple-400">Educational Tips</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                    <div className="bg-purple-900/50 border border-purple-700/60 p-3 rounded-xl">
+                      <div className="font-semibold text-purple-300">Watch for Patterns</div>
+                      <div className="text-purple-200">Notice how attackers and defenders adapt based on each other's actions.</div>
+                    </div>
+                    <div className="bg-purple-900/50 border border-purple-700/60 p-3 rounded-xl">
+                      <div className="font-semibold text-purple-300">Detection Timing</div>
+                      <div className="text-purple-200">Observe the delay between attack execution and detection alerts.</div>
+                    </div>
+                    <div className="bg-purple-900/50 border border-purple-700/60 p-3 rounded-xl">
+                      <div className="font-semibold text-purple-300">False Positives</div>
+                      <div className="text-purple-200">Notice when legitimate activity triggers security alerts.</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Simulation Stats under stream */}
+                <div className="mt-6">
+                  <h4 className="text-md font-semibold mb-3 text-blue-400">Simulation Stats</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div className="bg-[#111827] border border-slate-800 p-3 rounded-xl flex justify-between"><span>Duration</span><span className="text-blue-300">{formatTime(simulationTime)}</span></div>
+                    <div className="bg-[#111827] border border-slate-800 p-3 rounded-xl flex justify-between"><span>Total Events</span><span className="text-blue-300">{eventTimeline.length}</span></div>
+                    <div className="bg-[#111827] border border-slate-800 p-3 rounded-xl flex justify-between"><span>Attack Actions</span><span className="text-red-300">{eventTimeline.filter(e => e.type === 'attack').length}</span></div>
+                    <div className="bg-[#111827] border border-slate-800 p-3 rounded-xl flex justify-between"><span>Defense Actions</span><span className="text-green-300">{eventTimeline.filter(e => e.type === 'defense').length}</span></div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
           {selectedView === 'attacker' && (
-            <div className="bg-gray-800 p-6 rounded-lg">
+            <div className="bg-[#111827] p-6 rounded-xl border border-slate-800">
               <h3 className="text-lg font-semibold mb-4 text-red-400">Attacker Activity</h3>
               <div className="space-y-3">
                 {attackerView.commands.map(cmd => (
-                  <div key={cmd.id} className="bg-red-900 p-3 rounded">
+                  <div key={cmd.id} className="bg-red-900/40 border border-red-700/60 p-3 rounded-xl">
                     <div className="font-mono text-sm text-red-200">{cmd.command}</div>
                     <div className="flex justify-between text-xs text-red-300 mt-1">
                       <span>{cmd.success ? '✓ Success' : '✗ Failed'}</span>
@@ -340,11 +475,11 @@ const ObserverSimulation = () => {
           )}
 
           {selectedView === 'defender' && (
-            <div className="bg-gray-800 p-6 rounded-lg">
+            <div className="bg-[#111827] p-6 rounded-xl border border-slate-800">
               <h3 className="text-lg font-semibold mb-4 text-green-400">Defender Activity</h3>
               <div className="space-y-3">
                 {defenderView.detections.map(detection => (
-                  <div key={detection.id} className="bg-green-900 p-3 rounded">
+                  <div key={detection.id} className="bg-green-900/40 border border-green-700/60 p-3 rounded-xl">
                     <div className="font-semibold text-green-200">{detection.type}</div>
                     <div className="text-sm text-green-300">
                       Confidence: {(detection.confidence * 100).toFixed(1)}%
@@ -359,7 +494,7 @@ const ObserverSimulation = () => {
           )}
 
           {selectedView === 'timeline' && (
-            <div className="bg-gray-800 p-6 rounded-lg">
+            <div className="bg-[#111827] p-6 rounded-xl border border-slate-800">
               <h3 className="text-lg font-semibold mb-4">Event Timeline</h3>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {eventTimeline.map(event => (
@@ -410,88 +545,24 @@ const ObserverSimulation = () => {
 
         {/* Side Panel */}
         <div className="space-y-6">
-          {/* Participants */}
-          <div className="bg-gray-800 rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-4 text-blue-400">Participants</h3>
-            <div className="space-y-2">
-              {participants?.map((participant, index) => (
-                <div key={index} className="flex justify-between items-center">
-                  <span className={
-                    participant.role === 'Attacker' ? 'text-red-400' :
-                    participant.role === 'Defender' ? 'text-green-400' :
-                    'text-blue-400'
-                  }>
-                    {participant.name}
-                  </span>
-                  <span className="text-gray-400 text-sm">{participant.role}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Communication */}
+          <ChatPanel
+            messages={chat}
+            input={chatInput}
+            onInputChange={(e) => setChatInput(e.target.value)}
+            onSend={sendChat}
+            disabled={paused}
+          />
 
           {/* Learning Notes */}
-          <div className="bg-gray-800 rounded-lg p-4">
+          <div className="bg-[#111827] rounded-xl border border-slate-800 p-4">
             <h3 className="text-lg font-semibold mb-4 text-purple-400">Learning Notes</h3>
             <textarea
               value={learningNotes}
               onChange={(e) => setLearningNotes(e.target.value)}
               placeholder="Take notes about what you're learning from this simulation..."
-              className="w-full h-32 bg-gray-700 border border-gray-600 rounded p-3 text-white resize-none"
+              className="w-full h-32 bg-gray-700 border border-gray-600 rounded-xl p-3 text-white resize-none"
             />
-          </div>
-
-          {/* Educational Tips */}
-          <div className="bg-gray-800 rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-4 text-purple-400">Educational Tips</h3>
-            <div className="space-y-3 text-sm">
-              <div className="bg-purple-900 p-3 rounded">
-                <div className="font-semibold text-purple-300">Watch for Patterns</div>
-                <div className="text-purple-200">
-                  Notice how attackers and defenders adapt their strategies based on each other's actions.
-                </div>
-              </div>
-              
-              <div className="bg-purple-900 p-3 rounded">
-                <div className="font-semibold text-purple-300">Detection Timing</div>
-                <div className="text-purple-200">
-                  Observe the delay between attack execution and detection alerts.
-                </div>
-              </div>
-              
-              <div className="bg-purple-900 p-3 rounded">
-                <div className="font-semibold text-purple-300">False Positives</div>
-                <div className="text-purple-200">
-                  Notice when legitimate activity triggers security alerts.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Simulation Stats */}
-          <div className="bg-gray-800 rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-4 text-blue-400">Simulation Stats</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Duration:</span>
-                <span className="text-blue-300">{formatTime(simulationTime)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Total Events:</span>
-                <span className="text-blue-300">{eventTimeline.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Attack Actions:</span>
-                <span className="text-red-300">{eventTimeline.filter(e => e.type === 'attack').length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Defense Actions:</span>
-                <span className="text-green-300">{eventTimeline.filter(e => e.type === 'defense').length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Insights Generated:</span>
-                <span className="text-yellow-300">{keyInsights.length}</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>

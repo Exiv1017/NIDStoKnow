@@ -1,21 +1,24 @@
-FROM node:18-alpine
+FROM node:18-alpine AS build
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files and install
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install
 
-# Copy the rest of the application
+# Copy source and build
 COPY . .
-
-# Build the application
 RUN npm run build
 
-# Expose the port
-EXPOSE 5173
+# --- Runtime image with Nginx reverse proxy ---
+FROM nginx:alpine
 
-# Command to run the application
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]
+# Copy built assets
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# Nginx config to serve SPA and proxy /api to backend
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

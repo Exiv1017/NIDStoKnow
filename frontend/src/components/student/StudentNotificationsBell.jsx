@@ -27,13 +27,15 @@ const StudentNotificationsBell = ({ refreshIntervalMs = 30000, appearance = 'lig
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [lastSim, setLastSim] = useState(null);
   const intervalRef = useRef(null);
   const panelRef = useRef(null);
 
+  const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
   const fetchCount = async (signal) => {
     if (!headers) return;
     try {
-      const res = await fetch('http://localhost:8000/api/student/notifications/count', { headers, signal });
+      const res = await fetch(`${API_BASE}/api/student/notifications/count`.replace(/([^:]?)\/\/+/g,'$1/'), { headers, signal });
       if (!res.ok) return;
       const data = await res.json();
       setCount(data?.count ?? 0);
@@ -45,7 +47,7 @@ const StudentNotificationsBell = ({ refreshIntervalMs = 30000, appearance = 'lig
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('http://localhost:8000/api/student/notifications', { headers });
+      const res = await fetch(`${API_BASE}/api/student/notifications`.replace(/([^:]?)\/\/+/g,'$1/'), { headers });
       const data = await res.json();
       if (res.ok && Array.isArray(data)) setItems(data);
       else setError(data?.error || 'Failed to load notifications');
@@ -59,7 +61,7 @@ const StudentNotificationsBell = ({ refreshIntervalMs = 30000, appearance = 'lig
   const markRead = async (id) => {
     if (!headers) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/student/notifications/${id}/read`, { method: 'PATCH', headers });
+      const res = await fetch(`${API_BASE}/api/student/notifications/${id}/read`.replace(/([^:]?)\/\/+/g,'$1/'), { method: 'PATCH', headers });
       if (res.ok) {
         setItems((prev) => prev.filter((n) => n.id !== id));
         setCount((c) => Math.max(0, c - 1));
@@ -70,7 +72,7 @@ const StudentNotificationsBell = ({ refreshIntervalMs = 30000, appearance = 'lig
   const markAllRead = async () => {
     if (!headers) return;
     try {
-      const res = await fetch('http://localhost:8000/api/student/notifications/mark_all_read', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers } });
+      const res = await fetch(`${API_BASE}/api/student/notifications/mark_all_read`.replace(/([^:]?)\/\/+/g,'$1/'), { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers } });
       if (res.ok) {
         setItems([]);
         setCount(0);
@@ -81,6 +83,11 @@ const StudentNotificationsBell = ({ refreshIntervalMs = 30000, appearance = 'lig
   useEffect(() => {
     const controller = new AbortController();
     fetchCount(controller.signal);
+    // read last simulation score once
+    try {
+      const raw = localStorage.getItem('student_last_simulation_score');
+      if (raw) setLastSim(JSON.parse(raw));
+    } catch {}
     if (refreshIntervalMs > 0) intervalRef.current = setInterval(() => fetchCount(controller.signal), refreshIntervalMs);
     return () => {
       controller.abort();
@@ -139,6 +146,11 @@ const StudentNotificationsBell = ({ refreshIntervalMs = 30000, appearance = 'lig
           <div className="px-4 py-3 border-b flex items-center justify-between">
             <div className="font-semibold text-sm">Notifications</div>
             <div className="flex items-center gap-3">
+              {lastSim && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-700">
+                  {lastSim.role}: {lastSim.score}
+                </span>
+              )}
               <button onClick={fetchList} className="text-xs text-blue-600 hover:underline">Refresh</button>
             </div>
           </div>

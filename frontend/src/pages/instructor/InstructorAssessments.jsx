@@ -338,9 +338,11 @@ export default function InstructorAssessments() {
                     <th className="text-left py-3 px-4">Type</th>
                     <th className="text-left py-3 px-4">Rules</th>
                     <th className="text-left py-3 px-4">Matches</th>
+                    <th className="text-left py-3 px-4">Attacker Pts</th>
+                    <th className="text-left py-3 px-4">Defender Pts</th>
                   </tr>
                 </thead>
-                {subsLoading ? <SkeletonRows cols={6} rows={6} /> : (
+                {subsLoading ? <SkeletonRows cols={8} rows={6} /> : (
                   <tbody>
                     {filteredSubs.map(s => (
                       <tr key={s.id} className="border-b last:border-b-0 hover:bg-gray-50/50 transition-colors">
@@ -350,10 +352,12 @@ export default function InstructorAssessments() {
                         <td className="py-3 px-4 whitespace-nowrap"><TypeBadge type={s.submissionType} /></td>
                         <td className="py-3 px-4">{s.ruleCount}</td>
                         <td className="py-3 px-4">{s.totalMatches}</td>
+                        <td className="py-3 px-4 whitespace-nowrap">{s.attackerScore ?? '-'}</td>
+                        <td className="py-3 px-4 whitespace-nowrap">{s.defenderScore ?? '-'}</td>
                       </tr>
                     ))}
                     {(!subsLoading && filteredSubs.length === 0) && (
-                      <tr><td colSpan={6} className="py-10 text-center text-gray-400 text-sm">No submissions match your filters.</td></tr>
+                      <tr><td colSpan={8} className="py-10 text-center text-gray-400 text-sm">No submissions match your filters.</td></tr>
                     )}
                   </tbody>
                 )}

@@ -7,6 +7,8 @@ const Navigation = () => {
   const location = useLocation();
 
   const path = location.pathname || '/';
+  // Hide navigation entirely on Admin Login page
+  if (path === '/admin-login') return null;
   // Pages that should always show the PUBLIC nav style (logo + Sign Up / Log In)
   const publicAuthPages = useMemo(() => ([
     '/', '/signup', '/student/signup', '/instructor/signup', '/login', '/instructor-login', '/admin-login'

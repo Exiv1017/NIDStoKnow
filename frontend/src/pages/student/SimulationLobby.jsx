@@ -65,6 +65,10 @@ const SimulationLobby = () => {
             setJoined(true);
             setParticipants(data.participants);
             setIsInstructor(data.isInstructor);
+            if (data.difficulty) setDifficulty(data.difficulty);
+            break;
+          case 'difficulty_updated':
+            if (data.difficulty) setDifficulty(data.difficulty);
             break;
           case 'participant_update':
             setParticipants(data.participants);
@@ -429,6 +433,7 @@ const SimulationLobby = () => {
                 <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mt-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
                   <div className="space-y-3">
+                    <div className="text-sm text-gray-600">Difficulty: <span className="font-semibold">{difficulty}</span></div>
                     {!isReady && !isInstructor && (
                       <button className="w-full bg-green-50 hover:bg-green-100 text-green-700 py-2 px-4 rounded-lg font-medium transition-colors duration-200 text-left" onClick={handleReady}>
                         I am Ready

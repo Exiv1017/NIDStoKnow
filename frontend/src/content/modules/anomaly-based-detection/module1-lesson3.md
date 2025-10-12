@@ -1,84 +1,47 @@
-<!-- Module 1 - Lesson 3: Data Quality & Preparation -->
+## **_Data Quality & Preparation_**
 
-[[Objectives]]
-- Articulate strengths of anomaly detection
-- Recognize inherent limitations
-- Plan feedback + drift governance
-- Weigh ROI vs tuning cost
+## **_Why Data Quality Matters_**
+The best anomaly detection algorithms can be derailed by poor input data. If the data is incomplete, noisy, inconsistent, or corrupted, the detection system may mistake data errors for real anomalies — or miss meaningful ones altogether. Quality data is the foundation of trustworthy detection.
 
----
+## **_Dimensions of Data Quality_**
+When preparing data, pay attention to these essential attributes:
+- Accuracy: The data should correctly represent real values or events.
+- Completeness: Minimal missing or null entries.
+- Consistency: No conflicting or contradictory records.
+- Validity: Values fall within valid domains or conform to rules.
+- Timeliness: Data is up-to-date and reflects the right time windows.
+- Uniqueness: Avoid duplicate records.
 
-## **Context**
-Anomaly detection excels at surfacing unknowns but trades operational overhead in tuning, drift maintenance, and triage load.
+These dimensions help ensure that the system works with reliable inputs.
 
----
+## **_Common Data Issues That Mimic Anomalies_**
+Before detection, you’ll often find problems that look like anomalies but stem from data defects:
+- Missing or null fields
+- Schema shifts (columns added or removed)
+- Sudden jumps or drops in data volume
+- Changes in data distribution
+- Duplicate or redundant records
+- Format or type mismatches
+- Late or out-of-order entries
 
-## **Strengths vs Limitations**
+If left unchecked, these issues may trigger false alerts or hide real anomalies.
 
-[[FlipCards]]
-Novel Pattern Discovery | Finds behaviors with no prior signature
-Environment Adaptivity | Learns local baselines
-Baseline Dependency | Weak coverage inflates false positives
-Operational Overhead | Continuous tuning & feedback needed
+## **_Steps to Prepare Data for Detection_**
+Here’s a way to get data ready:
+- Profile and explore: gather basic statistics, visualize distributions, search for irregularities.
+- Clean and filter: remove or impute missing values, eliminate duplicates, standardize formats.
+- Transform and normalize: scale features, apply transformations (e.g. log, differencing) to reduce skew.
+- Engineer features: derive useful metrics (e.g. rolling averages, rate of change), add contextual variables (time, category).
+- Set aside reference data: use historical periods known to be “normal” for baseline creation; reserve subsets for validation.
+- Validate and sanity-check: confirm that the cleaned data still retains meaningful behavior and did not discard real anomalies.
 
-[[Highlight: tone=indigo title=Risk of Alert Fatigue]]
-High false-positive volume erodes analyst trust; structured feedback loops reduce noise over iterations.
+[[Highlight: tone=indigo title=Why this matters]]
+Data hygiene directly improves baseline stability and reduces alert fatigue.
 
----
+## **_How This Supports Anomaly Detection_**
+Well-prepared data leads to more stable baselines and sharper detection. When the input is trustworthy:
+- False positives decrease (fewer spurious flags)
+- False negatives reduce (real anomalies are visible)
+- Baselines remain robust and less prone to drift
 
-## **Operational Considerations**
-
-[[Expandables]]
-Feedback Loop :: Analyst dispositions adjust thresholds & feature weights.
-Concept Drift :: Monitor statistical shift; schedule evaluation windows.
-Retrain Strategy :: Time-based (weekly) or trigger-based (drift score).
-Explainability :: Simpler models early enable trust + faster tuning.
-
-[[Icons]]
-⚖️ | Balance | Avoid over-tuning to last incident.
-📉 | Drift Metrics | Track population mean/variance shift.
-🛠️ | Tooling | Provide quick label UI for analysts.
-📚 | Knowledge Capture | Document resolved anomaly classes.
-
-[[Pitfalls]]
-- Reactively adjusting thresholds after every noisy burst
-- Ignoring silent drift (gradual baseline shift) until precision collapses
-- Deploying complex models with no interpretability path
-
-Mitigation: instrument precision/recall, track drift indicators, maintain lightweight labeling workflow.
-
----
-
-## **Reflection**
-
-[[Reflection: Where would anomaly detection add the most value in your environment?]]
-
----
-
-## **Quick Check**
-
-[[Poll: Most common early failure mode?]]
-- Poor baseline coverage
-- Lack of GPUs
-- Encrypted traffic presence
-
-Answer: Poor baseline coverage.
-
-[[Match]]
-Challenge :: Stabilizer
-High False Positives :: Feedback loop + feature pruning
-Drift Accumulation :: Scheduled evaluation + retrain
-Opaque Decisions :: Prefer interpretable scores early
-
----
-
-## **Key Points**
-- Strength = novel detection; cost = tuning + triage.
-- Drift handling is not optional—plan measurement.
-- Progressive complexity beats premature ML depth.
-- Trust grows with explainable scoring + feedback cadence.
-
----
-
-## **Next Module**
-We transition into model selection depth and evaluation metrics.
+In short, good data preparation is not optional — it’s essential to reliable anomaly detection.

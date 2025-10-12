@@ -1,118 +1,110 @@
-<card class="mb-8">
+## 1.1 Introduction to Hybrid Detection
 
-<div style="padding:5px; border-radius:12px; max-width:800px; margin:auto; text-align:justify;">
+In today’s fast-changing cybersecurity landscape, organizations face an overwhelming mix of **known** and **unknown threats**. Traditional defenses—like firewalls or signature-based systems—are no longer enough on their own. To stay secure, modern intrusion detection now relies on a **hybrid detection approach**, which combines the speed of signature-based detection with the adaptability of anomaly-based analysis.
 
-Hybrid detection combines signature and anomaly approaches to improve coverage and reduce blind spots.
+This lesson introduces the concept of **Hybrid Detection**, explaining how it works, why it’s important, and what makes it an essential part of next-generation cybersecurity systems.
 
-</div>
+---
 
-</card>
+## **_Understanding Hybrid Detection_**
 
-<card class="mb-8">
+**Hybrid detection** is a cybersecurity strategy that merges the two main detection techniques used in Intrusion Detection Systems (IDS):
+- **Signature-based detection**, which identifies attacks based on known patterns or “signatures” of malicious activity.
+- **Anomaly-based detection**, which spots unusual or suspicious behavior that doesn’t match normal network activity.
 
-<div style="padding:5px; border-radius:12px; max-width:800px; margin:auto; text-align:justify;">
+According to **Stamus Networks**, hybrid detection combines these two models to enhance accuracy and reduce blind spots. Signature-based tools are excellent for identifying known threats, while anomaly-based tools are designed to detect new or previously unseen attacks. A hybrid system brings these together—covering both ends of the threat spectrum.
 
-**Why hybrid?**
+---
 
-- Signatures are precise for known threats.
-- Anomalies flag unknown behaviors.
-- Together: balance precision and recall.
+## **_Why Hybrid Detection Matters_**
 
-</div>
+As **IBM** explains, intrusion detection systems play a vital role in monitoring and protecting networks from cyber threats. However, relying on only one detection method leaves gaps.
 
-</card>
+- **Signature-based IDS** can miss new, unknown, or “zero-day” attacks.
+- **Anomaly-based IDS** can generate too many false positives, flagging normal activities as suspicious.
 
-<card style="background:#F0FDFA;">
+A **hybrid IDS** combines both, using the reliability of known signatures to catch established threats while leveraging behavior analytics to recognize emerging ones. This results in a more **balanced and adaptive defense** against evolving cyber risks.
 
-**Design choices**
+---
 
-<accordion title="Serial" open="false">
-Run signature first, then anomaly on remaining traffic.
-</accordion>
+## **_How Hybrid Detection Works_**
 
-<accordion title="Parallel" open="false">
-Run both and fuse results.
-</accordion>
+Hybrid detection systems typically follow a layered approach:
 
-</card>
+1. **Data Collection**  
+   The IDS gathers data from multiple sources such as network traffic, host logs, or endpoints.
 
-<key-points>
-- Combine strengths of both.
-- Fusion strategy impacts outcomes.
-</key-points>
+2. **Dual Analysis Engines**  
+   - The **signature engine** compares incoming data to a database of known threat signatures.
+   - The **anomaly engine** evaluates behavioral patterns and identifies unusual deviations.
 
-<accordion title="Activity — multiple choice" open="true" class="mb-8">
-```activity
-{
-  "type": "mcq",
-  "questions": [
-    { "q": "Which detects unknowns better?", "options": ["Signature", "Anomaly", "Neither"], "ans": 1 }
-  ]
-}
-```
-</accordion>
+3. **Correlation Layer**  
+   Both results are correlated—if an event triggers both engines, it increases confidence in the alert.
 
-**Objectives:**
+4. **Response & Feedback**  
+   Alerts are generated based on severity or confidence, and analysts review or automate responses. Over time, feedback helps improve both the signature rules and the anomaly models.
 
-- Understand the key ideas in this lesson
-- See one practical example
-- Check your understanding
+This workflow allows hybrid systems to **detect, verify, and respond** to a wider range of cyberattacks with greater precision.
 
-**Tabs:**
+[[FlipCards]]
+Signature Engine | Matches traffic/events to known indicators (fast, precise for known threats)
+Anomaly Engine | Spots unusual patterns beyond the baseline (adaptive, catches unknowns)
+Correlation | Boosts confidence when both engines agree; reduces noise
 
-- Overview: Placeholder overview for this topic.
-- Examples: Placeholder examples relevant to this lesson.
-- Pitfalls: Common pitfalls and how to avoid them.
+[[Highlight: tone=indigo title=Operator Tip]]
+Balance sensitivity: start tighter on signatures, then iterate anomaly thresholds using feedback.
 
-**Steps:**
+---
 
-1. Learn - Read the overview and key ideas.
-2. Apply - Try a simple exercise or scenario.
-3. Verify - Check your understanding.
+## **_Advantages of Hybrid Detection_**
 
-**Image:** [Placeholder](https://via.placeholder.com/960x400)
-| Visual placeholder
-| [Source](https://via.placeholder.com)
+Based on insights from **ScienceDirect**, hybrid detection systems offer several advantages:  
 
-**Tip:** Hybrid methods shine when combining strengths.
+- **Comprehensive coverage:** Protects against both known and unknown threats.
+- **Reduced false positives:** Cross-validation between signature and anomaly engines filters unreliable alerts.
+- **Improved accuracy:** The combined results provide higher detection confidence.
+- **Adaptability:** Machine learning or pattern updates help the system evolve as threats change.
 
-**Actions:**
+In practice, hybrid detection systems are widely adopted in enterprise environments where security teams need both speed and intelligence in detection.
 
-- [View docs](https://example.com/docs)
-- [Try a demo](https://example.com/demo)
+---
 
-```activity
-{
-  "type": "mcq",
-  "questions": [
-    {
-      "q": "Placeholder knowledge check?",
-      "options": ["Yes", "No"],
-      "ans": 0
-    }
-  ]
-}
-```
+## **_Challenges to Consider_**
 
-**Timeline:**
+Despite its strengths, hybrid detection introduces challenges such as:  
+- **Increased complexity** in managing two analytical models simultaneously.
+- **Higher resource requirements**, since dual engines process data concurrently.
+- **Need for expert tuning** to maintain balance between detection accuracy and system performance.
 
-- T-0 | Learn | Read the lesson highlights
-- T+10m | Apply | Do a small practice
-- T+15m | Review | Take the check
+As **IBM** points out, implementing hybrid IDS solutions requires both technical capability and strategic planning to align with organizational goals.
 
-**Checklist:**
+---
 
-- I understand the definitions
-- I can cite a real example
-- I can avoid common pitfalls
+## **_Example Scenario_**
 
-**Glossary:**
+Imagine a company’s network monitoring system detects a sudden surge in outbound data traffic late at night.  
 
-- Term: Short definition here.
+- **Signature detector:** finds no known malware signatures.
+- **Anomaly detector:** notices the unusual data volume and timing.
 
-**Resources:**
+[[Expandables]]
+Analyst Playbook (Quick) :: Validate destination, user context, recent changes; isolate host if exfil suspected.
+Tuning Note :: If many benign after-hours jobs trigger, add time-of-day context to baseline.
 
-- [Primary reference](https://example.com/reference)
-- [Related reading](https://example.com/related)
+When both detections are correlated, the hybrid system flags this as a potential **data exfiltration attempt**—something a single detection method might have missed or ignored.
 
-**Video:** [Watch](https://www.youtube.com/embed/VIDEO_ID)
+---
+
+## **_Summary_**
+
+- **Hybrid = coverage + confidence:** signatures for knowns, anomalies for unknowns.
+- **Correlate to reduce noise:** require multi-signal agreement for high-severity alerts.
+- **Iterate with feedback:** use analyst outcomes to refine thresholds and baselines.
+
+Hybrid detection bridges the gap between rule-based and behavior-based approaches to create a **smarter, adaptive security system**.  
+It captures both known and unknown threats by combining structured pattern recognition with intelligent anomaly analysis.  
+
+By understanding how hybrid detection integrates the strengths of multiple detection layers, cybersecurity professionals can build stronger, more resilient defenses against today’s evolving threats.  
+
+In the next lesson, **1.2 Scope & Alignment**, we’ll explore how hybrid detection fits into a broader security architecture and how organizations align it with operational and business needs.
+

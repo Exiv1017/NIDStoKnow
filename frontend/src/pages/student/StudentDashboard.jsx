@@ -78,12 +78,12 @@ const StudentDashboard = () => {
     
     // Map module names to their learning modules theory routes
     const moduleRoutes = {
-      'Signature-Based NIDS': '/learning-modules/signature-based-detection/theory',
-      'Anomaly-Based NIDS': '/learning-modules/anomaly-based-detection/theory', 
-      'Hybrid NIDS': '/learning-modules/hybrid-detection/theory',
-      'Signature-Based Detection': '/learning-modules/signature-based-detection/theory',
-      'Anomaly-Based Detection': '/learning-modules/anomaly-based-detection/theory',
-      'Hybrid Detection': '/learning-modules/hybrid-detection/theory'
+      'Signature-Based NIDS': '/student/theoretical/signature-based-detection/theory',
+      'Anomaly-Based NIDS': '/student/theoretical/anomaly-based-detection/theory', 
+      'Hybrid NIDS': '/student/theoretical/hybrid-detection/theory',
+      'Signature-Based Detection': '/student/theoretical/signature-based-detection/theory',
+      'Anomaly-Based Detection': '/student/theoretical/anomaly-based-detection/theory',
+      'Hybrid Detection': '/student/theoretical/hybrid-detection/theory'
     };
     
     // Get the theory route for this module
@@ -466,9 +466,15 @@ const StudentDashboard = () => {
   const quizMasteryData = useMemo(()=>{
     const labels = [];
     const values = [];
+    const abbrevMap = {
+      'signature-based-detection': 'SBD',
+      'anomaly-based-detection': 'ABD',
+      'hybrid-detection': 'HD'
+    };
     Object.entries(summaries||{}).forEach(([slug, s])=>{
       const display = s.display_name || s.module_name || slug;
-      labels.push(display);
+      const abbr = abbrevMap[slug] || display;
+      labels.push(abbr);
       const pct = (s.total_quizzes||0) > 0 ? Math.round(((s.quizzes_passed||0)/(s.total_quizzes||0))*100) : 0;
       values.push(pct);
     });
@@ -638,8 +644,22 @@ const StudentDashboard = () => {
               <div className="w-full max-w-xs">
                 <Bar data={quizMasteryData} options={{
                   plugins: { legend: { display: false } },
-                  scales: { y: { min: 0, max: 100, ticks: { stepSize: 20 } } },
+                  scales: {
+                    y: {
+                      min: 0,
+                      max: 100,
+                      ticks: { stepSize: 20, autoSkip: false, callback: (v)=>`${v}` }
+                    }
+                  },
                 }} />
+                {/* Legend for abbreviations */}
+                <div className="mt-3 text-xs text-gray-500">
+                  <div className="flex flex-col gap-1 items-start">
+                    <span><strong>SBD</strong> – Signature-Based Detection</span>
+                    <span><strong>ABD</strong> – Anomaly-Based Detection</span>
+                    <span><strong>HD</strong> – Hybrid Detection</span>
+                  </div>
+                </div>
               </div>
             </div>
             {/* Learning Components Completion */}
@@ -648,7 +668,13 @@ const StudentDashboard = () => {
               <div className="w-full max-w-xs">
                 <Bar data={componentsCompletionData} options={{
                   plugins: { legend: { display: false } },
-                  scales: { y: { min: 0, max: 100, ticks: { stepSize: 20 } } },
+                  scales: {
+                    y: {
+                      min: 0,
+                      max: 100,
+                      ticks: { stepSize: 20, autoSkip: false, callback: (v)=>`${v}` }
+                    }
+                  },
                 }} />
               </div>
             </div>
@@ -661,7 +687,7 @@ const StudentDashboard = () => {
 
           {/* Learning Progress & Assigned Modules */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow border border-gray-100">
+            <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow border border-gray-100 overflow-hidden">
               <div className="p-6 border-b">
                 <h2 className="text-xl font-bold text-[#1E5780]">Learning Progress</h2>
               </div>
@@ -696,14 +722,14 @@ const StudentDashboard = () => {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="w-48 bg-gray-200 rounded-full h-2">
+                      <div className="flex items-center gap-3 w-full max-w-[360px]">
+                        <div className="relative flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
                           <div
-                            className="bg-[#1E5780] h-2 rounded-full transition-all"
+                            className="absolute inset-y-0 left-0 bg-[#1E5780] transition-all"
                             style={{ width: `${module.comprehensiveProgress}%` }}
-                          ></div>
+                          />
                         </div>
-                        <span className="text-lg font-semibold text-gray-900 min-w-[4ch]">
+                        <span className="text-base font-semibold text-gray-900 w-[6ch] text-right whitespace-nowrap shrink-0">
                           {module.comprehensiveProgress > 0 ? `${module.comprehensiveProgress}%` : 'Not Started'}
                         </span>
                       </div>
@@ -761,7 +787,7 @@ const StudentDashboard = () => {
                             <p className={`text-sm ${module.status === 'Overdue' ? 'text-red-600' : 'text-gray-400'}`}>
                               {module.dueDate
                                 ? `${module.status === 'Overdue' ? 'Overdue:' : 'Due:'} ${formatDueDate(module.dueDate)}`
-                                : (module.startDate ? `Start by: ${module.startDate}` : 'Not started')}
+                                : (module.startDate ? `Starts: ${formatDueDate(module.startDate)}` : '—')}
                             </p>
                           </div>
                         </div>
@@ -776,9 +802,6 @@ const StudentDashboard = () => {
                             {module.status}
                           </span>
                           {/* Action button */}
-                          {(module.status === 'Not Started' || module.status === 'Assigned') && (
-                            <Link to="/learning-modules" className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-semibold transition-colors shadow">Start</Link>
-                          )}
                           {module.status === 'In Progress' && module.progress > 0 && (
                             <Link
                               to={getResumeUrl(module.name, module.lastLesson)}
@@ -786,9 +809,6 @@ const StudentDashboard = () => {
                             >
                               Resume
                             </Link>
-                          )}
-                          {module.status === 'In Progress' && module.progress === 0 && (
-                            <Link to="/learning-modules" className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-semibold transition-colors shadow">Start</Link>
                           )}
                           {module.status === 'Completed' && (
                             <Link to="/learning-modules" className="px-3 py-1 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm font-semibold transition-colors shadow">Review</Link>

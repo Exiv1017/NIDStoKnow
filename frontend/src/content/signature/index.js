@@ -17,8 +17,8 @@ export const signatureModules = [
     code: 'm1',
     title: 'Foundations',
     lessons: [
-      { order: 1, id: lid(1), slug: 'basics-of-cybersecurity', title: 'Basics of Cybersecurity', minutes: 8, tags:['concepts','overview'], import: () => import('../modules/signature-based-detection/module1-lesson1.md?raw') },
-      { order: 2, id: lid(2), slug: 'introduction-to-ids', title: 'Introduction to IDS', minutes: 11, tags:['rules','syntax'], import: () => import('../modules/signature-based-detection/module1-lesson2.md?raw') },
+      { order: 1, id: lid(1.1), slug: 'basics-of-cybersecurity', title: 'Basics of Cybersecurity', minutes: 8, tags:['concepts','overview'], import: () => import('../modules/signature-based-detection/module1-lesson1.md?raw') },
+      { order: 2, id: lid(1.2), slug: 'introduction-to-ids', title: 'Introduction to IDS', minutes: 11, tags:['rules','syntax'], import: () => import('../modules/signature-based-detection/module1-lesson2.md?raw') },
     ]
   },
   {
@@ -26,9 +26,9 @@ export const signatureModules = [
     code: 'm2',
     title: 'Workflow & Maintenance',
     lessons: [
-      { order: 1, id: lid(3), slug: 'signature-based-vs-anomaly-based-detection', title: 'Signature-Based vs Anomaly-Based Detection', minutes: 9, tags:['optimization','advanced'], import: () => import('../modules/signature-based-detection/module2-lesson1.md?raw') },
-      { order: 2, id: lid(4), slug: 'signature-detection-workflow', title: 'Signature Detection Workflow', minutes: 10, tags:['workflow','engine'], import: () => import('../modules/signature-based-detection/module2-lesson2.md?raw') },
-      { order: 3, id: lid(5), slug: 'extended-workflow-techniques', title: 'Extended Workflow Techniques', minutes: 10, tags:['workflow','engine'], import: () => import('../modules/signature-based-detection/module2-lesson3.md?raw') },
+      { order: 1, id: lid(2.1), slug: 'signature-based-vs-anomaly-based-detection', title: 'Signature-Based vs Anomaly-Based Detection', minutes: 9, tags:['optimization','advanced'], import: () => import('../modules/signature-based-detection/module2-lesson1.md?raw') },
+      { order: 2, id: lid(2.2), slug: 'signature-detection-workflow', title: 'Signature Detection Workflow', minutes: 10, tags:['workflow','engine'], import: () => import('../modules/signature-based-detection/module2-lesson2.md?raw') },
+      { order: 3, id: lid(2.3), slug: 'extended-workflow-techniques', title: 'Extended Workflow Techniques', minutes: 10, tags:['workflow','engine'], import: () => import('../modules/signature-based-detection/module2-lesson3.md?raw') },
     ]
   },
   {
@@ -36,8 +36,8 @@ export const signatureModules = [
     code: 'm3',
     title: 'Common IDS Tools',
     lessons: [
-      { order: 1, id: lid(6), slug: 'snort-suricata', title: 'Snort and Suricata', minutes: 9, tags:['capture','analysis'], import: () => import('../modules/signature-based-detection/module3-lesson1.md?raw') },
-      { order: 2, id: lid(7), slug: 'traffic-capture-rule-databases', title: 'Traffic Capture & Rule Databases', minutes: 8, tags:['maintenance','rules'], import: () => import('../modules/signature-based-detection/module3-lesson2.md?raw') },
+      { order: 1, id: lid(3.1), slug: 'snort-suricata', title: 'Snort and Suricata', minutes: 9, tags:['capture','analysis'], import: () => import('../modules/signature-based-detection/module3-lesson1.md?raw') },
+      { order: 2, id: lid(3.2), slug: 'traffic-capture-rule-databases', title: 'Traffic Capture & Rule Databases', minutes: 8, tags:['maintenance','rules'], import: () => import('../modules/signature-based-detection/module3-lesson2.md?raw') },
     ]
   },
   {
@@ -45,9 +45,9 @@ export const signatureModules = [
     code: 'm4',
     title: 'Application & Evolution',
     lessons: [
-      { order: 1, id: lid(8), slug: 'real-world-application', title: 'Real-World Application', minutes: 7, tags:['application','cases'], import: () => import('../modules/signature-based-detection/module4-lesson1.md?raw') },
-      { order: 2, id: lid(9), slug: 'limitations-of-signature-nids', title: 'Limitations of Signature-Based NIDS', minutes: 7, tags:['limitations','gaps'], import: () => import('../modules/signature-based-detection/module4-lesson2.md?raw') },
-      { order: 3, id: lid(10), slug: 'future-hybrid-use', title: 'Future & Hybrid Use', minutes: 7, tags:['future','hybrid'], import: () => import('../modules/signature-based-detection/module4-lesson3.md?raw') },
+      { order: 1, id: lid(4.1), slug: 'real-world-application', title: 'Real-World Application', minutes: 7, tags:['application','cases'], import: () => import('../modules/signature-based-detection/module4-lesson1.md?raw') },
+      { order: 2, id: lid(4.2), slug: 'limitations-of-signature-nids', title: 'Limitations of Signature-Based NIDS', minutes: 7, tags:['limitations','gaps'], import: () => import('../modules/signature-based-detection/module4-lesson2.md?raw') },
+      { order: 3, id: lid(4.3), slug: 'future-hybrid-use', title: 'Future & Hybrid Use', minutes: 7, tags:['future','hybrid'], import: () => import('../modules/signature-based-detection/module4-lesson3.md?raw') },
     ]
   },
   {
@@ -55,7 +55,7 @@ export const signatureModules = [
     code: 'summary',
     title: 'Summary & Review',
     lessons: [
-      { order: 1, id: lid(11), slug: 'summary-review', title: 'Summary & Review', minutes: 6, tags:['summary','review'], import: () => import('../modules/signature-based-detection/summary.md?raw') }
+      { order: 1, id: lid(5.1), slug: 'summary-review', title: 'Summary & Review', minutes: 6, tags:['summary','review'], import: () => import('../modules/signature-based-detection/summary.md?raw') }
     ]
   }
 ];

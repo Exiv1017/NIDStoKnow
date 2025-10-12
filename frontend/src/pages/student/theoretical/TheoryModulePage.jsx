@@ -208,6 +208,26 @@ const TheoryModulePage = () => {
         localStorage.removeItem(base);
       }
     } catch {}
+    // Persist last lesson to backend for instructor dashboard visibility (without marking completion)
+    try {
+      const lessonsList = currentModule?.lessons || [];
+      const lesson = lessonsList?.[currentLessonIdx];
+      if (user?.id && lesson) {
+        const lessonId = getLessonId(lesson, currentLessonIdx);
+        // Compute label like "1.1 <Title>" where first number is moduleNumber and second is index within that module (1-based)
+        let seqWithinModule = 1;
+        try {
+          const priorInSameModule = lessonsList.slice(0, currentLessonIdx).filter(l => l.moduleNumber === lesson.moduleNumber).length;
+          seqWithinModule = priorInSameModule + 1;
+        } catch {}
+        const computedLabel = `${lesson.moduleNumber}.${seqWithinModule} ${lesson.title}`;
+        fetch(`/api/student/${user.id}/module/${parentModuleSlug}/lesson`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}) },
+          body: JSON.stringify({ student_id: user.id, module_name: parentModuleSlug, lesson_id: lessonId, completed: false, lesson_title: computedLabel, touch_only: true })
+        }).catch(()=>{});
+      }
+    } catch {}
   }, [currentLessonIdx, searchParams, setSearchParams, user?.id, currentModule.title]);
 
   // Remove legacy view persistence (Option A retired)

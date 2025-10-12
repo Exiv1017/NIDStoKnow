@@ -14,11 +14,8 @@ services:
     build: 
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
     volumes:
       - ./cowrie/cowrie-git/var/log:/cowrie_logs:ro
-      - ./backend:/app
       - ./cowrie/cowrie-git/etc:/cowrie/cowrie-git/etc:ro  # Added Cowrie config access
     environment:
       - COWRIE_LOG_PATH=/cowrie_logs/cowrie.json
@@ -32,11 +29,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "5173:5173"  # Updated to match Vite's default port
+      - "80:80"  # Serve frontend on standard HTTP port for ALB/Route53
     volumes:
       - /app/node_modules
-    environment:
-      - VITE_API_URL=http://localhost:8000
     depends_on:
       - backend
     networks:

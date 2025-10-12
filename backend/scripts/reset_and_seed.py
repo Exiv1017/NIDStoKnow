@@ -79,23 +79,24 @@ def main():
             # If admins table is missing, surface a clear message
             print('[WARN] admins table not found; skipping admin creation.', file=sys.stderr)
 
-        # Seed sample instructor and students (approved) for demo/testing
+        # Seed specific demo users/instructor (approved)
         if 'users' in existing:
             try:
                 demo_password = generate_password_hash('Password123!')
-                # Instructor (approved, LSPU email)
+                # Instructor One
                 cur.execute(
                     'INSERT INTO users (name, email, password_hash, userType, status) VALUES (%s, %s, %s, %s, %s)',
-                    ('Demo Instructor', 'demo.instructor@lspu.edu.ph', demo_password, 'instructor', 'approved')
+                    ('Instructor One', 'instructor.1@lspu.edu.ph', demo_password, 'instructor', 'approved')
                 )
-                # Students (approved)
+                # Student: John Dela Cruz
                 cur.execute(
                     'INSERT INTO users (name, email, password_hash, userType, status) VALUES (%s, %s, %s, %s, %s)',
-                    ('Alice Student', 'alice.student@example.com', demo_password, 'student', 'approved')
+                    ('John Dela Cruz', 'john.delacruz@lspu.edu.ph', demo_password, 'student', 'approved')
                 )
+                # Student One
                 cur.execute(
                     'INSERT INTO users (name, email, password_hash, userType, status) VALUES (%s, %s, %s, %s, %s)',
-                    ('Bob Student', 'bob.student@example.com', demo_password, 'student', 'approved')
+                    ('Student One', 'student.1@lspu.edu.ph', demo_password, 'student', 'approved')
                 )
             except Exception as e:
                 print(f'[WARN] Failed to seed demo users: {e}', file=sys.stderr)
@@ -111,7 +112,7 @@ def main():
         if truncated:
             print('Truncated tables:', ', '.join(truncated))
         print(f"Created admin: {admin_email} (password set)")
-        print("Seeded demo users: demo.instructor@lspu.edu.ph (instructor, approved), Alice Student, Bob Student (students, approved)")
+        print("Seeded demo users: instructor.1@lspu.edu.ph (instructor, approved), John Dela Cruz <john.delacruz@lspu.edu.ph> (student, approved), student.1@lspu.edu.ph (student, approved)")
     finally:
         try:
             cur.close()

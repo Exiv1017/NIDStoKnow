@@ -16,6 +16,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+    networks:
+      - nids_network
 
   backend:
     environment:
@@ -26,12 +28,21 @@ services:
       - DB_NAME=${DB_NAME}
       - COWRIE_LOG_PATH=${COWRIE_LOG_PATH:-/cowrie/cowrie-git/var/log/cowrie.json}
       - DEV_MODE=${DEV_MODE:-false}
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-me}
     depends_on:
       mysql:
         condition: service_healthy
-    command: ["uvicorn","main:app","--host","0.0.0.0","--port","8000"]
+      cowrie:
+        condition: service_started
+    command: ["sh","-c","uvicorn main:app --host 0.0.0.0 --port 8000 ${DEV_MODE:+--reload}"]
     restart: unless-stopped
+    networks:
+      - nids_network
 
 volumes:
   mysql_data:
     name: nidstoknow-mysql-data
+
+networks:
+  nids_network:
+    driver: bridge

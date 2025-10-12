@@ -18,7 +18,7 @@ const InstructorSidebar = () => {
     <div className="fixed inset-y-0 left-0 w-64 bg-gradient-to-b from-[#0C2A40] to-[#206EA6] text-white flex flex-col">
       <div className="p-6">
         <Link to="/instructor-dashboard">
-          <img src="/logo2.svg" alt="NIDSToKnow Logo" className="h-8 w-auto" />
+          <img src="/NIDStoKnowLogo.svg" alt="NIDSToKnow Logo" className="h-8 w-auto" />
         </Link>
       </div>
       
@@ -89,15 +89,6 @@ const InstructorSidebar = () => {
           </li>
           <li>
             <Link
-              to="/settings"
-              className="flex items-center p-3 rounded-lg hover:bg-white/10 transition-all duration-200"
-            >
-              <img src="/settings.svg" alt="" className="w-6 h-6 mr-3" />
-              <span className="font-medium">Account Settings</span>
-            </Link>
-          </li>
-          <li>
-            <Link
               to="/instructor/lobby"
               className="flex items-center p-3 rounded-lg hover:bg-white/10 transition-all duration-200"
             >
@@ -106,6 +97,15 @@ const InstructorSidebar = () => {
                 <rect x="11" y="3" width="2" height="18" rx="1" fill="currentColor"/>
               </svg>
               <span className="font-medium">Simulation Lobby</span>
+            </Link>
+          </li>
+          <li>
+            <Link
+              to="/settings"
+              className="flex items-center p-3 rounded-lg hover:bg-white/10 transition-all duration-200"
+            >
+              <img src="/settings.svg" alt="" className="w-6 h-6 mr-3" />
+              <span className="font-medium">Account Settings</span>
             </Link>
           </li>
         </ul>

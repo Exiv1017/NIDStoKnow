@@ -63,4 +63,4 @@ export const TEAM = [
   { img:'/avatar3.png', name:'Angel Bless Mendoza', role:'UI/UX Designer', bio:'Designs clean, accessible learning experience flows.' }
 ];
 
-export const PARTNERS = ['/logo.svg','/logo2.svg','/dashboardicon.svg','/settings.svg'];
+export const PARTNERS = ['/logo.svg','/NIDStoKnowLogo.svg','/dashboardicon.svg','/settings.svg'];

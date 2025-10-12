@@ -9,9 +9,9 @@ export const anomalyModules = [
     code: 'm1',
     title: 'Foundations',
     lessons: [
-      { order: 1, id: lid(1), slug: 'anomaly-introduction', title: 'Introduction to Anomaly Detection', minutes: 8, tags:['concepts','overview'], import: () => import('../modules/anomaly-based-detection/module1-lesson1.md?raw') },
-      { order: 2, id: lid(2), slug: 'anomaly-baselining', title: 'Baselining Concepts', minutes: 9, tags:['baseline','behavior'], import: () => import('../modules/anomaly-based-detection/module1-lesson2.md?raw') },
-      { order: 3, id: lid(3), slug: 'anomaly-data-quality', title: 'Data Quality & Preparation', minutes: 9, tags:['data','quality'], import: () => import('../modules/anomaly-based-detection/module1-lesson3.md?raw') },
+      { order: 1, id: lid(1.1), slug: 'anomaly-introduction', title: 'Introduction to Anomaly Detection', minutes: 8, tags:['concepts','overview'], import: () => import('../modules/anomaly-based-detection/module1-lesson1.md?raw') },
+      { order: 2, id: lid(1.2), slug: 'anomaly-baselining', title: 'Baselining Concepts', minutes: 9, tags:['baseline','behavior'], import: () => import('../modules/anomaly-based-detection/module1-lesson2.md?raw') },
+      { order: 3, id: lid(1.3), slug: 'anomaly-data-quality', title: 'Data Quality & Preparation', minutes: 9, tags:['data','quality'], import: () => import('../modules/anomaly-based-detection/module1-lesson3.md?raw') },
     ],
     practical: { slug: 'anomaly-m1-practical', title: 'Practical: Baseline Snapshot & Drift Indicators', minutes: 15, description: 'Collect a 24h feature snapshot and document three drift watch metrics.' },
     assessment: { slug: 'anomaly-m1-assessment', title: 'Assessment: Foundational Concepts', minutes: 8, description: 'Covers baselining risks, data quality and anomaly categories.' }
@@ -21,9 +21,9 @@ export const anomalyModules = [
     code: 'm2',
     title: 'Detection Techniques',
     lessons: [
-      { order: 1, id: lid(4), slug: 'anomaly-how-it-works', title: 'How It Works', minutes: 10, tags:['workflow','engine'], import: () => import('../modules/anomaly-based-detection/module2-lesson1.md?raw') },
-      { order: 2, id: lid(5), slug: 'anomaly-process', title: 'Detection Process Pipeline', minutes: 10, tags:['process','pipeline'], import: () => import('../modules/anomaly-based-detection/module2-lesson2.md?raw') },
-      { order: 3, id: lid(6), slug: 'anomaly-ml-overview', title: 'Machine Learning Overview', minutes: 11, tags:['ml','overview'], import: () => import('../modules/anomaly-based-detection/module2-lesson3.md?raw') },
+      { order: 1, id: lid(2.1), slug: 'anomaly-how-it-works', title: 'How It Works', minutes: 10, tags:['workflow','engine'], import: () => import('../modules/anomaly-based-detection/module2-lesson1.md?raw') },
+      { order: 2, id: lid(2.2), slug: 'anomaly-process', title: 'Detection Process Pipeline', minutes: 10, tags:['process','pipeline'], import: () => import('../modules/anomaly-based-detection/module2-lesson2.md?raw') },
+      { order: 3, id: lid(2.3), slug: 'anomaly-ml-overview', title: 'Machine Learning Overview', minutes: 11, tags:['ml','overview'], import: () => import('../modules/anomaly-based-detection/module2-lesson3.md?raw') },
     ],
     practical: { slug: 'anomaly-m2-practical', title: 'Practical: Feature Engineering Drill', minutes: 18, description: 'Derive three stability features and justify their selection.' },
     assessment: { slug: 'anomaly-m2-assessment', title: 'Assessment: Techniques & Pipeline', minutes: 8, description: 'Validates understanding of pipeline ordering and feature prep.' }
@@ -33,9 +33,9 @@ export const anomalyModules = [
     code: 'm3',
     title: 'Modeling & Evaluation',
     lessons: [
-      { order: 1, id: lid(7), slug: 'anomaly-types', title: 'Types of Anomalies', minutes: 8, tags:['types'], import: () => import('../modules/anomaly-based-detection/module3-lesson1.md?raw') },
-      { order: 2, id: lid(8), slug: 'anomaly-advantages', title: 'Advantages & Strengths', minutes: 8, tags:['advantages'], import: () => import('../modules/anomaly-based-detection/module3-lesson2.md?raw') },
-      { order: 3, id: lid(9), slug: 'anomaly-limitations', title: 'Limitations & Risks', minutes: 8, tags:['limitations'], import: () => import('../modules/anomaly-based-detection/module3-lesson3.md?raw') },
+      { order: 1, id: lid(3.1), slug: 'anomaly-types', title: 'Types of Anomalies', minutes: 8, tags:['types'], import: () => import('../modules/anomaly-based-detection/module3-lesson1.md?raw') },
+      { order: 2, id: lid(3.2), slug: 'anomaly-advantages', title: 'Advantages & Strengths', minutes: 8, tags:['advantages'], import: () => import('../modules/anomaly-based-detection/module3-lesson2.md?raw') },
+      { order: 3, id: lid(3.3), slug: 'anomaly-limitations', title: 'Limitations & Risks', minutes: 8, tags:['limitations'], import: () => import('../modules/anomaly-based-detection/module3-lesson3.md?raw') },
     ],
     practical: { slug: 'anomaly-m3-practical', title: 'Practical: Threshold Tuning Lab', minutes: 20, description: 'Tune anomaly score threshold against precision/recall trade-offs.' },
     assessment: { slug: 'anomaly-m3-assessment', title: 'Assessment: Modeling & Evaluation', minutes: 9, description: 'Scenario questions on metrics, ensembles and calibration.' }
@@ -45,14 +45,14 @@ export const anomalyModules = [
     code: 'm4',
     title: 'Operationalization',
     lessons: [
-      { order: 1, id: lid(10), slug: 'anomaly-best-practices', title: 'Best Practices', minutes: 7, tags:['best-practices'], import: () => import('../modules/anomaly-based-detection/module4-lesson1.md?raw') },
-      { order: 2, id: lid(11), slug: 'anomaly-future', title: 'Future Directions', minutes: 7, tags:['future'], import: () => import('../modules/anomaly-based-detection/module4-lesson2.md?raw') },
-      { order: 3, id: lid(12), slug: 'anomaly-summary', title: 'Summary & Review', minutes: 6, tags:['summary','review'], import: () => import('../modules/anomaly-based-detection/module4-lesson3.md?raw') },
+      { order: 1, id: lid(4.1), slug: 'anomaly-best-practices', title: 'Best Practices', minutes: 7, tags:['best-practices'], import: () => import('../modules/anomaly-based-detection/module4-lesson1.md?raw') },
+      { order: 2, id: lid(4.2), slug: 'anomaly-future', title: 'Future Directions', minutes: 7, tags:['future'], import: () => import('../modules/anomaly-based-detection/module4-lesson2.md?raw') },
+      { order: 3, id: lid(4.3), slug: 'anomaly-summary', title: 'Summary & Review', minutes: 6, tags:['summary','review'], import: () => import('../modules/anomaly-based-detection/module4-lesson3.md?raw') },
     ],
     practical: { slug: 'anomaly-m4-practical', title: 'Practical: Drift Injection Simulation', minutes: 16, description: 'Simulate drift and capture mitigation actions.' },
     assessment: { slug: 'anomaly-m4-assessment', title: 'Assessment: Operations & Hardening', minutes: 8, description: 'Focus on lifecycle, drift handling and response readiness.' }
   },
-  { module: 5, code: 'summary', title: 'Summary & Review', lessons: [ { order: 1, id: lid(13), slug: 'anomaly-summary-review', title: 'Summary Review', minutes: 6, tags:['summary'], import: () => import('../modules/anomaly-based-detection/summary.md?raw') } ], practical: { slug: 'anomaly-summary-practical', title: 'Practical: Consolidated Playbook', minutes: 14, description: 'Assemble an anomaly operations playbook.' }, assessment: { slug: 'anomaly-summary-assessment', title: 'Capstone Assessment', minutes: 10, description: 'Cross-module integration scenarios.' } }
+  { module: 5, code: 'summary', title: 'Summary & Review', lessons: [ { order: 1, id: lid(5.1), slug: 'anomaly-summary-review', title: 'Summary Review', minutes: 6, tags:['summary'], import: () => import('../modules/anomaly-based-detection/summary.md?raw') } ], practical: { slug: 'anomaly-summary-practical', title: 'Practical: Consolidated Playbook', minutes: 14, description: 'Assemble an anomaly operations playbook.' }, assessment: { slug: 'anomaly-summary-assessment', title: 'Capstone Assessment', minutes: 10, description: 'Cross-module integration scenarios.' } }
 ];
 
 export const anomalyLessons = anomalyModules.flatMap(m => m.lessons);

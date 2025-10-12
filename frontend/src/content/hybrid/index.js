@@ -9,9 +9,9 @@ export const hybridModules = [
     code: 'm1',
     title: 'Integrated Detection Foundations',
     lessons: [
-      { order: 1, id: hid(1), slug: 'hybrid-concept', title: 'What is Hybrid Detection?', minutes: 7, tags:['overview'], import: () => import('../modules/hybrid-detection/module1-lesson1.md?raw') },
-      { order: 2, id: hid(2), slug: 'hybrid-scope', title: 'Scope & Alignment', minutes: 7, tags:['scoping'], import: () => import('../modules/hybrid-detection/module1-lesson2.md?raw') },
-      { order: 3, id: hid(3), slug: 'hybrid-telemetry', title: 'Telemetry Fusion', minutes: 8, tags:['telemetry'], import: () => import('../modules/hybrid-detection/module1-lesson3.md?raw') }
+      { order: 1, id: hid(1.1), slug: 'hybrid-concept', title: 'What is Hybrid Detection?', minutes: 7, tags:['overview'], import: () => import('../modules/hybrid-detection/module1-lesson1.md?raw') },
+      { order: 2, id: hid(1.2), slug: 'hybrid-scope', title: 'Scope & Alignment', minutes: 7, tags:['scoping'], import: () => import('../modules/hybrid-detection/module1-lesson2.md?raw') },
+      { order: 3, id: hid(1.3), slug: 'hybrid-telemetry', title: 'Telemetry Fusion', minutes: 8, tags:['telemetry'], import: () => import('../modules/hybrid-detection/module1-lesson3.md?raw') }
     ]
   },
   {
@@ -19,9 +19,9 @@ export const hybridModules = [
     code: 'm2',
     title: 'Correlation & Enrichment',
     lessons: [
-      { order: 1, id: hid(4), slug: 'hybrid-correlation', title: 'Correlation Layers', minutes: 8, tags:['correlation'], import: () => import('../modules/hybrid-detection/module2-lesson1.md?raw') },
-      { order: 2, id: hid(5), slug: 'hybrid-context', title: 'Context Enrichment', minutes: 7, tags:['context'], import: () => import('../modules/hybrid-detection/module2-lesson2.md?raw') },
-      { order: 3, id: hid(6), slug: 'hybrid-prioritization', title: 'Risk Prioritization', minutes: 8, tags:['risk'], import: () => import('../modules/hybrid-detection/module2-lesson3.md?raw') }
+      { order: 1, id: hid(2.1), slug: 'hybrid-correlation', title: 'Correlation Layers', minutes: 8, tags:['correlation'], import: () => import('../modules/hybrid-detection/module2-lesson1.md?raw') },
+      { order: 2, id: hid(2.2), slug: 'hybrid-context', title: 'Context Enrichment', minutes: 7, tags:['context'], import: () => import('../modules/hybrid-detection/module2-lesson2.md?raw') },
+      { order: 3, id: hid(2.3), slug: 'hybrid-prioritization', title: 'Risk Prioritization', minutes: 8, tags:['risk'], import: () => import('../modules/hybrid-detection/module2-lesson3.md?raw') }
     ]
   },
   {
@@ -29,9 +29,9 @@ export const hybridModules = [
     code: 'm3',
     title: 'Adaptive Modeling',
     lessons: [
-      { order: 1, id: hid(7), slug: 'hybrid-feedback', title: 'Feedback Loop Integration', minutes: 8, tags:['feedback'], import: () => import('../modules/hybrid-detection/module3-lesson1.md?raw') },
-      { order: 2, id: hid(8), slug: 'hybrid-model-routing', title: 'Model Routing Strategy', minutes: 9, tags:['models'], import: () => import('../modules/hybrid-detection/module3-lesson2.md?raw') },
-      { order: 3, id: hid(9), slug: 'hybrid-thresholds', title: 'Combined Threshold Governance', minutes: 8, tags:['thresholds'], import: () => import('../modules/hybrid-detection/module3-lesson3.md?raw') }
+      { order: 1, id: hid(3.1), slug: 'hybrid-feedback', title: 'Feedback Loop Integration', minutes: 8, tags:['feedback'], import: () => import('../modules/hybrid-detection/module3-lesson1.md?raw') },
+      { order: 2, id: hid(3.2), slug: 'hybrid-model-routing', title: 'Model Routing Strategy', minutes: 9, tags:['models'], import: () => import('../modules/hybrid-detection/module3-lesson2.md?raw') },
+      { order: 3, id: hid(3.3), slug: 'hybrid-thresholds', title: 'Combined Threshold Governance', minutes: 8, tags:['thresholds'], import: () => import('../modules/hybrid-detection/module3-lesson3.md?raw') }
     ]
   },
   {
@@ -39,12 +39,12 @@ export const hybridModules = [
     code: 'm4',
     title: 'Operations & Response',
     lessons: [
-      { order: 1, id: hid(10), slug: 'hybrid-alert-flow', title: 'Unified Alert Flow', minutes: 7, tags:['operations'], import: () => import('../modules/hybrid-detection/module4-lesson1.md?raw') },
-      { order: 2, id: hid(11), slug: 'hybrid-playbooks', title: 'Composite Playbooks', minutes: 7, tags:['playbooks'], import: () => import('../modules/hybrid-detection/module4-lesson2.md?raw') },
-      { order: 3, id: hid(12), slug: 'hybrid-hardening', title: 'Continuous Hardening', minutes: 7, tags:['hardening'], import: () => import('../modules/hybrid-detection/module4-lesson3.md?raw') }
+      { order: 1, id: hid(4.1), slug: 'hybrid-alert-flow', title: 'Unified Alert Flow', minutes: 7, tags:['operations'], import: () => import('../modules/hybrid-detection/module4-lesson1.md?raw') },
+      { order: 2, id: hid(4.2), slug: 'hybrid-playbooks', title: 'Composite Playbooks', minutes: 7, tags:['playbooks'], import: () => import('../modules/hybrid-detection/module4-lesson2.md?raw') },
+      { order: 3, id: hid(4.3), slug: 'hybrid-hardening', title: 'Continuous Hardening', minutes: 7, tags:['hardening'], import: () => import('../modules/hybrid-detection/module4-lesson3.md?raw') }
     ]
   },
-  { module: 5, code: 'summary', title: 'Summary & Integration', lessons: [ { order: 1, id: hid(13), slug: 'hybrid-summary', title: 'Hybrid Summary & Integration', minutes: 6, tags:['summary'], import: () => import('../modules/hybrid-detection/summary.md?raw') } ] }
+  { module: 5, code: 'summary', title: 'Summary & Integration', lessons: [ { order: 1, id: hid(5.1), slug: 'hybrid-summary', title: 'Hybrid Summary & Integration', minutes: 6, tags:['summary'], import: () => import('../modules/hybrid-detection/summary.md?raw') } ] }
 ];
 
 export const hybridLessons = hybridModules.flatMap(m => m.lessons);

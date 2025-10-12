@@ -12,12 +12,16 @@ import { useEffect, useRef } from 'react';
  * @param {string} [opts.unitCode] identifier (lesson id, quiz code, etc)
  * @param {number} [opts.intervalSeconds=15] local accumulation tick
  * @param {number} [opts.flushSeconds=60] flush cadence to server
- * @param {string} [opts.baseUrl='http://localhost:8000'] API base
+ * @param {string} [opts.baseUrl] API base; defaults to window.__API_BASE__ or import.meta.env.VITE_API_URL or '' (relative)
  * @param {string} [opts.authToken] optional bearer token
  * @param {boolean} [opts.debug=false] when true logs increments & flushes to console
  * @param {boolean} [opts.realtime=false] emit per-second tick events for UI between flushes
  */
-export default function useTimeAccumulator({ studentId, moduleSlug, unitType, unitCode=null, intervalSeconds=15, flushSeconds=60, baseUrl='http://localhost:8000', authToken, debug=false, realtime=false }) {
+export default function useTimeAccumulator({ studentId, moduleSlug, unitType, unitCode=null, intervalSeconds=15, flushSeconds=60, baseUrl, authToken, debug=false, realtime=false }) {
+  if (!baseUrl && typeof window !== 'undefined') {
+    // Dynamic default at runtime in browser
+    baseUrl = window.__API_BASE__ || import.meta.env.VITE_API_URL || '';
+  }
   const accRef = useRef(0);
   const lastSentRef = useRef(Date.now());
   const realtimeRef = useRef(0);

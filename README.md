@@ -24,6 +24,16 @@ cp .env.example .env  # edit values
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
+Optional local-dev override:
+
+```bash
+# Use this when you want to:
+# - keep a local FastAPI dev server on 8000 and run the container on 8001, or
+# - access MySQL on 3306 from host tools (DBeaver, MySQL Workbench)
+
+docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.local.yml up -d --build
+```
+
 Check status:
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
@@ -34,6 +44,10 @@ Services and ports:
 - Frontend (Vite preview): http://localhost:5173
 - Cowrie honeypot: SSH 2224, Telnet 2225 (exposed on host)
 - MySQL: internal only (container network)
+
+With local override:
+- Backend API: http://localhost:8001 (container)
+- MySQL: localhost:3306 (exposed; for local dev only)
 
 ## Environment variables
 
@@ -91,3 +105,9 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml down
 ## Notes
 - `.env`, `*.sql`, `backups/`, `uploads/`, Cowrie logs, and local envs are ignored by git.
 - Don’t expose port 3306 publicly. Use exec/tunnels for DB access.
+
+Cowrie systemd note:
+- The `cowrie.service` file in this repo is historical. When running with Docker Compose, you do not need a systemd service for Cowrie.
+- If you previously installed Cowrie as a systemd service on a host, stop/disable it to avoid port conflicts with the Cowrie container (ports 2224/2225):
+  - `sudo systemctl stop cowrie` and `sudo systemctl disable cowrie`
+  - then run via Docker Compose as documented above.

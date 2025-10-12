@@ -276,6 +276,12 @@ const LearningModules = ({ modules, setModules }) => {
         isAccessible = !section.locked; // rely purely on locked flag from summaries normalization
       }
 
+      // If Theory and all lessons completed, mark as completed (green)
+      if (section.name === 'Theory' && summary) {
+        const allLessonsDone = (summary.total_lessons || 0) > 0 && (summary.lessons_completed || 0) >= (summary.total_lessons || 0);
+        if (allLessonsDone) return 'bg-green-100 text-green-800 hover:bg-green-200';
+      }
+
       // Locked (not accessible)
       if (!isAccessible) return 'bg-gray-200 text-gray-400 cursor-not-allowed';
       // Completed stays green
@@ -369,6 +375,11 @@ const LearningModules = ({ modules, setModules }) => {
             const tidx = sections.findIndex(s => s.name === 'Theory');
             if (tidx >= 0) sections[tidx] = { ...sections[tidx], locked: false };
           }
+          // If all lessons are completed, mark Theory as completed (green)
+          if ((summary.total_lessons||0) > 0 && (summary.lessons_completed||0) >= (summary.total_lessons||0)) {
+            const tidx = sections.findIndex(s => s.name === 'Theory');
+            if (tidx >= 0) sections[tidx] = { ...sections[tidx], completed: true };
+          }
           if (summary.practical_completed) mark('Practical Exercise', true);
           if (summary.assessment_completed) mark('Assessment', true);
         }
@@ -393,6 +404,10 @@ const LearningModules = ({ modules, setModules }) => {
         if(summary.overview_completed) mark('Overview', true);
         if(summary.overview_completed || summary.lessons_completed>0){
           const tidx = sections.findIndex(s=>s.name==='Theory'); if(tidx>=0) sections[tidx] = { ...sections[tidx], locked: false }; }
+        // If all lessons are complete, mark Theory completed for green state
+        if ((summary.total_lessons||0) > 0 && (summary.lessons_completed||0) >= (summary.total_lessons||0)) {
+          const tidx = sections.findIndex(s=>s.name==='Theory'); if (tidx>=0) sections[tidx] = { ...sections[tidx], completed: true };
+        }
         if(summary.practical_completed){ mark('Practical Exercise', true); }
         if(summary.assessment_completed){ mark('Assessment', true); }
       }

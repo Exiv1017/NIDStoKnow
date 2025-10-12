@@ -18,7 +18,7 @@ const Sidebar = () => {
   <div className="global-sidebar fixed top-0 left-0 w-64 h-screen bg-gradient-to-b from-[#0C2A40] to-[#206EA6] text-white flex flex-col z-50">
       <div className="p-6 flex justify-start">
         <Link to="/dashboard" className="ml-2">
-          <img src="/logo2.svg" alt="NIDSToKnow Logo" className="h-10 w-auto" />
+          <img src="/NIDStoKnowLogo.svg" alt="NIDSToKnow Logo" className="h-10 w-auto" />
         </Link>
       </div>
       
