@@ -40,6 +40,35 @@ def ensure_notifications_table(cursor):
         '''
     )
 
+def ensure_users_table_and_migrate_password_hash(cursor):
+    """Ensure users table exists and password_hash column can hold long hashes (TEXT).
+    On older schemas, this may have been VARCHAR(255); upgrade it in-place if needed.
+    """
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS users (
+          id INT NOT NULL AUTO_INCREMENT,
+          name VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          password_hash TEXT NOT NULL,
+          userType ENUM('student','instructor','admin') NOT NULL,
+          status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'approved',
+          PRIMARY KEY (id),
+          UNIQUE KEY email (email)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+        '''
+    )
+    try:
+        cursor.execute("SHOW COLUMNS FROM users LIKE 'password_hash'")
+        row = cursor.fetchone()
+        if row:
+            # Row format: Field, Type, Null, Key, Default, Extra
+            col_type = str(row[1]).lower()
+            if 'varchar' in col_type:
+                cursor.execute('ALTER TABLE users MODIFY COLUMN password_hash TEXT NOT NULL')
+    except Exception as e:
+        print(f"[WARN] users.password_hash migrate failed or unnecessary: {e}")
+
 
 def ensure_student_profiles_table(cursor):
     """Ensure student_profiles exists to store join_date and avatar_url per student."""
@@ -919,6 +948,12 @@ def student_signup(req: StudentSignupRequest):
         raise HTTPException(status_code=400, detail='Email must be an LSPU email (firstname.lastname@lspu.edu.ph)')
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Ensure schema is present and compatible before insert
+    try:
+        ensure_users_table_and_migrate_password_hash(cursor)
+        conn.commit()
+    except Exception as e:
+        print(f"[WARN] ensure users table/migrate failed: {e}")
     cursor.execute('SELECT id FROM users WHERE email=%s', (req.email,))
     if cursor.fetchone():
         cursor.close()

@@ -48,7 +48,7 @@ def ensure_users_table(cursor):
           id INT NOT NULL AUTO_INCREMENT,
           name VARCHAR(255) NOT NULL,
           email VARCHAR(255) NOT NULL,
-          password_hash VARCHAR(255) NOT NULL,
+                    password_hash TEXT NOT NULL,
           userType ENUM('student','instructor','admin') NOT NULL,
           status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'approved',
           PRIMARY KEY (id),
