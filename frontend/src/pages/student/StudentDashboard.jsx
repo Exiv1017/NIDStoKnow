@@ -722,7 +722,7 @@ const StudentDashboard = () => {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 w-full max-w-[360px]">
+                      <div className="flex items-center gap-3 w-full max-w-[240px] sm:max-w-[260px] md:max-w-[300px]">
                         <div className="relative flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
                           <div
                             className="absolute inset-y-0 left-0 bg-[#1E5780] transition-all"
