@@ -24,7 +24,7 @@ services:
       - "2224:2224"  # SSH (updated port)
       - "2225:2225"  # Telnet (updated port)
     volumes:
-      - ./cowrie/cowrie-git/var:/cowrie/cowrie-git/var
+      - ./cowrie/cowrie-git/var/log:/cowrie/cowrie-git/var/log
     networks:
       - nids_network
 
