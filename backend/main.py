@@ -127,16 +127,79 @@ def _startup_schema_guard():
         except Exception:
             pass
 
+def _ensure_signatures_schema(cursor):
+    """Ensure the signatures table exists with columns expected by the API.
+    Also migrate older schema variants (rule_name/category/severity) to add missing columns.
+    """
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS signatures (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            pattern TEXT NOT NULL,
+            description VARCHAR(255) NULL,
+            type VARCHAR(64) NULL,
+            regex TINYINT(1) DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        '''
+    )
+    # Add missing columns if table exists with older layout
+    try:
+        cursor.execute("SHOW COLUMNS FROM signatures")
+        cols = {row[0]: str(row[1]).lower() for row in cursor.fetchall()}
+        # Ensure columns exist
+        if 'description' not in cols:
+            cursor.execute("ALTER TABLE signatures ADD COLUMN description VARCHAR(255) NULL")
+        if 'type' not in cols:
+            cursor.execute("ALTER TABLE signatures ADD COLUMN type VARCHAR(64) NULL")
+        if 'regex' not in cols:
+            cursor.execute("ALTER TABLE signatures ADD COLUMN regex TINYINT(1) DEFAULT 0")
+        # Ensure pattern can store long strings
+        if 'pattern' in cols and 'text' not in cols['pattern']:
+            try:
+                cursor.execute("ALTER TABLE signatures MODIFY COLUMN pattern TEXT NOT NULL")
+            except Exception:
+                pass
+        # If legacy columns exist, backfill description/type
+        legacy_desc = 'rule_name' in cols
+        legacy_type = 'category' in cols
+        if legacy_desc:
+            try:
+                cursor.execute("UPDATE signatures SET description=COALESCE(description, rule_name)")
+            except Exception:
+                pass
+        if legacy_type:
+            try:
+                cursor.execute("UPDATE signatures SET type=COALESCE(type, category)")
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[WARN] signatures schema ensure/migrate skipped: {e}")
+
 def load_signatures_from_db():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id, pattern, description, type, regex FROM signatures")
-    sigs = cursor.fetchall()
-    cursor.close()
-    conn.close()
+    try:
+        _ensure_signatures_schema(cursor)
+        conn.commit()
+        # Be resilient to legacy columns by using COALESCE
+        cursor.execute(
+            """
+            SELECT id,
+                   pattern,
+                   COALESCE(description, rule_name, '') AS description,
+                   COALESCE(type, category, 'generic') AS type,
+                   COALESCE(regex, 0) AS regex
+            FROM signatures
+            """
+        )
+        sigs = cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
     # Convert regex from int/bool to Python bool
     for s in sigs:
-        s['regex'] = bool(s['regex'])
+        s['regex'] = bool(s.get('regex', 0))
     return sigs
 
 # Load signatures from DB at startup (defensive: don't crash app if DB unreachable)
