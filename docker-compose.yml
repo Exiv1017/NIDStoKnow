@@ -24,7 +24,6 @@ services:
       - "2224:2224"  # SSH (updated port)
       - "2225:2225"  # Telnet (updated port)
     volumes:
-      - ./cowrie/cowrie-git/etc:/cowrie/cowrie-git/etc
       - ./cowrie/cowrie-git/var:/cowrie/cowrie-git/var
     networks:
       - nids_network
@@ -35,7 +34,6 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./cowrie/cowrie-git/var/log:/cowrie_logs:ro
-      - ./cowrie/cowrie-git/etc:/cowrie/cowrie-git/etc:ro  # Added Cowrie config access
     environment:
       - DB_HOST=${DB_HOST:-mysql}
       - DB_PORT=${DB_PORT:-3306}

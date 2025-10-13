@@ -93,7 +93,8 @@ isolation_forest_db = IsolationForestDB()
 DEV_SIMULATOR_ENABLED = os.getenv("DEV_SIMULATOR_ENABLED", "false").lower() in ("1", "true", "yes")
 
 # Configuration
-COWRIE_LOG_PATH = os.getenv("COWRIE_LOG_PATH", "/cowrie_logs/cowrie.json")
+# Default to /dev/null to avoid noisy warnings if Cowrie logs aren't present
+COWRIE_LOG_PATH = os.getenv("COWRIE_LOG_PATH", "/dev/null")
 ATTACK_TYPES = {
     "ssh": "SSH Brute Force",
     "telnet": "Telnet Brute Force",
