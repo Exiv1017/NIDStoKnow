@@ -380,7 +380,8 @@ const CreateContent = () => {
             assessment: sections.assessment
         }
       };
-      const res = await fetch('http://localhost:8000/api/instructor/module-request', {
+        const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+        const res = await fetch(`${API_BASE}/api/instructor/module-request`.replace(/([^:]?)\/\/+/g,'$1/'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

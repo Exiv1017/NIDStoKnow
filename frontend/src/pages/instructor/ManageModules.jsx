@@ -1,6 +1,9 @@
 import { useState, useEffect, useContext } from 'react';
 import InstructorSidebar from '../../components/InstructorSidebar';
 import AuthContext from '../../context/AuthContext';
+// Build API base helper
+const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+const apiUrl = (p) => `${API_BASE}${p}`.replace(/([^:]?)\/\/+/g,'$1/');
 
 // Canonical slug -> display title mapping
 const CANONICAL_TITLES = {
@@ -68,7 +71,7 @@ const ManageModules = () => {
         category: requestCategory,
         details: requestDetails
       };
-      const res = await fetch('http://localhost:8000/api/instructor/module-request', {
+      const res = await fetch(apiUrl('/api/instructor/module-request'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}) },
         body: JSON.stringify(payload)
@@ -92,7 +95,7 @@ const ManageModules = () => {
     if (!user?.token) return;
     setRequestsLoading(true); setRequestsError('');
     try {
-      const res = await fetch('http://localhost:8000/api/instructor/module-requests', {
+      const res = await fetch(apiUrl('/api/instructor/module-requests'), {
         headers: { 'Authorization': `Bearer ${user.token}` }
       });
       if (!res.ok) {
@@ -118,7 +121,7 @@ const ManageModules = () => {
   const fetchModules = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:8000/api/instructor/modules', {
+      const response = await fetch(apiUrl('/api/instructor/modules'), {
         headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
       });
 
@@ -190,7 +193,7 @@ const ManageModules = () => {
   const fetchStudents = async () => {
     try {
       setStudentsLoading(true);
-      const res = await fetch('http://localhost:8000/api/instructor/students', {
+      const res = await fetch(apiUrl('/api/instructor/students'), {
         headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
       });
       if (!res.ok) throw new Error('Failed to fetch students');
@@ -669,7 +672,7 @@ const ManageModules = () => {
                           due_date: assignForm.dueDate || null,
                           notes: assignForm.notes || null,
                         };
-                        const res = await fetch('http://localhost:8000/api/instructor/assignments', {
+                        const res = await fetch(apiUrl('/api/instructor/assignments'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', ...(user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}) },
                           body: JSON.stringify(payload)

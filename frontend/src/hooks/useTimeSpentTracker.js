@@ -21,7 +21,7 @@ export default function useTimeSpentTracker({
   lessonsCompleted = 0,
   totalLessons = 0,
   engagementScore = 0,
-  endpoint = 'http://localhost:8000/api/student/progress',
+  endpoint = '/api/student/progress',
   authToken = null,
 }) {
   const startTimeRef = useRef(Date.now());

@@ -39,7 +39,8 @@ export default function InstructorAssessments() {
   const loadAssignments = async () => {
     try {
       setAssignLoading(true);
-      const res = await fetch(`http://localhost:8000/api/instructor/assignments?instructor_id=${user?.id || ''}`,
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const res = await fetch(`${API_BASE}/api/instructor/assignments?instructor_id=${user?.id || ''}`.replace(/([^:]?)\/\/+/g,'$1/'),
         { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} }
       );
       const data = await res.json();
@@ -55,7 +56,8 @@ export default function InstructorAssessments() {
   const loadSubmissions = async () => {
     try {
       setSubsLoading(true);
-      const res = await fetch('http://localhost:8000/api/instructor/submissions');
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const res = await fetch(`${API_BASE}/api/instructor/submissions`.replace(/([^:]?)\/\/+/g,'$1/'));
       if (!res.ok) throw new Error('Failed to fetch submissions');
       const data = await res.json();
       setSubs(Array.isArray(data) ? data : []);
@@ -80,7 +82,8 @@ export default function InstructorAssessments() {
   // Assignment actions
   const updateStatus = async (id, status) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/instructor/assignments/${id}`, {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const res = await fetch(`${API_BASE}/api/instructor/assignments/${id}`.replace(/([^:]?)\/\/+/g,'$1/'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}) },
         body: JSON.stringify({ status })
@@ -93,7 +96,8 @@ export default function InstructorAssessments() {
   const removeAssignment = async (id) => {
     if (!confirm('Delete this assignment?')) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/instructor/assignments/${id}`, {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const res = await fetch(`${API_BASE}/api/instructor/assignments/${id}`.replace(/([^:]?)\/\/+/g,'$1/'), {
         method: 'DELETE',
         headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
       });
@@ -111,7 +115,8 @@ export default function InstructorAssessments() {
   const submitFeedback = async () => {
     if (!feedbackTarget || !feedbackMsg.trim()) return;
     try {
-      const res = await fetch('http://localhost:8000/api/instructor/feedback', {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const res = await fetch(`${API_BASE}/api/instructor/feedback`.replace(/([^:]?)\/\/+/g,'$1/'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}) },
         body: JSON.stringify({

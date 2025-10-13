@@ -18,7 +18,8 @@ const StudentProgress = () => {
     const fetchStudents = async () => {
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:8000/api/instructor/students-summary');
+  const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+  const response = await fetch(`${API_BASE}/api/instructor/students-summary`.replace(/([^:]?)\/\/+/g,'$1/'));
         if (!response.ok) {
           throw new Error('Failed to fetch student data');
         }

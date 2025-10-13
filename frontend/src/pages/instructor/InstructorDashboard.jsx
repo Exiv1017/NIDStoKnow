@@ -274,7 +274,8 @@ const InstructorDashboard = () => {
   const deleteNotification = async (notificationId) => {
     try {
       console.log('Deleting notification:', notificationId);
-      const response = await fetch(`http://localhost:8000/api/instructor/notifications/${notificationId}`, {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const response = await fetch(`${API_BASE}/api/instructor/notifications/${notificationId}`.replace(/([^:]?)\/\/+/g,'$1/'), {
         method: 'DELETE',
         headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
       });
@@ -311,7 +312,8 @@ const InstructorDashboard = () => {
   // Function to mark a specific notification as read (without deletion)
   const markNotificationRead = async (notificationId) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/instructor/notifications/${notificationId}/read`, {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const response = await fetch(`${API_BASE}/api/instructor/notifications/${notificationId}/read`.replace(/([^:]?)\/\/+/g,'$1/'), {
         method: 'PATCH',
         headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
       });
@@ -330,7 +332,8 @@ const InstructorDashboard = () => {
   const markAllAsRead = async () => {
     try {
       console.log('Marking all notifications as read');
-      const response = await fetch('http://localhost:8000/api/instructor/notifications/mark-all-read', {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const response = await fetch(`${API_BASE}/api/instructor/notifications/mark-all-read`.replace(/([^:]?)\/\/+/g,'$1/'), {
         method: 'POST',
         headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
       });

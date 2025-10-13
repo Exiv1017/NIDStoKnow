@@ -12,7 +12,8 @@ export default function Submissions() {
     const fetchSubs = async () => {
       setLoading(true);
       try {
-        const res = await fetch('http://localhost:8000/api/instructor/submissions');
+  const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+  const res = await fetch(`${API_BASE}/api/instructor/submissions`.replace(/([^:]?)\/\/+/g,'$1/'));
         if (!res.ok) throw new Error('Failed to fetch submissions');
         const data = await res.json();
         setSubs(Array.isArray(data) ? data : []);

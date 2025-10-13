@@ -1033,7 +1033,7 @@ const HybridDetection = () => {
         engagementScore: Math.min(100, readingProgress + (score >= PASSING_SCORE ? 20 : 0))
       };
       
-      fetch('http://localhost:8000/student/progress', {
+      fetch('/api/student/progress', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(progressData)

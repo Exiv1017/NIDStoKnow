@@ -30,6 +30,10 @@ ChartJS.register(
   Title
 );
 
+// Base URL for API requests. Defaults to same-origin when not provided.
+const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+const apiUrl = (path) => `${API_BASE}${path}`.replace(/([^:]?)\/\/+/g,'$1/');
+
 const StudentDashboard = () => {
   const { user } = useContext(AuthContext);
   const [studentName, setStudentName] = useState('Student');
@@ -118,7 +122,7 @@ const StudentDashboard = () => {
     }
     console.log("Fetching dashboard for user:", user?.id); // Added log
     try {
-      const response = await fetch(`http://localhost:8000/api/student/dashboard/${user.id}`);
+      const response = await fetch(apiUrl(`/api/student/dashboard/${user.id}`));
       if (response.ok) {
         const data = await response.json();
         setStudentName(data.studentName);
@@ -152,7 +156,7 @@ const StudentDashboard = () => {
       }
       // Fetch real assignments (instructor-assigned) and merge/override
       try {
-        const assignRes = await fetch(`http://localhost:8000/api/student/${user.id}/assignments`, {
+        const assignRes = await fetch(apiUrl(`/api/student/${user.id}/assignments`), {
           headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
         });
         if (assignRes.ok) {
@@ -190,7 +194,7 @@ const StudentDashboard = () => {
         }
       } catch {}
 
-      const notifResponse = await fetch(`http://localhost:8000/api/student/notifications`,
+      const notifResponse = await fetch(apiUrl(`/api/student/notifications`),
         { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} }
       );
       if (notifResponse.ok) {
@@ -214,7 +218,7 @@ const StudentDashboard = () => {
   const refreshNotifications = async () => {
     if (!user?.id) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/student/notifications`,
+      const res = await fetch(apiUrl(`/api/student/notifications`),
         { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} }
       );
       if (res.ok) {
@@ -223,7 +227,7 @@ const StudentDashboard = () => {
       }
       // also fetch count
       try {
-        const c = await fetch('http://localhost:8000/api/student/notifications/count', { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
+        const c = await fetch(apiUrl('/api/student/notifications/count'), { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
         if (c.ok) {
           const cj = await c.json();
           setUnreadCount(typeof cj?.count === 'number' ? cj.count : 0);
@@ -237,7 +241,7 @@ const StudentDashboard = () => {
     const fetchProfile = async () => {
       try {
         if (!user?.token) return;
-        const res = await fetch('http://localhost:8000/api/student/profile', {
+        const res = await fetch(apiUrl('/api/student/profile'), {
           headers: { Authorization: `Bearer ${user.token}` }
         });
         if (!res.ok) return;
@@ -292,7 +296,7 @@ const StudentDashboard = () => {
     (async () => {
       if (!user?.token) return;
       try {
-        const c = await fetch('http://localhost:8000/api/student/notifications/count', { headers: { 'Authorization': `Bearer ${user.token}` } });
+        const c = await fetch(apiUrl('/api/student/notifications/count'), { headers: { 'Authorization': `Bearer ${user.token}` } });
         if (c.ok) {
           const cj = await c.json();
           setUnreadCount(typeof cj?.count === 'number' ? cj.count : 0);

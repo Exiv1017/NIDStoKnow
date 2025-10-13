@@ -16,7 +16,8 @@ export default function Assignments() {
   const load = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:8000/api/instructor/assignments?instructor_id=${user?.id || ''}`,
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const res = await fetch(`${API_BASE}/api/instructor/assignments?instructor_id=${user?.id || ''}`.replace(/([^:]?)\/\/+/g,'$1/'),
         { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} }
       );
       const data = await res.json();
@@ -33,7 +34,8 @@ export default function Assignments() {
 
   const updateStatus = async (id, status) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/instructor/assignments/${id}` ,{
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const res = await fetch(`${API_BASE}/api/instructor/assignments/${id}`.replace(/([^:]?)\/\/+/g,'$1/') ,{
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}) },
         body: JSON.stringify({ status })
@@ -46,7 +48,8 @@ export default function Assignments() {
   const remove = async (id) => {
     if (!confirm('Delete this assignment?')) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/instructor/assignments/${id}`, {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const res = await fetch(`${API_BASE}/api/instructor/assignments/${id}`.replace(/([^:]?)\/\/+/g,'$1/'), {
         method: 'DELETE',
         headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
       });
@@ -64,7 +67,8 @@ export default function Assignments() {
   const submitFeedback = async () => {
     if (!feedbackTarget || !feedbackMsg.trim()) return;
     try {
-      const res = await fetch('http://localhost:8000/api/instructor/feedback', {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const res = await fetch(`${API_BASE}/api/instructor/feedback`.replace(/([^:]?)\/\/+/g,'$1/'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

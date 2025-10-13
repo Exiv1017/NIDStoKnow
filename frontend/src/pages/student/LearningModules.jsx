@@ -14,6 +14,10 @@ import ModuleCard from '../../components/ModuleCard';
 import useModuleSummaries from '../../hooks/useModuleSummaries.js';
 import { lessonIdsKey } from './theoretical/logic/ids';
 
+// Build API base from window override or Vite env; default to same-origin
+const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+const apiUrl = (p) => `${API_BASE}${p}`.replace(/([^:]?)\/\/+/g,'$1/');
+
 const LearningModules = ({ modules, setModules }) => {
   const { user } = useContext(AuthContext);
   const { moduleName, lessonName } = useParams();
@@ -57,7 +61,7 @@ const LearningModules = ({ modules, setModules }) => {
     if (!user?.id) return;
     (async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/student/notifications`,
+        const res = await fetch(apiUrl(`/api/student/notifications`),
           { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} }
         );
         if (res.ok) {
@@ -65,7 +69,7 @@ const LearningModules = ({ modules, setModules }) => {
           setNotifications(Array.isArray(data) ? data : []);
         }
         try {
-          const c = await fetch('http://localhost:8000/api/student/notifications/count', { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
+          const c = await fetch(apiUrl('/api/student/notifications/count'), { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
           if (c.ok) {
             const cj = await c.json();
             setUnreadCount(typeof cj?.count === 'number' ? cj.count : 0);
@@ -94,7 +98,7 @@ const LearningModules = ({ modules, setModules }) => {
     }
     (async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/student/assignments?student_id=${user.id}`, {
+        const res = await fetch(apiUrl(`/api/student/assignments?student_id=${user.id}`), {
           headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
         });
         if (res.ok) {
@@ -1152,7 +1156,7 @@ function renderLessonContent(content) {
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
-                            const res = await fetch(`http://localhost:8000/api/student/notifications`,
+                            const res = await fetch(apiUrl(`/api/student/notifications`),
                               { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} }
                             );
                             if (res.ok) {
@@ -1160,7 +1164,7 @@ function renderLessonContent(content) {
                               setNotifications(Array.isArray(data) ? data : []);
                             }
                             try {
-                              const c = await fetch('http://localhost:8000/api/student/notifications/count', { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
+                              const c = await fetch(apiUrl('/api/student/notifications/count'), { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
                               if (c.ok) {
                                 const cj = await c.json();
                                 setUnreadCount(typeof cj?.count === 'number' ? cj.count : 0);
@@ -1198,14 +1202,14 @@ function renderLessonContent(content) {
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 try {
-                                  const r = await fetch(`http://localhost:8000/api/student/notifications/${notification.id}/read`, {
+                                  const r = await fetch(apiUrl(`/api/student/notifications/${notification.id}/read`), {
                                     method: 'PATCH',
                                     headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
                                   });
                                   if (r.ok) {
                                     setNotifications(prev => prev.filter(n => n.id !== notification.id));
                                     try {
-                                      const c = await fetch('http://localhost:8000/api/student/notifications/count', { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
+                                      const c = await fetch(apiUrl('/api/student/notifications/count'), { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
                                       if (c.ok) {
                                         const cj = await c.json();
                                         setUnreadCount(typeof cj?.count === 'number' ? cj.count : 0);
@@ -1230,7 +1234,7 @@ function renderLessonContent(content) {
                       <button
                         onClick={async () => {
                           try {
-                            const r = await fetch('http://localhost:8000/api/student/notifications/mark_all_read', {
+                            const r = await fetch(apiUrl('/api/student/notifications/mark_all_read'), {
                               method: 'POST',
                               headers: {
                                 'Content-Type': 'application/json',
@@ -1240,7 +1244,7 @@ function renderLessonContent(content) {
                             if (r.ok) {
                               setNotifications([]);
                               try {
-                                const c = await fetch('http://localhost:8000/api/student/notifications/count', { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
+                                const c = await fetch(apiUrl('/api/student/notifications/count'), { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
                                 if (c.ok) {
                                   const cj = await c.json();
                                   setUnreadCount(typeof cj?.count === 'number' ? cj.count : 0);

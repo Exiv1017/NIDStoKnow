@@ -8,4 +8,10 @@ services:
     # Expose MySQL to the host for local development tools (DBeaver, MySQL Workbench, etc.)
     # WARNING: Do not use this override in production. It opens 3306 on the host.
     ports:
-      - "3306:3306"
+      - "3307:3306"
+
+  frontend:
+    # Expose the Nginx-based frontend to the host on http://localhost:8080
+    # This bypasses Caddy for local development.
+    ports:
+      - "8080:80"

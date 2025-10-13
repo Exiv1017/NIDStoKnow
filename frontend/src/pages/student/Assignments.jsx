@@ -61,16 +61,16 @@ export default function StudentAssignments() {
     try {
       setLoading(true);
       const headers = user?.token ? { 'Authorization': `Bearer ${user.token}` } : {};
-      const BASE = 'http://localhost:8000';
-      let res = await fetch(`${BASE}/api/student/assignments?student_id=${user.id}`, { headers });
+  const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+  let res = await fetch(`${API_BASE}/api/student/assignments?student_id=${user.id}`.replace(/([^:]?)\/\/+/g,'$1/'), { headers });
       let data = null;
       try { data = await res.json(); } catch {}
       if (res.status === 404) {
-        res = await fetch(`${BASE}/api/student/assignments/list?student_id=${user.id}`, { headers });
+  res = await fetch(`${API_BASE}/api/student/assignments/list?student_id=${user.id}`.replace(/([^:]?)\/\/+/g,'$1/'), { headers });
         try { data = await res.json(); } catch {}
       }
       if (res.status === 404) {
-        res = await fetch(`${BASE}/api/student/${user.id}/assignments`, { headers });
+  res = await fetch(`${API_BASE}/api/student/${user.id}/assignments`.replace(/([^:]?)\/\/+/g,'$1/'), { headers });
         try { data = await res.json(); } catch {}
       }
       if (!res.ok) {
@@ -100,8 +100,8 @@ export default function StudentAssignments() {
     try {
       setLoadingFb(true);
       const headers = user?.token ? { 'Authorization': `Bearer ${user.token}` } : {};
-      const BASE = 'http://localhost:8000';
-      const res = await fetch(`${BASE}/api/student/feedback?student_id=${user.id}`, { headers });
+  const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+  const res = await fetch(`${API_BASE}/api/student/feedback?student_id=${user.id}`.replace(/([^:]?)\/\/+/g,'$1/'), { headers });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.error || 'Failed to load feedback');
       setFeedback(Array.isArray(data) ? data : []);
