@@ -20,11 +20,13 @@ services:
       - nids_network
   cowrie:
     image: cowrie/cowrie
+    command: ["/cowrie/cowrie-env/bin/cowrie", "start", "-n"]
+    restart: unless-stopped
     ports:
       - "2224:2224"  # SSH (updated port)
       - "2225:2225"  # Telnet (updated port)
     volumes:
-      - cowrie_logs:/cowrie/cowrie-git/var/log
+      - cowrie_var:/cowrie/cowrie-git/var
     networks:
       - nids_network
 
@@ -33,14 +35,13 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     volumes:
-      - cowrie_logs:/cowrie_logs:ro
+      - cowrie_var:/cowrie_logs:ro
     environment:
       - DB_HOST=${DB_HOST:-mysql}
       - DB_PORT=${DB_PORT:-3306}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
-      - COWRIE_LOG_PATH=${COWRIE_LOG_PATH:-/dev/null}
       - DEV_MODE=${DEV_MODE:-false}
       - JWT_SECRET=${JWT_SECRET:-dev-secret-change-me}
     depends_on:
@@ -86,4 +87,4 @@ volumes:
   caddy_data:
   caddy_config:
   mysql_data:
-  cowrie_logs:
+  cowrie_var:
