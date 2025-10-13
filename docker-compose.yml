@@ -20,7 +20,6 @@ services:
       - nids_network
   cowrie:
     image: cowrie/cowrie
-    command: ["/cowrie/cowrie-env/bin/cowrie", "start", "-n"]
     restart: unless-stopped
     ports:
       - "2224:2224"  # SSH (updated port)
