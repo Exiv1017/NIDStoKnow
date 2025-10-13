@@ -7,28 +7,25 @@ import AuthContext from '../context/AuthContext';
 const getWsUrl = (simulationType = 'terminal', token) => {
   const loc = window.location;
   const protocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-  // Use same host as frontend, but port 8000 for backend
-  const host = loc.hostname;
-  const port = 8000;
-  
+  // Use same host and port as frontend (production: Caddy proxies to backend)
+  const hostport = loc.host; // includes port if present
   // Route to appropriate WebSocket endpoint based on simulation type
   let endpoint;
   switch (simulationType) {
     case 'signature':
-      endpoint = '/ws/terminal/signature';
+      endpoint = '/api/ws/terminal/signature';
       break;
     case 'anomaly':
-      endpoint = '/ws/terminal/anomaly';
+      endpoint = '/api/ws/terminal/anomaly';
       break;
     case 'hybrid':
-      endpoint = '/ws/terminal/hybrid';
+      endpoint = '/api/ws/terminal/hybrid';
       break;
     default:
-      endpoint = '/ws/terminal';
+      endpoint = '/api/ws/terminal';
   }
-  
   const qs = token ? `?token=${encodeURIComponent(token)}` : '';
-  return `${protocol}//${host}:${port}${endpoint}${qs}`;
+  return `${protocol}//${hostport}${endpoint}${qs}`;
 };
 
 const RealTerminal = ({ onCommand, simulationType = 'terminal' }) => {

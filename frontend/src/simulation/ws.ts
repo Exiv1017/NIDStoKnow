@@ -1,10 +1,13 @@
 import { AnyOutboundMessage } from './messages';
 
 export function buildWsUrl(path: string, token?: string) {
-  const proto = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+  const isBrowser = typeof window !== 'undefined';
+  const proto = isBrowser && window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const host = isBrowser ? window.location.host : 'localhost'; // includes port if any
   const q = token ? `?token=${encodeURIComponent(token)}` : '';
-  return `${proto}://${host}:8000${path}${q}`;
+  // If path already starts with /api use as-is, else prefer same-origin root path
+  const clean = path.startsWith('/') ? path : `/${path}`;
+  return `${proto}://${host}${clean}${q}`;
 }
 
 export function safeSend(ws: WebSocket | null | undefined, msg: AnyOutboundMessage): boolean {

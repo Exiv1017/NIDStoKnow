@@ -41,7 +41,7 @@ const SimulationLobby = () => {
     
     console.log('Student connecting to WebSocket for lobby:', lobbyCode); // Debug log
     const ws = new WebSocket(
-      `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:8000/api/ws/lobby/${lobbyCode}${user?.token ? `?token=${encodeURIComponent(user.token)}` : ''}`
+      `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/ws/lobby/${lobbyCode}${user?.token ? `?token=${encodeURIComponent(user.token)}` : ''}`
     );
     wsRef.current = ws;
 
@@ -219,9 +219,9 @@ const SimulationLobby = () => {
     } catch {}
     // Fire-and-forget: open a transient instructor ws to set difficulty, then start
     try {
-      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const host = window.location.hostname;
-  const isw = new WebSocket(`${proto}://${host}:8000/instructor/simulation/${lobbyCode}${user?.token ? `?token=${encodeURIComponent(user.token)}` : ''}`);
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const host = window.location.host;
+    const isw = new WebSocket(`${proto}://${host}/instructor/simulation/${lobbyCode}${user?.token ? `?token=${encodeURIComponent(user.token)}` : ''}`);
       isw.onopen = () => {
         isw.send(JSON.stringify({ action: 'set_difficulty', payload: { difficulty } }));
         // small delay to ensure room updates

@@ -31,7 +31,7 @@ const InstructorLobby = () => {
   useEffect(() => {
     if (!generated || !lobbyCode) return;
     const ws = new WebSocket(
-      `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:8000/api/ws/lobby/${lobbyCode}${user?.token ? `?token=${encodeURIComponent(user.token)}` : ''}`
+      `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/ws/lobby/${lobbyCode}${user?.token ? `?token=${encodeURIComponent(user.token)}` : ''}`
     );
     wsRef.current = ws;
     ws.onopen = () => {
