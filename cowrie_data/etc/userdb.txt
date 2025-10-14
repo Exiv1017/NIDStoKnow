@@ -1,0 +1,12 @@
+# User database for Cowrie auth
+# format: username:x:password
+# First match wins; '*' matches any
+root:x:123456
+root:x:root
+admin:x:admin
+admin:x:123456
+user:x:password
+user:x:user
+test:x:test
+student:x:student
+*:x:*
