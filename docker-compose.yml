@@ -55,6 +55,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - /app/node_modules
+    restart: unless-stopped
     depends_on:
       - backend
     networks:
@@ -73,6 +74,7 @@ services:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    restart: unless-stopped
     depends_on:
       - frontend
     networks:
