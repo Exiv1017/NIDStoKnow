@@ -4,28 +4,20 @@ import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import AuthContext from '../context/AuthContext';
 
+// Build WS URL. REST endpoints use /api/*, but websocket endpoints are mounted at /ws/* (no /api prefix)
+// so previous /api/ws/... paths failed. This corrects the prefix and adds a small reconnect/backoff strategy.
 const getWsUrl = (simulationType = 'terminal', token) => {
-  const loc = window.location;
-  const protocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-  // Use same host and port as frontend (production: Caddy proxies to backend)
-  const hostport = loc.host; // includes port if present
-  // Route to appropriate WebSocket endpoint based on simulation type
+  const { protocol: pageProto, host } = window.location;
+  const wsProto = pageProto === 'https:' ? 'wss:' : 'ws:';
   let endpoint;
   switch (simulationType) {
-    case 'signature':
-      endpoint = '/api/ws/terminal/signature';
-      break;
-    case 'anomaly':
-      endpoint = '/api/ws/terminal/anomaly';
-      break;
-    case 'hybrid':
-      endpoint = '/api/ws/terminal/hybrid';
-      break;
-    default:
-      endpoint = '/api/ws/terminal';
+    case 'signature': endpoint = '/ws/terminal/signature'; break;
+    case 'anomaly': endpoint = '/ws/terminal/anomaly'; break;
+    case 'hybrid': endpoint = '/ws/terminal/hybrid'; break;
+    default: endpoint = '/ws/terminal';
   }
   const qs = token ? `?token=${encodeURIComponent(token)}` : '';
-  return `${protocol}//${hostport}${endpoint}${qs}`;
+  return `${wsProto}//${host}${endpoint}${qs}`;
 };
 
 const RealTerminal = ({ onCommand, simulationType = 'terminal' }) => {
@@ -57,24 +49,36 @@ const RealTerminal = ({ onCommand, simulationType = 'terminal' }) => {
         return u ? (JSON.parse(u).token) : null;
       } catch { return null; }
     })();
-    wsRef.current = new WebSocket(getWsUrl(simulationType, token));
-    wsRef.current.onopen = () => {
-      const connectionMessage = simulationType === 'terminal' 
-        ? 'Connected to simulation shell...'
-        : `Connected to ${simulationType} simulation honeypot...`;
-      xtermRef.current.writeln(connectionMessage);
+    const connect = (attempt = 0) => {
+      const url = getWsUrl(simulationType, token);
+      wsRef.current = new WebSocket(url);
+      wsRef.current.onopen = () => {
+        const msg = simulationType === 'terminal'
+          ? 'Connected to simulation shell...'
+          : `Connected to ${simulationType} simulation honeypot...`;
+        xtermRef.current.writeln(msg);
+        attempt = 0; // reset
+      };
+      wsRef.current.onmessage = (event) => {
+        const data = String(event.data).replace(/\r\n|\r|\n/g, '\r\n');
+        xtermRef.current.write(data);
+      };
+      wsRef.current.onclose = () => {
+        xtermRef.current.writeln('\r\n[Disconnected from shell]');
+        // Auto-reconnect with capped backoff (up to ~10s)
+        if (attempt < 6) {
+          const delay = Math.min(10000, 500 * Math.pow(2, attempt));
+            xtermRef.current.writeln(`[Reconnecting in ${Math.round(delay/1000)}s]`);
+          setTimeout(() => connect(attempt + 1), delay);
+        } else {
+          xtermRef.current.writeln('[Reconnect attempts exhausted]');
+        }
+      };
+      wsRef.current.onerror = (e) => {
+        xtermRef.current.writeln(`\r\n[Connection error] ${e?.message || ''}`);
+      };
     };
-    wsRef.current.onmessage = (event) => {
-      // Normalize newlines to CRLF for xterm.js so line breaks render correctly
-      const data = String(event.data).replace(/\r\n|\r|\n/g, '\r\n');
-      xtermRef.current.write(data);
-    };
-    wsRef.current.onclose = () => {
-      xtermRef.current.writeln('\r\n[Disconnected from shell]');
-    };
-    wsRef.current.onerror = () => {
-      xtermRef.current.writeln('\r\n[Connection error]');
-    };
+    connect();
 
     let commandBuffer = '';
     xtermRef.current.onData((data) => {
