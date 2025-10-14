@@ -18,6 +18,7 @@ services:
       retries: 12
     networks:
       - nids_network
+
   cowrie:
     image: cowrie/cowrie
     restart: unless-stopped
@@ -32,7 +33,7 @@ services:
       - nids_network
 
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     volumes:
@@ -97,4 +98,6 @@ volumes:
   caddy_config:
   mysql_data:
   cowrie_var:
+
+
   
