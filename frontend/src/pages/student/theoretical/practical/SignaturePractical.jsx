@@ -4,6 +4,7 @@ import useModuleTimeSpent from '../../../../hooks/useModuleTimeSpent.js';
 import { Link } from 'react-router-dom';
 import { getActiveStudentId } from '../../../../utils/activeStudent';
 import AuthContext from '../../../../context/AuthContext';
+import AutomatonVisualizer from '../../../../components/AutomatonVisualizer.jsx';
 
 const SignaturePractical = ({ modules, setModules }) => {
   const title = 'Signature-Based Detection';
@@ -37,6 +38,7 @@ const SignaturePractical = ({ modules, setModules }) => {
   const [brMethod, setBrMethod] = useState(''); // '', GET, POST
   const [brThreshold, setBrThreshold] = useState(''); // number string
   const [toast, setToast] = useState(null); // { id, message }
+  const [showAutomaton, setShowAutomaton] = useState(false);
 
   // Debug time tracking for practical exercise
   useTimeAccumulator({
@@ -555,12 +557,12 @@ const SignaturePractical = ({ modules, setModules }) => {
           <div className="text-sm mt-3">
             Quick links to review:
             <ul className="list-disc ml-6 text-blue-700">
-              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=0">Intro: What is a NIDS? (Module 1)</a></li>
-              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=2">What is Signature‑Based Detection? (Module 2)</a></li>
-              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=4">Strengths & Limitations (Module 2)</a></li>
-              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=5">Rule Anatomy (Module 3)</a></li>
-              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=6">Common Patterns (Module 3)</a></li>
-              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=7">Avoiding False Positives (Module 3)</a></li>
+              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=1">Introduction to IDS (Module 1)</a></li>
+              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=2">Signature vs Anomaly (Module 2)</a></li>
+              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=3">Signature Detection Workflow (Module 2)</a></li>
+              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=5">Snort and Suricata (Module 3)</a></li>
+              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=6">Traffic Capture & Rule Databases (Module 3)</a></li>
+              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=8">Limitations of Signature‑Based NIDS (Module 4)</a></li>
             </ul>
           </div>
             <div className="pt-3"><button onClick={()=>setCurrentStep(3)} className="px-4 py-2 bg-[#206EA6] text-white rounded">Next: Get assets</button></div>
@@ -610,7 +612,7 @@ const SignaturePractical = ({ modules, setModules }) => {
         {currentStep===4 && (
           <div className="rounded-xl border p-4 bg-white">
             <h2 className="text-lg font-semibold text-gray-900">Build your rules</h2>
-            <p className="text-gray-700 mt-2 text-sm">Use the guided builder or switch to JSON if you prefer.</p>
+            <p className="text-gray-700 mt-2 text-sm">Use the guided builder or switch to JSON if you prefer. New: preview your string‑match patterns with an Aho–Corasick trie (optional).</p>
             <div className="flex items-center gap-4 text-sm mt-3">
               <label className="flex items-center gap-2">
                 <input type="radio" checked={useGuided} onChange={()=>setUseGuided(true)} /> Guided (recommended)
@@ -618,6 +620,12 @@ const SignaturePractical = ({ modules, setModules }) => {
               <label className="flex items-center gap-2">
                 <input type="radio" checked={!useGuided} onChange={()=>setUseGuided(false)} /> Advanced (paste JSON)
               </label>
+              <div className="ml-auto flex items-center gap-2">
+                <label className="flex items-center gap-2 text-xs text-gray-600">
+                  <input type="checkbox" checked={showAutomaton} onChange={e=>setShowAutomaton(e.target.checked)} />
+                  Show Pattern Automaton
+                </label>
+              </div>
             </div>
             {useGuided && (
               <div className="mt-2 text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded p-2">
@@ -699,6 +707,14 @@ const SignaturePractical = ({ modules, setModules }) => {
                     </ul>
                   )}
                 </div>
+
+                {showAutomaton && (
+                  <div className="mt-4 border rounded-lg p-3 bg-gray-50" aria-live="polite">
+                    <div className="text-sm font-medium text-gray-800 mb-2">Pattern Automaton Preview (Aho–Corasick)</div>
+                    <div className="text-xs text-gray-600 mb-2">Shows trie built from your string patterns ("contains" or "exact"). Regex rules are ignored in this preview.</div>
+                    <AutomatonVisualizer signatures={(builderRules||[]).filter(r=> (r.type==='contains' || r.type==='exact') && typeof r.match==='string' && r.match.trim()).map(r=> String(r.match))} />
+                  </div>
+                )}
               </>
             ) : (
               <>
