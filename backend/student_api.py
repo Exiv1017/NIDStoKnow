@@ -1503,6 +1503,31 @@ def _ensure_unit_event_columns(cursor):
                 cursor.execute(f"ALTER TABLE student_module_unit_events ADD COLUMN {col} {typ}")
             except Exception as e:
                 print(f"[WARN] Could not add column {col} to student_module_unit_events: {e}")
+        # Relax legacy columns to be nullable so inserts that omit them won't fail
+        try:
+            if 'module_slug' in cols:
+                try:
+                    cursor.execute("ALTER TABLE student_module_unit_events MODIFY COLUMN module_slug VARCHAR(255) NULL")
+                except Exception as _:
+                    pass
+            if 'unit' in cols:
+                try:
+                    cursor.execute("ALTER TABLE student_module_unit_events MODIFY COLUMN unit VARCHAR(255) NULL")
+                except Exception as _:
+                    pass
+            if 'event' in cols:
+                try:
+                    cursor.execute("ALTER TABLE student_module_unit_events MODIFY COLUMN event VARCHAR(100) NULL")
+                except Exception as _:
+                    pass
+            if 'occurred_at' in cols:
+                try:
+                    cursor.execute("ALTER TABLE student_module_unit_events MODIFY COLUMN occurred_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP")
+                except Exception as _:
+                    pass
+        except Exception as _e:
+            # best-effort; non-fatal if modifications not permitted
+            pass
     except Exception as e:
         print(f"[WARN] _ensure_unit_event_columns failed: {e}")
 
