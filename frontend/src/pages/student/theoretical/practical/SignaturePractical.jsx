@@ -46,6 +46,7 @@ const SignaturePractical = ({ modules, setModules }) => {
     moduleSlug: slug,
     unitType: 'practical',
     unitCode: 'practical',
+    authToken: user?.token || null,
     debug: true,
     realtime: true
   });
@@ -54,7 +55,7 @@ const SignaturePractical = ({ modules, setModules }) => {
     const userId = user?.id || getActiveStudentId();
     if (userId) {
       fetch(`/api/student/${userId}/module/${slug}/unit`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}) },
         body: JSON.stringify({ unit_type: 'practical', completed: true })
       }).then(()=>{
         try { window.dispatchEvent(new CustomEvent('moduleUnitUpdated', { detail: { module: slug, unit: 'practical' } })); } catch {}
@@ -67,24 +68,26 @@ const SignaturePractical = ({ modules, setModules }) => {
     setTimeout(()=> setToast(null), 3500);
   };
 
-  // Helper to bulk-add guided starter rules aligned with theory lessons
+  // Starters to align with common patterns covered in theory
+  const getStarters = (which = 'http3') => ({
+    http3: [
+      { name: 'WP Login brute force', field: 'path', type: 'contains', match: '/wp-login.php', method: 'POST', threshold: { by: 'ip', count: 3 } },
+      { name: 'SQLi probe', field: 'query', type: 'regex', match: '\\bOR\\b\\s*1=1' },
+      { name: 'Scanner UA (sqlmap)', field: 'ua', type: 'contains', match: 'sqlmap' },
+    ],
+    lfi_rfi: [
+      { name: 'Path traversal', field: 'path', type: 'contains', match: '../' },
+      { name: 'Read passwd file', field: 'path', type: 'contains', match: '/etc/passwd' },
+      { name: 'Remote file include', field: 'query', type: 'contains', match: 'include=http://' },
+    ],
+    ssh_dropper: [
+      { name: 'SSH dropper via pipe', field: 'cmd', type: 'regex', match: '(curl|wget)\\b.*\\|\\s*(bash|sh)' },
+    ],
+  })[which] || [];
+
+  // Helper to bulk-append guided starter rules
   const addStarterRules = (which = 'http3') => {
-    const starters = {
-      http3: [
-        { name: 'WP Login brute force', field: 'path', type: 'contains', match: '/wp-login.php', method: 'POST', threshold: { by: 'ip', count: 3 } },
-        { name: 'SQLi probe', field: 'query', type: 'regex', match: '\\bOR\\b\\s*1=1' },
-        { name: 'Scanner UA (sqlmap)', field: 'ua', type: 'contains', match: 'sqlmap' },
-      ],
-      lfi_rfi: [
-        { name: 'Path traversal', field: 'path', type: 'contains', match: '../' },
-        { name: 'Read passwd file', field: 'path', type: 'contains', match: '/etc/passwd' },
-        { name: 'Remote file include', field: 'query', type: 'contains', match: 'include=http://' },
-      ],
-      ssh_dropper: [
-        { name: 'SSH dropper via pipe', field: 'cmd', type: 'regex', match: '(curl|wget)\\b.*\\|\\s*(bash|sh)' },
-      ],
-    };
-    const toAdd = starters[which] || [];
+    const toAdd = getStarters(which);
     setBuilderRules(prev => {
       const base = prev.length;
       return [
@@ -93,6 +96,18 @@ const SignaturePractical = ({ modules, setModules }) => {
       ];
     });
     setUseGuided(true);
+  };
+
+  // Beginner quick-start: preload a small set targeted to chosen log
+  const preloadStarters = (which = 'http3') => {
+    const toAdd = getStarters(which);
+    // Replace current builder rules with a fresh set for clarity
+    setBuilderRules(toAdd.map((r, i) => ({ id: `G-${i + 1}`, ...r })));
+    setUseGuided(true);
+    if (which === 'ssh_dropper') setLogChoice('/samples/ssh-commands.log');
+    if (which === 'http3' || which === 'lfi_rfi') setLogChoice('/samples/web-access.log');
+    setToast({ id: Date.now(), message: 'Starters loaded. Click "Run check" below.' });
+    setTimeout(()=> setToast(null), 3000);
   };
 
   // Restore last results so totals persist across steps/refresh
@@ -360,7 +375,7 @@ const SignaturePractical = ({ modules, setModules }) => {
     try {
       const res = await fetch('/api/student/submissions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}) },
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('Submit failed');
@@ -378,6 +393,12 @@ const SignaturePractical = ({ modules, setModules }) => {
       setSubmitting(false);
     }
   };
+
+  // Beginner-friendly guidance in Step 5 based on current rules vs chosen log
+  const currentRules = useMemo(() => getUsedRules(), [useGuided, builderRules, rulesText]);
+  const warnHttpWithCmd = useMemo(() => /web-access/.test(logChoice) && currentRules.some(r => String(r.field||'').toLowerCase() === 'cmd'), [logChoice, currentRules]);
+  const warnSshWithHttpFields = useMemo(() => /ssh-commands/.test(logChoice) && currentRules.some(r => ['path','query','ua'].includes(String(r.field||'').toLowerCase())), [logChoice, currentRules]);
+  const warnSshMethod = useMemo(() => /ssh-commands/.test(logChoice) && currentRules.some(r => !!r.method), [logChoice, currentRules]);
 
   const generateReportMarkdown = () => {
     const dateStr = new Date().toISOString().slice(0,10);
@@ -734,6 +755,14 @@ const SignaturePractical = ({ modules, setModules }) => {
           <div className="rounded-xl border p-4 bg-white">
             <h2 className="text-lg font-semibold text-gray-900">Test & tune</h2>
             <p className="text-gray-700 mt-2 text-sm">Pick a log file and run your rules. Inspect matches and tighten your patterns.</p>
+            <div className="mt-2 text-[12px] text-gray-700">
+              Quick start:
+              <div className="mt-1 flex flex-wrap gap-2">
+                <button onClick={()=>preloadStarters('http3')} className="px-2 py-1 border rounded text-xs">HTTP examples</button>
+                <button onClick={()=>preloadStarters('lfi_rfi')} className="px-2 py-1 border rounded text-xs">LFI/RFI examples</button>
+                <button onClick={()=>preloadStarters('ssh_dropper')} className="px-2 py-1 border rounded text-xs">SSH dropper example</button>
+              </div>
+            </div>
             <div className="mt-2 text-[12px] text-gray-700 bg-gray-50 border rounded p-2">
               Tip: HTTP logs expose <span className="font-medium">path</span>, <span className="font-medium">query</span>, <span className="font-medium">ua</span>, and request <span className="font-medium">method</span> (GET/POST). SSH logs expose <span className="font-medium">cmd</span> only. Method gating applies to HTTP rules.
             </div>
@@ -748,6 +777,13 @@ const SignaturePractical = ({ modules, setModules }) => {
             <div className="mt-2 text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded p-2">
               Tip: For <span className="font-medium">HTTP</span> logs, fields <span className="font-mono">path</span>, <span className="font-mono">query</span>, and <span className="font-mono">ua</span> are populated and you can gate by method GET/POST. For <span className="font-medium">SSH</span> logs, use <span className="font-mono">cmd</span> (method doesn’t apply).
             </div>
+            {(warnHttpWithCmd || warnSshWithHttpFields || warnSshMethod) && (
+              <div className="mt-2 text-xs rounded p-2 border bg-amber-50 border-amber-200 text-amber-800">
+                {warnHttpWithCmd && <div>HTTP log selected: rules on <span className="font-mono">cmd</span> won’t match. Use <span className="font-mono">path</span>, <span className="font-mono">query</span>, or <span className="font-mono">ua</span>.</div>}
+                {warnSshWithHttpFields && <div>SSH log selected: rules on <span className="font-mono">path</span>/<span className="font-mono">query</span>/<span className="font-mono">ua</span> won’t match. Use <span className="font-mono">cmd</span>.</div>}
+                {warnSshMethod && <div>SSH log selected: HTTP method gating (GET/POST) doesn’t apply here; remove method from these rules.</div>}
+              </div>
+            )}
             {results && (
               <div className="mt-3 text-sm">
                 {results.error ? (
