@@ -445,19 +445,28 @@ const StudentDashboard = () => {
   }, [enhancedModules, summaries]);
 
   // Enhanced assigned modules with progress data
-  const enhancedAssignedModules = assignedModules.map(assignedModule => {
-    // Find in legacy modules for lastLesson; find in enhancedModules for real comprehensive progress
-    const legacyModule = modules.find(m => m.name === assignedModule.name);
+  // Assigned Modules panel requirements:
+  //  - If the instructor has not assigned any modules, show an empty/blank state (no auto-population).
+  //  - When assignments exist, list ONLY those explicitly assigned (do not display unassigned modules even if the student has organic progress on them).
+  // We assume each item in assignedModules already originates from an instructor action. If backend also
+  // sends other metadata, we strictly filter to those with an explicit instructorAssigned flag or provided status.
+  const instructorAssigned = assignedModules.filter(m => m.instructorAssigned || m.status || m.assigned === true);
+  const enhancedAssignedModules = instructorAssigned.map(assignedModule => {
+    // For each assigned module, derive latest comprehensive progress from authoritative enhancedModules.
     const realModule = enhancedModules.find(m => m.name === assignedModule.name);
+    const legacyModule = modules.find(m => m.name === assignedModule.name);
     const comprehensiveProgress = realModule ? realModule.comprehensiveProgress : (legacyModule?.progress || assignedModule.progress || 0);
-    let status = 'Not Started';
-    if (comprehensiveProgress >= 100) status = 'Completed';
-    else if (comprehensiveProgress > 0) status = 'In Progress';
+    let derivedStatus = 'Not Started';
+    if (comprehensiveProgress >= 100) derivedStatus = 'Completed';
+    else if (comprehensiveProgress > 0) derivedStatus = 'In Progress';
+    // Preserve explicit status from backend if provided (e.g., 'Assigned', 'Overdue').
+    const finalStatus = assignedModule.status || derivedStatus;
     return {
       ...assignedModule,
       progress: comprehensiveProgress,
-      status: assignedModule.status || status,
-      lastLesson: legacyModule ? legacyModule.lastLesson : assignedModule.lastLesson || null
+      status: finalStatus,
+      lastLesson: legacyModule ? legacyModule.lastLesson : assignedModule.lastLesson || null,
+      instructorAssigned: assignedModule.instructorAssigned || true // ensure truthy so render logic keeps it
     };
   });
 
