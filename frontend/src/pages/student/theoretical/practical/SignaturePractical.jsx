@@ -24,6 +24,9 @@ const SignaturePractical = ({ modules, setModules }) => {
   const [resultsByFile, setResultsByFile] = useState({}); // key: filepath -> { file, rules }
   const [hasRunCheck, setHasRunCheck] = useState(false);
   const [totalMatches, setTotalMatches] = useState(0);
+  const [parsedCount, setParsedCount] = useState(0);
+  const [parsedPreview, setParsedPreview] = useState([]); // small sample of parsed fields
+  const [rawPreview, setRawPreview] = useState([]);
   const [studentName, setStudentName] = useState('');
   const [reportNotes, setReportNotes] = useState('');
   const [attachment, setAttachment] = useState(null); // { name, type, size, base64 }
@@ -231,10 +234,21 @@ const SignaturePractical = ({ modules, setModules }) => {
         rules = Array.isArray(parsed?.rules) ? parsed.rules : Array.isArray(parsed) ? parsed : [];
       }
       const res = await fetch(logChoice);
+      if (!res.ok) {
+        throw new Error(`Failed to load ${logChoice} (HTTP ${res.status})`);
+      }
+      const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
       const text = await res.text();
+      // Detect accidental HTML (SPA fallback) which would yield zero parses/matches
+      if (/text\/html/i.test(ct) || (/^\s*</.test(text) && /<html/i.test(text))) {
+        throw new Error('The selected log appears to be served as HTML. Check that /samples/* files are accessible and not intercepted by the SPA.');
+      }
+      setRawPreview(text.split(/\r?\n/).slice(0, 5));
       const lines = text.split(/\r?\n/).filter(Boolean);
       const isWeb = /web-access/.test(logChoice);
-      const parsedLines = lines.map(ln => isWeb ? parseWebAccess(ln) : parseSshCommands(ln)).filter(Boolean);
+  const parsedLines = lines.map(ln => isWeb ? parseWebAccess(ln) : parseSshCommands(ln)).filter(Boolean);
+  setParsedCount(parsedLines.length);
+  setParsedPreview(parsedLines.slice(0, 3));
 
   const outcomes = rules.map(rule => {
         const field = String(rule.field || '').toLowerCase();
@@ -800,10 +814,27 @@ const SignaturePractical = ({ modules, setModules }) => {
             {results && (
               <div className="mt-3 text-sm">
                 {results.error ? (
-                  <div className="text-red-600">{results.error}</div>
+                  <div className="text-red-600">
+                    {results.error}
+                    {rawPreview.length>0 && (
+                      <div className="mt-2 text-xs text-gray-700">
+                        Raw preview (first lines):
+                        <pre className="bg-white border rounded p-2 overflow-auto text-[11px] leading-snug">{rawPreview.join('\n')}</pre>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     <div className="text-gray-700">Results for <span className="font-mono">{results.file}</span></div>
+                    <div className="text-xs text-gray-600 bg-gray-50 border rounded p-2">
+                      Parsed lines: <span className="font-semibold">{parsedCount}</span>
+                      {parsedPreview.length>0 && (
+                        <>
+                          <div className="mt-1 text-gray-700">Preview (first 3 parsed entries):</div>
+                          <pre className="bg-white border rounded p-2 overflow-auto text-[11px] leading-snug">{JSON.stringify(parsedPreview, null, 2)}</pre>
+                        </>
+                      )}
+                    </div>
                     <div className="grid gap-3">
                       {results.rules.map((r,i)=> (
                         <div key={i} className="p-3 border rounded">

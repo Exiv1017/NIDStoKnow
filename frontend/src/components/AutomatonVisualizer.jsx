@@ -14,9 +14,15 @@ function buildEmpty() {
 
 const AutomatonVisualizer = ({ signatures }) => {
   const patterns = (signatures || [])
-    .filter(s => !s.regex) // Only include AC string patterns
-    .map(s => s.pattern)
-    .filter((v, i, a) => v && a.indexOf(v) === i) // unique
+    .map(s => {
+      if (typeof s === 'string') return s;
+      if (s && typeof s === 'object') {
+        if (s.regex) return ''; // ignore regex entries
+        return s.pattern || s.match || '';
+      }
+      return '';
+    })
+    .filter((v, i, a) => v && a.indexOf(v) === i)
     .sort((a,b)=> a.localeCompare(b));
 
   const [nodes, setNodes] = useState({ 0: buildEmpty() });
@@ -49,6 +55,15 @@ const AutomatonVisualizer = ({ signatures }) => {
   };
 
   useEffect(() => {
+    if (patterns.length === 0) {
+      // Nothing to build
+      setStage('idle');
+      setNodes({ 0: buildEmpty() });
+      setNextId(1);
+      setQueue([]);
+      setActiveNode(0);
+      return;
+    }
     if (stage === 'idle' && patterns.length > 0) {
       setStage('inserting');
       appendLog('Initialized insertion stage.');
@@ -228,7 +243,7 @@ const AutomatonVisualizer = ({ signatures }) => {
               {patterns.map((p,i)=>(
                 <li key={p} className={i===pIndex && stage!=='done' ? 'font-semibold text-blue-700' : ''}>{p}</li>
               ))}
-              {patterns.length===0 && <li className="text-gray-400 italic">(none)</li>}
+              {patterns.length===0 && <li className="text-gray-400 italic">(none — add contains/exact rules in the builder)</li>}
             </ol>
           </div>
           <div className="bg-gray-50 p-3 rounded border max-h-48 overflow-auto">
