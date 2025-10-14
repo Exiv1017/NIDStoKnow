@@ -238,9 +238,9 @@ def load_signatures_from_db():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-    _ensure_signatures_schema(cursor)
-    _seed_default_signatures(cursor)
-    conn.commit()
+        _ensure_signatures_schema(cursor)
+        _seed_default_signatures(cursor)
+        conn.commit()
 
         # Discover available columns
         try:
