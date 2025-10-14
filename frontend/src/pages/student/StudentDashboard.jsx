@@ -450,7 +450,9 @@ const StudentDashboard = () => {
   //  - When assignments exist, list ONLY those explicitly assigned (do not display unassigned modules even if the student has organic progress on them).
   // We assume each item in assignedModules already originates from an instructor action. If backend also
   // sends other metadata, we strictly filter to those with an explicit instructorAssigned flag or provided status.
-  const instructorAssigned = assignedModules.filter(m => m.instructorAssigned || m.status || m.assigned === true);
+  // Consider a module instructor-assigned ONLY if backend explicitly marks instructorAssigned === true
+  // or provides a distinct 'assigned' true flag. Ignore mere presence of status to avoid accidental auto-display.
+  const instructorAssigned = assignedModules.filter(m => m.instructorAssigned === true || m.assigned === true);
   const enhancedAssignedModules = instructorAssigned.map(assignedModule => {
     // For each assigned module, derive latest comprehensive progress from authoritative enhancedModules.
     const realModule = enhancedModules.find(m => m.name === assignedModule.name);
@@ -466,7 +468,7 @@ const StudentDashboard = () => {
       progress: comprehensiveProgress,
       status: finalStatus,
       lastLesson: legacyModule ? legacyModule.lastLesson : assignedModule.lastLesson || null,
-      instructorAssigned: assignedModule.instructorAssigned || true // ensure truthy so render logic keeps it
+      instructorAssigned: assignedModule.instructorAssigned === true || assignedModule.assigned === true
     };
   });
 
