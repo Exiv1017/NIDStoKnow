@@ -233,15 +233,28 @@ const SignaturePractical = ({ modules, setModules }) => {
         const parsed = JSON.parse(rulesText || '{}');
         rules = Array.isArray(parsed?.rules) ? parsed.rules : Array.isArray(parsed) ? parsed : [];
       }
-      const res = await fetch(logChoice);
+      let res = await fetch(logChoice);
       if (!res.ok) {
         throw new Error(`Failed to load ${logChoice} (HTTP ${res.status})`);
       }
-      const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
-      const text = await res.text();
-      // Detect accidental HTML (SPA fallback) which would yield zero parses/matches
+      let ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+      let text = await res.text();
+      // Detect accidental HTML (SPA fallback). Instead of failing hard, warn and continue so UI stays usable.
       if (/text\/html/i.test(ct) || (/^\s*</.test(text) && /<html/i.test(text))) {
-        throw new Error('The selected log appears to be served as HTML. Check that /samples/* files are accessible and not intercepted by the SPA.');
+        const alt = logChoice.startsWith('/') ? logChoice.slice(1) : logChoice;
+        try {
+          const res2 = await fetch(alt);
+          if (res2.ok) {
+            ct = res2.headers?.get?.('content-type') || '';
+            text = await res2.text();
+          } else {
+            setToast({ id: Date.now(), message: 'Warning: log request returned HTML (SPA fallback). Using fallback content; matches may be zero.' });
+            setTimeout(()=> setToast(null), 3500);
+          }
+        } catch {
+          setToast({ id: Date.now(), message: 'Warning: log request returned HTML (SPA fallback). Matches may be zero.' });
+          setTimeout(()=> setToast(null), 3500);
+        }
       }
       setRawPreview(text.split(/\r?\n/).slice(0, 5));
       const lines = text.split(/\r?\n/).filter(Boolean);
@@ -311,7 +324,7 @@ const SignaturePractical = ({ modules, setModules }) => {
   const tm = outcomes.reduce((acc, r) => acc + (Number(r.total) || 0), 0);
       setTotalMatches(tm);
     } catch (e) {
-      setResults({ error: 'Invalid rules JSON or log could not be read.' });
+      setResults({ error: `Invalid rules JSON or log could not be read. ${e?.message ? `Details: ${e.message}` : ''}` });
     } finally {
       setChecking(false);
     }
@@ -799,6 +812,7 @@ const SignaturePractical = ({ modules, setModules }) => {
                 <option value="/samples/web-access.log">web-access.log (HTTP)</option>
                 <option value="/samples/ssh-commands.log">ssh-commands.log (SSH/Cowrie)</option>
               </select>
+              <a className="text-xs text-blue-700 hover:underline" href={logChoice} target="_blank" rel="noreferrer">Open log</a>
               <button onClick={runCheck} disabled={checking || (useGuided ? builderRules.length===0 : !rulesText.trim())} className="px-3 py-1.5 bg-[#206EA6] text-white rounded disabled:opacity-50">{checking ? 'Checking…' : 'Run check'}</button>
             </div>
             <div className="mt-2 text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded p-2">
