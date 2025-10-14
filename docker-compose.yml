@@ -29,6 +29,8 @@ services:
       - cowrie_var:/cowrie/cowrie-git/var
       # Mount custom user database for predictable credentials
       - ./cowrie_data/etc/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
+      # Mount explicit Cowrie configuration to ensure password & keyboard-interactive auth via userdb
+      - ./cowrie_data/etc/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
     networks:
       - nids_network
 
@@ -46,6 +48,7 @@ services:
       DB_NAME: ${DB_NAME}
       DEV_MODE: ${DEV_MODE:-false}
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Explicit Cowrie connectivity (overrides defaults used in cowrie_terminal.py)
       COWRIE_HOST: cowrie
       COWRIE_SSH_PORT: 2222
@@ -91,13 +94,12 @@ services:
 
 networks:
   nids_network:
-    driver: bridge 
+    driver: bridge
 
 volumes:
   caddy_data:
   caddy_config:
   mysql_data:
   cowrie_var:
-
-
   
+
