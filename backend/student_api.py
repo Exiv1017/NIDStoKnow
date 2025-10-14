@@ -1490,6 +1490,89 @@ def _ensure_unit_event_columns(cursor):
     except Exception as e:
         print(f"[WARN] _ensure_unit_event_columns failed: {e}")
 
+def _migrate_unit_events_legacy(cursor):
+    """Rebuild student_module_unit_events to the expected schema when legacy structure is detected.
+
+    Strategy:
+    - If table doesn't exist, create fresh with the new schema.
+    - If table exists but is missing critical columns (module_name, completed, unit_type, unit_code, duration_seconds, created_at),
+      create a new table with correct schema, copy forward any legacy data if recognizable, swap tables atomically.
+    """
+    try:
+        # Detect table existence
+        cursor.execute("SHOW TABLES LIKE 'student_module_unit_events'")
+        exists = cursor.fetchone() is not None
+        if not exists:
+            ensure_unit_events_table(cursor)
+            return
+        # Inspect existing columns
+        cursor.execute("SHOW COLUMNS FROM student_module_unit_events")
+        existing_cols = {r[0] if isinstance(r, tuple) else (r.get('Field') if isinstance(r, dict) else None) for r in (cursor.fetchall() or [])}
+        required_core = { 'module_name', 'unit_type', 'unit_code', 'completed', 'duration_seconds', 'created_at' }
+        if required_core.issubset(existing_cols):
+            return  # already compatible
+        # Create new table with correct schema
+        cursor.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS student_module_unit_events__new (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              student_id INT NOT NULL,
+              module_name VARCHAR(255) NOT NULL,
+              unit_type ENUM('overview','lesson','quiz','practical','assessment') NOT NULL,
+              unit_code VARCHAR(64) NULL,
+              completed TINYINT(1) DEFAULT 1,
+              duration_seconds INT NULL DEFAULT 0,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              INDEX idx_student_module (student_id, module_name),
+              INDEX idx_unit_type (unit_type)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            '''
+        )
+        # Try to copy recognizable legacy data forward
+        try:
+            # Heuristics: common legacy columns were (module_slug, event, unit, occurred_at)
+            legacy_has = existing_cols
+            if {'student_id','module_slug','event','unit','occurred_at'}.issubset(legacy_has):
+                cursor.execute(
+                    '''
+                    INSERT INTO student_module_unit_events__new (student_id, module_name, unit_type, unit_code, completed, duration_seconds, created_at)
+                    SELECT student_id,
+                           COALESCE(module_slug, '') AS module_name,
+                           CASE LOWER(COALESCE(event,''))
+                               WHEN 'overview' THEN 'overview'
+                               WHEN 'practical' THEN 'practical'
+                               WHEN 'assessment' THEN 'assessment'
+                               WHEN 'quiz' THEN 'quiz'
+                               ELSE 'lesson'
+                           END AS unit_type,
+                           unit AS unit_code,
+                           1 AS completed,
+                           0 AS duration_seconds,
+                           occurred_at AS created_at
+                    FROM student_module_unit_events
+                    '''
+                )
+            else:
+                # Best-effort shallow copy if columns already align partially
+                common_cols = []
+                # Build a copy statement for whatever subset exists
+                for c in ['student_id','module_name','unit_type','unit_code','completed','duration_seconds','created_at']:
+                    if c in legacy_has:
+                        common_cols.append(c)
+                if common_cols:
+                    cols_csv = ', '.join(common_cols)
+                    cursor.execute(f"INSERT INTO student_module_unit_events__new ({cols_csv}) SELECT {cols_csv} FROM student_module_unit_events")
+        except Exception as ce:
+            print(f"[WARN] unit_events legacy copy failed: {ce}")
+        # Swap tables
+        try:
+            cursor.execute('DROP TABLE student_module_unit_events')
+        except Exception as de:
+            print(f"[WARN] drop legacy unit_events failed (continuing): {de}")
+        cursor.execute('RENAME TABLE student_module_unit_events__new TO student_module_unit_events')
+    except Exception as e:
+        print(f"[WARN] _migrate_unit_events_legacy failed: {e}")
+
 def ensure_unit_events_table(cursor):
     """Create student_module_unit_events table if it does not exist (runtime safety)."""
     try:
@@ -1511,6 +1594,8 @@ def ensure_unit_events_table(cursor):
         )
         # Also ensure any missing columns on existing legacy tables
         _ensure_unit_event_columns(cursor)
+        # If legacy structure persists (missing core cols), rebuild table and copy forward
+        _migrate_unit_events_legacy(cursor)
     except Exception as e:
         print(f"[WARN] ensure_unit_events_table failed: {e}")
 
@@ -1704,11 +1789,25 @@ def set_student_module_unit(request: Request, student_id: int, module_name: str,
             )
             existing = cursor.fetchone()
             if not existing and req.completed:
-                cursor.execute(
-                    '''INSERT INTO student_module_unit_events (student_id, module_name, unit_type, unit_code, completed)
-                       VALUES (%s,%s,'quiz',%s,1)''',
-                    (student_id, module_name, req.unit_code)
-                )
+                try:
+                    cursor.execute(
+                        '''INSERT INTO student_module_unit_events (student_id, module_name, unit_type, unit_code, completed)
+                           VALUES (%s,%s,'quiz',%s,1)''',
+                        (student_id, module_name, req.unit_code)
+                    )
+                except Exception as ie:
+                    # Attempt schema self-heal and retry once if unknown column
+                    msg = str(ie)
+                    if '1054' in msg or 'Unknown column' in msg:
+                        _migrate_unit_events_legacy(cursor)
+                        _ensure_unit_event_columns(cursor)
+                        cursor.execute(
+                            '''INSERT INTO student_module_unit_events (student_id, module_name, unit_type, unit_code, completed)
+                               VALUES (%s,%s,'quiz',%s,1)''',
+                            (student_id, module_name, req.unit_code)
+                        )
+                    else:
+                        raise
                 # Increment quizzes_passed (capped later in summary) and set total_quizzes if unset & we have expected meta
                 cursor.execute(
                     'UPDATE student_progress SET quizzes_passed = quizzes_passed + 1 WHERE student_id=%s AND module_name=%s',
@@ -1731,11 +1830,24 @@ def set_student_module_unit(request: Request, student_id: int, module_name: str,
                 f'UPDATE student_progress SET {target_col}=%s WHERE student_id=%s AND module_name=%s',
                 (1 if req.completed else 0, student_id, module_name)
             )
-            cursor.execute(
-                '''INSERT INTO student_module_unit_events (student_id, module_name, unit_type, unit_code, completed, duration_seconds)
-                   VALUES (%s,%s,%s,%s,%s,%s)''',
-                (student_id, module_name, unit_type, req.unit_code, 1 if req.completed else 0, req.duration_seconds or 0)
-            )
+            try:
+                cursor.execute(
+                    '''INSERT INTO student_module_unit_events (student_id, module_name, unit_type, unit_code, completed, duration_seconds)
+                       VALUES (%s,%s,%s,%s,%s,%s)''',
+                    (student_id, module_name, unit_type, req.unit_code, 1 if req.completed else 0, req.duration_seconds or 0)
+                )
+            except Exception as ie:
+                msg = str(ie)
+                if '1054' in msg or 'Unknown column' in msg:
+                    _migrate_unit_events_legacy(cursor)
+                    _ensure_unit_event_columns(cursor)
+                    cursor.execute(
+                        '''INSERT INTO student_module_unit_events (student_id, module_name, unit_type, unit_code, completed, duration_seconds)
+                           VALUES (%s,%s,%s,%s,%s,%s)''',
+                        (student_id, module_name, unit_type, req.unit_code, 1 if req.completed else 0, req.duration_seconds or 0)
+                    )
+                else:
+                    raise
             # Emit notifications when a unit flips to completed
             if req.completed:
                 try:
@@ -1776,6 +1888,34 @@ def set_student_module_unit(request: Request, student_id: int, module_name: str,
         finally:
             conn.close()
 
+@router.get('/student/{student_id}/module/{module_name}/unit')
+def get_student_module_unit_placeholder(student_id: int, module_name: str):
+    """Placeholder GET to avoid 405 noise from accidental GET calls on /unit.
+
+    Returns the latest unit event summary for this module if available; otherwise, a noop object.
+    """
+    conn = get_db_connection(); cursor = conn.cursor()
+    try:
+        ensure_unit_events_table(cursor)
+        module_name = _normalize_module_key(module_name)
+        # Count distinct quiz events and check unit flags from student_progress
+        cursor.execute('''SELECT COUNT(DISTINCT unit_code) FROM student_module_unit_events WHERE student_id=%s AND module_name=%s AND unit_type='quiz' ''', (student_id, module_name))
+        q = cursor.fetchone(); quiz_events = int(q[0] if q else 0)
+        cursor.execute('''SELECT overview_completed, practical_completed, assessment_completed FROM student_progress WHERE student_id=%s AND module_name=%s''', (student_id, module_name))
+        row = cursor.fetchone() or (0,0,0)
+        return {
+            'student_id': student_id,
+            'module': module_name,
+            'overview_completed': bool(row[0] if isinstance(row, tuple) else (row.get('overview_completed') if row else 0)),
+            'practical_completed': bool(row[1] if isinstance(row, tuple) else (row.get('practical_completed') if row else 0)),
+            'assessment_completed': bool(row[2] if isinstance(row, tuple) else (row.get('assessment_completed') if row else 0)),
+            'quizzes_passed_events': quiz_events
+        }
+    except Exception:
+        return {'student_id': student_id, 'module': _normalize_module_key(module_name)}
+    finally:
+        cursor.close(); conn.close()
+
 @router.post('/student/{student_id}/module/{module_name}/time_event')
 @rbac_required('student', audit_action='time_event', audit_logger=_audit_log)
 def record_time_event(request: Request, student_id: int, module_name: str, body: TimeEventRequest):
@@ -1802,7 +1942,14 @@ def record_time_event(request: Request, student_id: int, module_name: str, body:
             cursor.execute('''INSERT INTO student_module_unit_events (student_id, module_name, unit_type, unit_code, completed, duration_seconds)
                               VALUES (%s,%s,%s,%s,0,%s)''', (student_id, norm_mod, unit_type, body.unit_code, body.delta_seconds))
         except Exception as ie:
-            print(f"[WARN] could not insert time event: {ie}")
+            msg = str(ie)
+            if '1054' in msg or 'Unknown column' in msg:
+                _migrate_unit_events_legacy(cursor)
+                _ensure_unit_event_columns(cursor)
+                cursor.execute('''INSERT INTO student_module_unit_events (student_id, module_name, unit_type, unit_code, completed, duration_seconds)
+                                  VALUES (%s,%s,%s,%s,0,%s)''', (student_id, norm_mod, unit_type, body.unit_code, body.delta_seconds))
+            else:
+                print(f"[WARN] could not insert time event: {ie}")
         # Increment aggregate time_spent on module
         cursor.execute('UPDATE student_progress SET time_spent = time_spent + %s WHERE student_id=%s AND module_name=%s', (body.delta_seconds, student_id, norm_mod))
         conn.commit()
