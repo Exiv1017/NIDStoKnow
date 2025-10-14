@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { getModuleQuizPassed } from '../pages/student/theoretical/components/moduleQuizUtils.js';
 import { toSlug } from '../pages/student/theoretical/logic/ids';
 
 // Enhanced hook: normalizes, merges duplicate variants. Overview completion now trusts backend flags only.
@@ -7,6 +8,7 @@ export default function useModuleSummaries(user){
   const [error,setError] = useState(null);
   const [summaries,setSummaries] = useState({});
   const lastFetchedRef = useRef(null);
+  const backfillLockRef = useRef({}); // { studentId: true } to avoid loops per session
 
   // Allow overriding API base (docker / prod) while still supporting Vite dev proxy.
   const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
@@ -86,7 +88,48 @@ export default function useModuleSummaries(user){
         err.cause = jsonErr;
         throw err;
       }
-      setSummaries(normalizeRows(data));
+      const normalized = normalizeRows(data);
+      setSummaries(normalized);
+
+      // Backfill: if local quiz state shows more passes than server reports, upsert missing unit events server-side.
+      // This prevents drift when a prior quiz pass happened offline or an auth header was missing.
+      try {
+        const sid = user?.id;
+        if (sid && !backfillLockRef.current[sid]) {
+          const trackFor = slug => slug==='anomaly-based-detection' ? 'anomaly' : slug==='hybrid-detection' ? 'hybrid' : slug==='signature-based-detection' ? 'signature' : null;
+          const quizCodes = ['m1','m2','m3','m4','summary'];
+          const work = [];
+          Object.values(normalized).forEach(s => {
+            const slug = (s && s.slug) || (s && s.module_name) || '';
+            const track = trackFor(slug);
+            if (!track) return;
+            // Count local
+            const localCount = quizCodes.filter(code => getModuleQuizPassed(code, sid, track)).length;
+            const serverCount = s.quizzes_passed || 0;
+            if (localCount > serverCount) {
+              // Upsert all locally passed codes; backend ignores duplicates
+              quizCodes.forEach(code => {
+                if (getModuleQuizPassed(code, sid, track)) {
+                  work.push(fetch(`${API_BASE}/api/student/${sid}/module/${slug}/unit`.replace(/([^:]?)\/\/+/g,'$1/'), {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(user?.token ? { 'Authorization': `Bearer ${user.token}` } : {})
+                    },
+                    body: JSON.stringify({ unit_type: 'quiz', unit_code: code, completed: true, duration_seconds: 0 })
+                  }).catch(()=>null));
+                }
+              });
+            }
+          });
+          if (work.length) {
+            await Promise.allSettled(work);
+            backfillLockRef.current[sid] = true; // run once per session per student
+            // Refresh once to pull updated server percent/gating
+            setTimeout(()=>load({retry:0}), 150);
+          }
+        }
+      } catch (_) {}
     } catch(e){
       if(e.name === 'AbortError'){
         const abortErr = new Error('Module summaries request timed out');

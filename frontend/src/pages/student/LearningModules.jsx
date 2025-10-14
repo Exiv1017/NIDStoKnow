@@ -379,11 +379,16 @@ const LearningModules = ({ modules, setModules }) => {
             const tidx = sections.findIndex(s => s.name === 'Theory');
             if (tidx >= 0) sections[tidx] = { ...sections[tidx], locked: false };
           }
-          // If all lessons are completed, mark Theory as completed (green)
-          if ((summary.total_lessons||0) > 0 && (summary.lessons_completed||0) >= (summary.total_lessons||0)) {
+          // If all lessons and quizzes are completed, mark Theory as completed (green)
+          const allLessonsDone = (summary.total_lessons||0) > 0 && (summary.lessons_completed||0) >= (summary.total_lessons||0);
+          const allQuizzesDone = (summary.total_quizzes||0) > 0 && (summary.quizzes_passed||0) >= (summary.total_quizzes||0);
+          if (allLessonsDone && allQuizzesDone) {
             const tidx = sections.findIndex(s => s.name === 'Theory');
             if (tidx >= 0) sections[tidx] = { ...sections[tidx], completed: true };
           }
+          // Unlock practical once server says can_start_practical, and mark complete if completed
+          const pidx = sections.findIndex(s => s.name === 'Practical Exercise');
+          if (pidx>=0) sections[pidx] = { ...sections[pidx], locked: summary.can_start_practical ? false : sections[pidx].locked };
           if (summary.practical_completed) mark('Practical Exercise', true);
           if (summary.assessment_completed) mark('Assessment', true);
         }
@@ -408,10 +413,14 @@ const LearningModules = ({ modules, setModules }) => {
         if(summary.overview_completed) mark('Overview', true);
         if(summary.overview_completed || summary.lessons_completed>0){
           const tidx = sections.findIndex(s=>s.name==='Theory'); if(tidx>=0) sections[tidx] = { ...sections[tidx], locked: false }; }
-        // If all lessons are complete, mark Theory completed for green state
-        if ((summary.total_lessons||0) > 0 && (summary.lessons_completed||0) >= (summary.total_lessons||0)) {
+        // If all lessons and quizzes complete, mark Theory completed for green state
+        const allLessonsDone = (summary.total_lessons||0) > 0 && (summary.lessons_completed||0) >= (summary.total_lessons||0);
+        const allQuizzesDone = (summary.total_quizzes||0) > 0 && (summary.quizzes_passed||0) >= (summary.total_quizzes||0);
+        if (allLessonsDone && allQuizzesDone) {
           const tidx = sections.findIndex(s=>s.name==='Theory'); if (tidx>=0) sections[tidx] = { ...sections[tidx], completed: true };
         }
+        // Unlock practical once server says can_start_practical
+        const pidx = sections.findIndex(s=>s.name==='Practical Exercise'); if (pidx>=0) sections[pidx] = { ...sections[pidx], locked: summary.can_start_practical ? false : sections[pidx].locked };
         if(summary.practical_completed){ mark('Practical Exercise', true); }
         if(summary.assessment_completed){ mark('Assessment', true); }
       }
