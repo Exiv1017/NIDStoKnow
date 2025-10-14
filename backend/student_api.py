@@ -8,19 +8,20 @@ from auth import create_access_token, require_role
 # Added for unified RBAC + optional auditing
 from auth import rbac_required
 
-# Simple audit logger stub; can be replaced by a more robust implementation injected elsewhere.
-def _audit_log(payload, action, ctx):
-    try:
-        # For now just print; replace with DB insert if needed.
-        print(f"[AUDIT] actor_role={payload.get('role')} actor_id={payload.get('sub')} action={action} ctx={ctx}")
-    except Exception:
-        pass
-
-router = APIRouter()
-
+# DB/config and stdlib imports
 from config import MYSQL_CONFIG, get_db_connection, DEV_MODE
 import os
 import uuid
+
+# FastAPI router for this module
+router = APIRouter()
+
+# Simple audit logger stub; can be replaced by a more robust implementation injected elsewhere.
+def _audit_log(payload, action, ctx):
+    try:
+        print(f"[AUDIT] actor_role={payload.get('role')} actor_id={payload.get('sub')} action={action} ctx={ctx}")
+    except Exception:
+        pass
 
 def ensure_notifications_table(cursor):
     """Create notifications table if it doesn't exist yet. Mirrors instructor_api schema."""
@@ -39,6 +40,18 @@ def ensure_notifications_table(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         '''
     )
+
+def _get_student_name_by_id(cursor, student_id: int) -> str:
+    """Resolve a student's display name from users table. Fallback to 'Student {id}'."""
+    try:
+        ensure_users_table_and_migrate_password_hash(cursor)
+        cursor.execute('SELECT name FROM users WHERE id=%s', (student_id,))
+        row = cursor.fetchone()
+        if row and row[0]:
+            return str(row[0])
+    except Exception:
+        pass
+    return f"Student {student_id}"
 
 def ensure_base_progress_tables(cursor):
         """Create core progress tables if they don't exist yet.
@@ -1377,7 +1390,9 @@ def set_student_lesson_completion(request: Request, student_id: int, module_name
         # Optional: log practical completion as recent activity when relevant
         try:
             if (req.completed or (not req.touch_only and (req.completed is None or req.completed))) and (req.lesson_id or '').lower().startswith('practical'):
-                cursor.execute('INSERT INTO recent_activity (activity) VALUES (%s)', (f"Student {student_id} marked Practical complete for {norm_mod}",))
+                # Include student name for instructor view
+                sname = _get_student_name_by_id(cursor, student_id)
+                cursor.execute('INSERT INTO recent_activity (activity) VALUES (%s)', (f"{sname} marked Practical complete for {norm_mod}",))
                 conn.commit()
         except Exception as _:
             pass
@@ -2237,10 +2252,13 @@ def set_student_module_quiz(student_id: int, module_name: str, req: ModuleQuizRe
             should_log = False
             if passed_val and not prev_passed:
                 should_log = True
-                activity = f"Student {student_id} passed quiz for {module_name} (score {req.score}/{req.total})"
+                # Resolve student name for nicer activity feed
+                sname = _get_student_name_by_id(cursor, student_id)
+                activity = f"{sname} passed quiz for {module_name} (score {req.score}/{req.total})"
             elif passed_val and prev_passed and prev_score is not None and req.score > prev_score:
                 should_log = True
-                activity = f"Student {student_id} improved quiz score for {module_name} to {req.score}/{req.total}"
+                sname = _get_student_name_by_id(cursor, student_id)
+                activity = f"{sname} improved quiz score for {module_name} to {req.score}/{req.total}"
             if should_log:
                 cursor.execute('INSERT INTO recent_activity (activity) VALUES (%s)', (activity,))
                 conn.commit()

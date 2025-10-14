@@ -11,7 +11,7 @@ from notifications_helper import migrate_notifications_schema
 router = APIRouter()
 
 from config import MYSQL_CONFIG, get_db_connection
-import os, uuid
+import os, uuid, re
 
 def ensure_instructor_profiles_table(cursor):
     """Ensure instructor_profiles exists to store join_date and avatar_url per instructor."""
@@ -345,6 +345,10 @@ class StudentProgressOut(BaseModel):
     lastLesson: str
     timeSpent: Optional[int]
     engagementScore: Optional[str]
+    # New, computed fields for richer UI (optional to maintain backward compatibility)
+    completionPct: Optional[int] = None
+    moduleLabel: Optional[str] = None
+    lastRoute: Optional[str] = None
 
 class StudentSummary(BaseModel):
     id: int
@@ -745,14 +749,103 @@ def upload_instructor_avatar(request: Request, file: UploadFile = File(...)):
 
 @router.get('/instructor/progress', response_model=List[StudentProgressOut])
 def get_all_student_progress():
+    """Return per-student per-module progress including unit-based completion percent,
+    friendly module label, and a normalized lastRoute label. Backward-compatible fields remain.
+    """
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute('SELECT student_name as studentName, module_name as moduleName, lessons_completed as lessonsCompleted, total_lessons as totalLessons, last_lesson as lastLesson, time_spent as timeSpent, engagement_score as engagementScore FROM student_progress')
-    rows = cursor.fetchall()
-    # Fix: ensure engagementScore is a string or None
-    for row in rows:
-        if row['engagementScore'] is not None:
-            row['engagementScore'] = str(row['engagementScore'])
+    # Ensure table exists
+    ensure_student_progress_table(cursor)
+    # Pull aggregates and unit flags to compute richer progress
+    rows: List[Dict[str, Any]] = []
+    try:
+        cursor.execute('''
+            SELECT 
+                sp.student_name AS studentName,
+                sp.module_name AS moduleName,
+                sp.lessons_completed AS lessonsCompleted,
+                sp.total_lessons AS totalLessons,
+                sp.last_lesson AS lastLesson,
+                sp.time_spent AS timeSpent,
+                sp.engagement_score AS engagementScore,
+                COALESCE(sp.overview_completed, 0) AS overviewCompleted,
+                COALESCE(sp.practical_completed, 0) AS practicalCompleted,
+                COALESCE(sp.assessment_completed, 0) AS assessmentCompleted,
+                COALESCE(sp.quizzes_passed, 0) AS quizzesPassed,
+                COALESCE(sp.total_quizzes, 0) AS totalQuizzes
+            FROM student_progress sp
+        ''')
+        rows = cursor.fetchall() or []
+    except Exception:
+        # Fallback for legacy schemas without the extra columns
+        cursor.execute('''
+            SELECT 
+                sp.student_name AS studentName,
+                sp.module_name AS moduleName,
+                sp.lessons_completed AS lessonsCompleted,
+                sp.total_lessons AS totalLessons,
+                sp.last_lesson AS lastLesson,
+                sp.time_spent AS timeSpent,
+                sp.engagement_score AS engagementScore
+            FROM student_progress sp
+        ''')
+        rows = cursor.fetchall() or []
+        for r in rows:
+            r['overviewCompleted'] = 0
+            r['practicalCompleted'] = 0
+            r['assessmentCompleted'] = 0
+            r['quizzesPassed'] = 0
+            r['totalQuizzes'] = 0
+    # Post-process to compute percent and labels
+    for r in rows:
+        # Normalize engagementScore to string for JSON schema stability
+        if r.get('engagementScore') is not None:
+            r['engagementScore'] = str(r['engagementScore'])
+        # Compute completion percent using units present in schema
+        units_total = 0
+        units_done = 0
+        # Overview/practical/assessment count as 1 each when total lessons > 0 course; always include them as units
+        flags = [
+            ('overviewCompleted', 'overview'),
+            ('practicalCompleted', 'practical'),
+            ('assessmentCompleted', 'assessment')
+        ]
+        for key, _ in flags:
+            units_total += 1
+            if int(r.get(key) or 0) > 0:
+                units_done += 1
+        # Lessons treated as one composite unit for percent simplicity (lessonsCompleted/totalLessons contributes proportionally)
+        tl = int(r.get('totalLessons') or 0)
+        lc = int(r.get('lessonsCompleted') or 0)
+        if tl > 0:
+            units_total += 1
+            # contribute fractional completion (0..1)
+            units_done += min(1.0, max(0.0, (lc / tl)))
+        # Quiz unit: treat as one unit when meta present; use quizzesPassed/totalQuizzes proportionally
+        tq = int(r.get('totalQuizzes') or 0)
+        qp = int(r.get('quizzesPassed') or 0)
+        if tq > 0:
+            units_total += 1
+            units_done += min(1.0, max(0.0, (qp / max(1, tq))))
+        pct = 0
+        try:
+            pct = int(round(0 if units_total == 0 else (units_done / units_total) * 100))
+        except Exception:
+            pct = 0
+        r['completionPct'] = pct
+        # Friendlier module label
+        slug = (r.get('moduleName') or '').strip().lower()
+        if 'anomaly' in slug:
+            r['moduleLabel'] = 'Anomaly-Based Detection'
+        elif 'hybrid' in slug:
+            r['moduleLabel'] = 'Hybrid Detection'
+        elif 'signature' in slug:
+            r['moduleLabel'] = 'Signature-Based Detection'
+        else:
+            r['moduleLabel'] = r.get('moduleName')
+        # Last route: always keep original lastLesson text (e.g., "2.1 Signature-Based vs ...")
+        r['lastRoute'] = r.get('lastLesson') or ''
+        # Cleanup internal fields not in model (safe to keep; schema ignores extras)
     cursor.close()
     conn.close()
     return rows
@@ -1013,7 +1106,25 @@ def instructor_recent_activity():
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute('SELECT id, activity, time FROM recent_activity ORDER BY time DESC LIMIT 10')
-        activities = cursor.fetchall()
+        activities = cursor.fetchall() or []
+        # Replace legacy "Student {id}" with real student name where possible
+        try:
+            ensure_users_table(cursor)
+        except Exception:
+            pass
+        for a in activities:
+            act = a.get('activity') or ''
+            m = re.search(r"\bStudent\s+(\d+)\b", act)
+            if m:
+                try:
+                    sid = int(m.group(1))
+                    cursor.execute('SELECT name FROM users WHERE id=%s', (sid,))
+                    row = cursor.fetchone()
+                    if row and row.get('name'):
+                        name = row['name']
+                        a['activity'] = re.sub(r"\bStudent\s+%s\b" % sid, name, act)
+                except Exception:
+                    pass
         cursor.close()
         conn.close()
         return activities if activities else []

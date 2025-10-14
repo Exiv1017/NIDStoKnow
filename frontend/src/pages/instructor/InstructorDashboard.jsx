@@ -469,7 +469,7 @@ const InstructorDashboard = () => {
 
           <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow border border-gray-100 mb-12">
             <div className="p-6 border-b">
-              <h2 className="text-xl font-bold text-[#1E5780]">Recent Activity</h2>
+              <h2 className="text-xl font-bold text-[#1E5780]">Student Activity</h2>
             </div>
             <div className="p-6">
               <ul className="space-y-4">
@@ -487,10 +487,10 @@ const InstructorDashboard = () => {
             <hr className="border-t border-gray-300" />
           </div>
 
-          {/* Student Progress Table */}
+          {/* Learning Progress Table */}
           <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow border border-gray-100 mb-12">
             <div className="p-6 border-b">
-              <h2 className="text-xl font-bold text-[#1E5780]">Student Progress</h2>
+              <h2 className="text-xl font-bold text-[#1E5780]">Learning Progress</h2>
             </div>
             <div className="p-6 overflow-x-auto">
               {loadingProgress ? (
@@ -503,8 +503,8 @@ const InstructorDashboard = () => {
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Student</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Module</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">% Completed</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words max-w-xs">Last Lesson</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Completed</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words max-w-xs">Last Route</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Time Spent</th>
                     </tr>
                   </thead>
@@ -515,9 +515,9 @@ const InstructorDashboard = () => {
                       studentProgress.map((row, idx) => (
                         <tr key={idx}>
                           <td className="px-4 py-2 break-words font-medium text-gray-800">{row.studentName}</td>
-                          <td className="px-4 py-2 break-words">{row.moduleName}</td>
-                          <td className="px-4 py-2 break-words">{row.totalLessons ? Math.round((row.lessonsCompleted / row.totalLessons) * 100) : 0}%</td>
-                          <td className="px-4 py-2 break-words max-w-xs">{row.lastLesson}</td>
+                          <td className="px-4 py-2 break-words">{row.moduleLabel || row.moduleName}</td>
+                          <td className="px-4 py-2 break-words">{typeof row.completionPct === 'number' ? row.completionPct : (row.totalLessons ? Math.round((row.lessonsCompleted / row.totalLessons) * 100) : 0)}%</td>
+                          <td className="px-4 py-2 break-words max-w-xs">{row.lastRoute || row.lastLesson}</td>
                           <td className="px-4 py-2 break-words">{formatDuration(row.timeSpent)}</td>
                         </tr>
                       ))
