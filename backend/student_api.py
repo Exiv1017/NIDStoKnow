@@ -1450,6 +1450,22 @@ class TimeEventRequest(BaseModel):
     unit_code: Optional[str] = None
     delta_seconds: int
 
+def _debug_log_unit_events_columns(cursor):
+    """Log current columns of student_module_unit_events for diagnostics."""
+    try:
+        cursor.execute("SHOW COLUMNS FROM student_module_unit_events")
+        rows = cursor.fetchall() or []
+        cols = []
+        for r in rows:
+            if isinstance(r, tuple):
+                cols.append(r[0])
+            elif isinstance(r, dict):
+                # MySQL dict cursor typically exposes 'Field'
+                cols.append(r.get('Field') or r.get('column_name'))
+        print(f"[DEBUG] unit_events columns: {cols}")
+    except Exception as e:
+        print(f"[DEBUG] SHOW COLUMNS student_module_unit_events failed: {e}")
+
 def _ensure_unit_event_columns(cursor):
     """Ensure student_module_unit_events has all required columns.
 
@@ -1780,13 +1796,30 @@ def set_student_module_unit(request: Request, student_id: int, module_name: str,
         if unit_type not in ('overview', 'practical', 'assessment', 'quiz'):
             raise HTTPException(status_code=400, detail='Invalid unit_type')
         if unit_type == 'quiz':
-            cursor.execute(
-                '''
-                SELECT id FROM student_module_unit_events
-                WHERE student_id=%s AND module_name=%s AND unit_type='quiz' AND unit_code=%s
-                ''',
-                (student_id, module_name, req.unit_code)
-            )
+            # Check for existing quiz pass, with schema fallback if legacy table is missing columns
+            try:
+                cursor.execute(
+                    '''
+                    SELECT id FROM student_module_unit_events
+                    WHERE student_id=%s AND module_name=%s AND unit_type='quiz' AND unit_code=%s
+                    ''',
+                    (student_id, module_name, req.unit_code)
+                )
+            except Exception as se:
+                msg = str(se)
+                if '1054' in msg or 'Unknown column' in msg or "doesn't exist" in msg:
+                    _debug_log_unit_events_columns(cursor)
+                    _migrate_unit_events_legacy(cursor)
+                    _ensure_unit_event_columns(cursor)
+                    cursor.execute(
+                        '''
+                        SELECT id FROM student_module_unit_events
+                        WHERE student_id=%s AND module_name=%s AND unit_type='quiz' AND unit_code=%s
+                        ''',
+                        (student_id, module_name, req.unit_code)
+                    )
+                else:
+                    raise
             existing = cursor.fetchone()
             if not existing and req.completed:
                 try:
