@@ -17,7 +17,7 @@ class CowrieTerminal:
         
     async def connect_to_cowrie(self, websocket: WebSocket, simulation_type: str = "signature"):
         """Connect WebSocket to Cowrie honeypot via SSH"""
-        logging.info(f"Connecting to Cowrie for {simulation_type} simulation")
+        logging.warning(f"[CowrieTerminal] Connecting to Cowrie for {simulation_type} simulation")
         await websocket.accept()
         self.websocket = websocket
         
@@ -27,9 +27,10 @@ class CowrieTerminal:
         credentials = []
         if env_user and env_pass:
             credentials.append((env_user, env_pass))
-            logging.info(f"[CowrieTerminal] Using explicit env credentials first: {env_user}/*****")
+            logging.warning(f"[CowrieTerminal] Using explicit env credentials first: {env_user}/*****")
         credentials.extend([
             ("root", "123456"),
+            ("root", "root"),
             ("root", "password"),
             ("root", "toor"),
             ("admin", "admin"),
@@ -53,12 +54,13 @@ class CowrieTerminal:
                 port = int(preferred_port)
             except Exception:
                 port = 2222
+            port_in_use = port
             for username, password in credentials:
                 try:
-                    logging.info(f"[CowrieTerminal] Attempting {username}/***** on {host}:{port}")
+                    logging.warning(f"[CowrieTerminal] Attempting password auth for {username}/***** on {host}:{port_in_use}")
                     self.ssh_client.connect(
                         hostname=host,
-                        port=port,
+                        port=port_in_use,
                         username=username,
                         password=password,
                         timeout=10,
@@ -66,17 +68,45 @@ class CowrieTerminal:
                         look_for_keys=False
                     )
                     connected = True
-                    logging.info(f"[CowrieTerminal] Connected with {username}/***** on {host}:{port}")
+                    logging.warning(f"[CowrieTerminal] Connected (password) with {username}/***** on {host}:{port_in_use}")
                     break
                 except paramiko.AuthenticationException:
-                    logging.info(f"[CowrieTerminal] Authentication failed for {username}")
-                    continue
+                    # Fallback: try keyboard-interactive with same password (Cowrie commonly uses this)
+                    logging.warning(f"[CowrieTerminal] Password auth failed for {username}; trying keyboard-interactive on {host}:{port_in_use}")
+                    try:
+                        transport = paramiko.Transport((host, port_in_use))
+                        transport.start_client(timeout=10)
+
+                        def _ki_handler(title, instructions, prompts):
+                            # Respond with the same password for all prompts
+                            try:
+                                return [password for _p, _show in prompts]
+                            except Exception:
+                                return [password] * len(prompts)
+
+                        transport.auth_interactive(username, _ki_handler)
+                        if not transport.is_authenticated():
+                            raise paramiko.AuthenticationException("interactive not authenticated")
+
+                        # Open an interactive shell via transport
+                        session = transport.open_session()
+                        session.get_pty(term='xterm-256color', width=80, height=24)
+                        session.invoke_shell()
+                        self.channel = session
+                        # bind transport into a client wrapper so cleanup works similarly
+                        self.ssh_client = None  # channel is primary now
+                        connected = True
+                        logging.warning(f"[CowrieTerminal] Connected (kbd-interactive) with {username}/***** on {host}:{port_in_use}")
+                        break
+                    except Exception as ie:
+                        logging.error(f"[CowrieTerminal] Keyboard-interactive failed for {username} on {host}:{port_in_use}: {ie}")
+                        # fall through to next credential (or fallback port)
                 except Exception as e:
-                    logging.error(f"[CowrieTerminal] Connection error with {username} on {host}:{port}: {e}")
+                    logging.error(f"[CowrieTerminal] Connection error with {username} on {host}:{port_in_use}: {e}")
                     # If first attempt and port != 2222, try fallback port 2222 once, then resume
-                    if port != 2222:
+                    if port_in_use != 2222:
                         try:
-                            logging.info(f"[CowrieTerminal] Fallback to default Cowrie port 2222")
+                            logging.warning(f"[CowrieTerminal] Fallback to default Cowrie port 2222")
                             self.ssh_client.connect(
                                 hostname=host,
                                 port=2222,
@@ -86,26 +116,27 @@ class CowrieTerminal:
                                 allow_agent=False,
                                 look_for_keys=False
                             )
-                            port = 2222  # stick with fallback for subsequent attempts
+                            port_in_use = 2222  # stick with fallback for subsequent attempts
                             connected = True
-                            logging.info(f"[CowrieTerminal] Connected with {username}/***** on fallback port 2222")
+                            logging.warning(f"[CowrieTerminal] Connected with {username}/***** on fallback port 2222")
                             break
                         except Exception as e2:
                             logging.error(f"[CowrieTerminal] Fallback port connect failed: {e2}")
                     continue
             
             if not connected:
-                raise Exception(f"All authentication attempts failed (host={host} port={port}). Check Cowrie credentials/userdb and network reachability.")
+                raise Exception(f"All authentication attempts failed (host={host} port={port_in_use}). Check Cowrie credentials/userdb and network reachability.")
             
             # Open an interactive shell
-            self.channel = self.ssh_client.invoke_shell(
-                term='xterm-256color',
-                width=80,
-                height=24
-            )
+            if not self.channel:
+                self.channel = self.ssh_client.invoke_shell(
+                    term='xterm-256color',
+                    width=80,
+                    height=24
+                )
             
             self.connected = True
-            logging.info("Successfully connected to Cowrie honeypot")
+            logging.warning("[CowrieTerminal] Successfully connected to Cowrie honeypot")
             
             # Send initial simulation context
             await self.setup_simulation_environment(simulation_type)
@@ -130,9 +161,14 @@ class CowrieTerminal:
                     break
                     
         except Exception as e:
-            logging.error(f"Failed to connect to Cowrie: {e}")
+            logging.error(f"[CowrieTerminal] Failed to connect to Cowrie: {e}")
             await websocket.send_text(f"Error: Failed to connect to honeypot: {e}\r\n")
-            await websocket.send_text("Please check if Cowrie honeypot is reachable (service: cowrie, port: 2224)\r\n")
+            # Use the configured port in the hint, not a hardcoded one
+            try:
+                hint_port = int(os.getenv('COWRIE_SSH_PORT', '2222'))
+            except Exception:
+                hint_port = 2222
+            await websocket.send_text(f"Please check if Cowrie honeypot is reachable (service: cowrie, port: {hint_port})\r\n")
         finally:
             await self.disconnect()
             
