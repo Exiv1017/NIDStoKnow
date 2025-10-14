@@ -506,14 +506,20 @@ const StudentDashboard = () => {
     const practicalCompleted = sList.filter(s=> s.practical_completed).length;
     const assessmentAvailable = sList.filter(s=> (s.can_start_assessment || s.assessment_completed)).length;
     const assessmentCompleted = sList.filter(s=> s.assessment_completed).length;
+    // NOTE: Previously practical & assessment used number of 'available' modules as the denominator.
+    // This caused a completed practical/assessment to show as 100% when later modules were still locked
+    // (e.g., 1 practical completed, 2 locked => available=1 so 1/1=100%).
+    // Requirement: show proportion of total modules regardless of lock state so same scenario is 1/3=33%.
+    // We keep overview/lessons/quizzes logic unchanged (they already use total modules / total items).
     const pct = (done,total)=> total>0 ? Math.round((done/total)*100) : 0;
     const labels = ['Overview','Lessons','Quizzes','Practical','Assessment'];
     const values = [
       pct(overviewCompleted,totalModules),
       pct(lessonsCompleted,lessonsTotal),
       pct(quizzesPassed,quizzesTotal),
-      pct(practicalCompleted,practicalAvailable),
-      pct(assessmentCompleted,assessmentAvailable)
+      // Use totalModules as denominator so locked modules still count towards remaining progress.
+      pct(practicalCompleted,totalModules),
+      pct(assessmentCompleted,totalModules)
     ];
     return {
       labels,
