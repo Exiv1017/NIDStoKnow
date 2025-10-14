@@ -62,6 +62,10 @@ const AutomatonVisualizer = ({ signatures }) => {
       setNextId(1);
       setQueue([]);
       setActiveNode(0);
+      setSearchText('');
+      setSearchTrace([]);
+      setAutoPlay(false);
+      setLog([]);
       return;
     }
     if (stage === 'idle' && patterns.length > 0) {

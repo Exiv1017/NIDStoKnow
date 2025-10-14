@@ -770,10 +770,9 @@ const SignaturePractical = ({ modules, setModules }) => {
                   <div className="mt-4 border rounded-lg p-3 bg-gray-50" aria-live="polite">
                     <div className="text-sm font-medium text-gray-800 mb-2">Pattern Automaton Preview (Aho–Corasick)</div>
                     <div className="text-xs text-gray-600 mb-2">Shows trie built from your string patterns ("contains" or "exact"). Regex rules are ignored in this preview.</div>
-                    <AutomatonVisualizer signatures={(builderRules||[])
-                      .filter(r=> (r.type==='contains' || r.type==='exact') && typeof r.match==='string' && r.match.trim())
-                      .map(r=> ({ pattern: String(r.match) }))}
-                    />
+                    <AutomatonVisualizer signatures={(getUsedRules()||[])
+                      .filter(r=> String(r.type||'').toLowerCase()!== 'regex' && typeof r.match==='string' && r.match.trim())
+                      .map(r=> ({ pattern: String(r.match) }))} />
                   </div>
                 )}
               </>
