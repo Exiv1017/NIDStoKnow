@@ -198,6 +198,35 @@ def _ensure_signatures_schema(cursor):
     except Exception as e:
         print(f"[WARN] signatures schema ensure/migrate skipped: {e}")
 
+def _seed_default_signatures(cursor):
+    """Insert a small default set of signatures if table is empty.
+
+    This helps first-time deployments get an immediate Live Detections demo
+    without manual DB seeding. Safe to call repeatedly; it inserts only when
+    COUNT(*) == 0.
+    """
+    try:
+        cursor.execute("SELECT COUNT(*) FROM signatures")
+        rowcount = cursor.fetchone()[0]
+        if int(rowcount or 0) > 0:
+            return
+        # Insert defaults (mirror backend/sql/signatures.sql examples)
+        defaults = [
+            ("nmap", "Nmap scan detected", "Recon", 0),
+            (r"cat\\s+.*\\/etc\\/passwd", "Sensitive file access", "File Access", 1),
+            (r"cat\\s+.*\\/etc\\/shadow", "Shadow file access", "File Access", 1),
+            (r"wget\\s+.*", "Wget download", "Download", 1),
+            (r"curl\\s+.*", "Curl download", "Download", 1),
+            (r"chmod\\s+\\+x\\s+.*", "Chmod +x execution", "Execution", 1),
+            (r"rm\\s+-rf\\s+.*", "Dangerous file removal", "Destruction", 1),
+        ]
+        cursor.executemany(
+            "INSERT INTO signatures (pattern, description, type, regex) VALUES (%s, %s, %s, %s)",
+            defaults,
+        )
+    except Exception as e:  # pragma: no cover
+        print(f"[WARN] default signature seed skipped: {e}")
+
 def load_signatures_from_db():
     """Load signatures from DB while supporting both legacy and current schemas.
 
@@ -209,8 +238,9 @@ def load_signatures_from_db():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        _ensure_signatures_schema(cursor)
-        conn.commit()
+    _ensure_signatures_schema(cursor)
+    _seed_default_signatures(cursor)
+    conn.commit()
 
         # Discover available columns
         try:
