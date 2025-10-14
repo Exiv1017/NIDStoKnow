@@ -28,6 +28,8 @@ class CowrieTerminal:
         if env_user and env_pass:
             credentials.append((env_user, env_pass))
             logging.warning(f"[CowrieTerminal] Using explicit env credentials first: {env_user}/*****")
+        else:
+            logging.warning("[CowrieTerminal] No explicit env credentials set; falling back to built-ins.")
         credentials.extend([
             ("root", "123456"),
             ("root", "root"),
@@ -55,6 +57,7 @@ class CowrieTerminal:
             except Exception:
                 port = 2222
             port_in_use = port
+            logging.warning(f"[CowrieTerminal] Target honeypot at {host}:{port_in_use}")
             for username, password in credentials:
                 try:
                     logging.warning(f"[CowrieTerminal] Attempting password auth for {username}/***** on {host}:{port_in_use}")
@@ -80,6 +83,7 @@ class CowrieTerminal:
                         def _ki_handler(title, instructions, prompts):
                             # Respond with the same password for all prompts
                             try:
+                                # Cowrie typically prompts like 'Password: '
                                 return [password for _p, _show in prompts]
                             except Exception:
                                 return [password] * len(prompts)

@@ -33,6 +33,28 @@ from isolation_forest_runtime import ensure_model_loaded
 from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
 from fastapi import Body
+import sys
+
+# --- Logging configuration (ensure our warnings/errors show in container logs) ---
+try:
+    import logging
+    logging.captureWarnings(True)
+    _lvl_name = os.getenv("LOG_LEVEL", "INFO").upper()
+    _lvl = getattr(logging, _lvl_name, logging.INFO)
+    logging.basicConfig(
+        level=_lvl,
+        stream=sys.stdout,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+    )
+    # Make sure uvicorn and paramiko don't drown/lose our messages
+    logging.getLogger("uvicorn").setLevel(logging.INFO)
+    logging.getLogger("uvicorn.error").setLevel(logging.INFO)
+    logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+    # Paramiko debug can be enabled by setting LOG_LEVEL=DEBUG
+    if _lvl <= logging.DEBUG:
+        logging.getLogger("paramiko").setLevel(logging.DEBUG)
+except Exception:
+    pass
 
 app = FastAPI()
 
