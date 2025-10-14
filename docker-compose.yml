@@ -26,6 +26,8 @@ services:
       - "2225:2225"  # Telnet (updated port)
     volumes:
       - cowrie_var:/cowrie/cowrie-git/var
+      # Mount custom user database for predictable credentials
+      - ./cowrie_data/etc/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
     networks:
       - nids_network
 
@@ -45,10 +47,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       # Explicit Cowrie connectivity (overrides defaults used in cowrie_terminal.py)
       COWRIE_HOST: cowrie
-    COWRIE_SSH_PORT: 2222
-    # Optional explicit credentials (ensure they exist in cowrie userdb.txt)
-    COWRIE_USERNAME: root
-    COWRIE_PASSWORD: 123456
+      COWRIE_SSH_PORT: 2222
+      # Optional explicit credentials (ensure they exist in cowrie userdb.txt)
+      COWRIE_USERNAME: root
+      COWRIE_PASSWORD: 123456
     depends_on:
       - mysql
       - cowrie
