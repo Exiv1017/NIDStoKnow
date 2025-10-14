@@ -1450,8 +1450,17 @@ class TimeEventRequest(BaseModel):
     unit_code: Optional[str] = None
     delta_seconds: int
 
-def _ensure_unit_event_duration_column(cursor):
-    """Idempotently add duration_seconds column to student_module_unit_events if missing."""
+def _ensure_unit_event_columns(cursor):
+    """Ensure student_module_unit_events has all required columns.
+
+    Handles legacy tables missing some columns without assuming column order. Adds:
+      - module_name VARCHAR(255) NOT NULL
+      - unit_type ENUM('overview','lesson','quiz','practical','assessment') NOT NULL
+      - unit_code VARCHAR(64) NULL
+      - completed TINYINT(1) DEFAULT 1
+      - duration_seconds INT DEFAULT 0
+      - created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    """
     try:
         cursor.execute(
             """
@@ -1462,13 +1471,24 @@ def _ensure_unit_event_duration_column(cursor):
         )
         rows = cursor.fetchall() or []
         cols = { (r['column_name'] if isinstance(r, dict) else r[0]) for r in rows }
-        if 'duration_seconds' not in cols:
+        # column -> SQL type
+        required = [
+            ('module_name', "VARCHAR(255) NOT NULL"),
+            ('unit_type', "ENUM('overview','lesson','quiz','practical','assessment') NOT NULL"),
+            ('unit_code', "VARCHAR(64) NULL"),
+            ('completed', "TINYINT(1) DEFAULT 1"),
+            ('duration_seconds', "INT NULL DEFAULT 0"),
+            ('created_at', "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP"),
+        ]
+        for col, typ in required:
+            if col in cols:
+                continue
             try:
-                cursor.execute("ALTER TABLE student_module_unit_events ADD COLUMN duration_seconds INT NULL DEFAULT 0 AFTER completed")
-            except Exception as ae:
-                print(f"[WARN] Could not add duration_seconds column: {ae}")
+                cursor.execute(f"ALTER TABLE student_module_unit_events ADD COLUMN {col} {typ}")
+            except Exception as e:
+                print(f"[WARN] Could not add column {col} to student_module_unit_events: {e}")
     except Exception as e:
-        print(f"[WARN] _ensure_unit_event_duration_column failed: {e}")
+        print(f"[WARN] _ensure_unit_event_columns failed: {e}")
 
 def ensure_unit_events_table(cursor):
     """Create student_module_unit_events table if it does not exist (runtime safety)."""
@@ -1489,6 +1509,8 @@ def ensure_unit_events_table(cursor):
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             '''
         )
+        # Also ensure any missing columns on existing legacy tables
+        _ensure_unit_event_columns(cursor)
     except Exception as e:
         print(f"[WARN] ensure_unit_events_table failed: {e}")
 
@@ -1660,70 +1682,99 @@ def _expected_module_meta(slug: str):
 @rbac_required('student', audit_action='unit_completion', audit_logger=_audit_log)
 def set_student_module_unit(request: Request, student_id: int, module_name: str, req: ModuleUnitRequest = Body(...)):
     """Mark a high-level unit complete (overview, practical, assessment, quiz). Quizzes increment counters if first pass."""
-    conn = get_db_connection(); cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         ensure_base_progress_tables(cursor)
         _ensure_student_progress_unit_columns(cursor)
         ensure_unit_events_table(cursor)
-        _ensure_unit_event_duration_column(cursor)
+        _ensure_unit_event_columns(cursor)
         module_name = _normalize_module_key(module_name)
         _upsert_progress_row(cursor, student_id, module_name)
         unit_type = (req.unit_type or '').lower().strip()
-        if unit_type not in ('overview','practical','assessment','quiz'):
+        if unit_type not in ('overview', 'practical', 'assessment', 'quiz'):
             raise HTTPException(status_code=400, detail='Invalid unit_type')
         if unit_type == 'quiz':
-            cursor.execute('''
+            cursor.execute(
+                '''
                 SELECT id FROM student_module_unit_events
                 WHERE student_id=%s AND module_name=%s AND unit_type='quiz' AND unit_code=%s
-            ''', (student_id, module_name, req.unit_code))
+                ''',
+                (student_id, module_name, req.unit_code)
+            )
             existing = cursor.fetchone()
             if not existing and req.completed:
-                cursor.execute('''INSERT INTO student_module_unit_events (student_id, module_name, unit_type, unit_code, completed)
-                                  VALUES (%s,%s,'quiz',%s,1)''', (student_id, module_name, req.unit_code))
+                cursor.execute(
+                    '''INSERT INTO student_module_unit_events (student_id, module_name, unit_type, unit_code, completed)
+                       VALUES (%s,%s,'quiz',%s,1)''',
+                    (student_id, module_name, req.unit_code)
+                )
                 # Increment quizzes_passed (capped later in summary) and set total_quizzes if unset & we have expected meta
-                cursor.execute('UPDATE student_progress SET quizzes_passed = quizzes_passed + 1 WHERE student_id=%s AND module_name=%s', (student_id, module_name))
+                cursor.execute(
+                    'UPDATE student_progress SET quizzes_passed = quizzes_passed + 1 WHERE student_id=%s AND module_name=%s',
+                    (student_id, module_name)
+                )
                 meta = _expected_module_meta(module_name)
                 if meta:
-                    cursor.execute('UPDATE student_progress SET total_quizzes = IFNULL(NULLIF(total_quizzes,0), %s) WHERE student_id=%s AND module_name=%s', (meta['quizzes'], student_id, module_name))
+                    cursor.execute(
+                        'UPDATE student_progress SET total_quizzes = IFNULL(NULLIF(total_quizzes,0), %s) WHERE student_id=%s AND module_name=%s',
+                        (meta['quizzes'], student_id, module_name)
+                    )
         else:
             col_map = {
-                'overview':'overview_completed',
-                'practical':'practical_completed',
-                'assessment':'assessment_completed'
+                'overview': 'overview_completed',
+                'practical': 'practical_completed',
+                'assessment': 'assessment_completed',
             }
             target_col = col_map[unit_type]
-            cursor.execute(f'UPDATE student_progress SET {target_col}=%s WHERE student_id=%s AND module_name=%s', (1 if req.completed else 0, student_id, module_name))
-            cursor.execute('''INSERT INTO student_module_unit_events (student_id, module_name, unit_type, unit_code, completed, duration_seconds)
-                              VALUES (%s,%s,%s,%s,%s,%s)''', (student_id, module_name, unit_type, req.unit_code, 1 if req.completed else 0, req.duration_seconds or 0))
+            cursor.execute(
+                f'UPDATE student_progress SET {target_col}=%s WHERE student_id=%s AND module_name=%s',
+                (1 if req.completed else 0, student_id, module_name)
+            )
+            cursor.execute(
+                '''INSERT INTO student_module_unit_events (student_id, module_name, unit_type, unit_code, completed, duration_seconds)
+                   VALUES (%s,%s,%s,%s,%s,%s)''',
+                (student_id, module_name, unit_type, req.unit_code, 1 if req.completed else 0, req.duration_seconds or 0)
+            )
             # Emit notifications when a unit flips to completed
             if req.completed:
                 try:
                     ensure_notifications_table(cursor)
-                    # Student self notification
                     pretty = unit_type.capitalize()
-                    cursor.execute('INSERT INTO notifications (recipient_id, recipient_role, message, type) VALUES (%s,%s,%s,%s)', (student_id, 'student', f"{pretty} completed: {module_name}", 'success'))
-                    # Notify instructors who assigned this module
+                    cursor.execute(
+                        'INSERT INTO notifications (recipient_id, recipient_role, message, type) VALUES (%s,%s,%s,%s)',
+                        (student_id, 'student', f"{pretty} completed: {module_name}", 'success')
+                    )
                     instr_ids = _find_instructor_ids_for_student_module(cursor, student_id, module_name, module_name)
                     if instr_ids:
                         for iid in instr_ids:
-                            cursor.execute('INSERT INTO notifications (recipient_id, recipient_role, message, type) VALUES (%s,%s,%s,%s)', (iid, 'instructor', f"Student {pretty.lower()} completed: {module_name}", 'info'))
+                            cursor.execute(
+                                'INSERT INTO notifications (recipient_id, recipient_role, message, type) VALUES (%s,%s,%s,%s)',
+                                (iid, 'instructor', f"Student {pretty.lower()} completed: {module_name}", 'info')
+                            )
                 except Exception as ne:
                     print(f"[WARN] unit completion notify failed: {ne}")
         # If duration provided, add to aggregate module time_spent
         if req.duration_seconds and req.duration_seconds > 0:
             try:
-                cursor.execute('UPDATE student_progress SET time_spent = time_spent + %s WHERE student_id=%s AND module_name=%s', (int(req.duration_seconds), student_id, module_name))
+                cursor.execute(
+                    'UPDATE student_progress SET time_spent = time_spent + %s WHERE student_id=%s AND module_name=%s',
+                    (int(req.duration_seconds), student_id, module_name)
+                )
             except Exception as te:
                 print(f"[WARN] Could not increment time_spent from unit duration: {te}")
         conn.commit()
-        return {'status':'success'}
+        return {'status': 'success'}
     except HTTPException:
         raise
     except Exception as e:
         print(f"[ERROR] set_student_module_unit: {e}")
         raise HTTPException(status_code=500, detail='Failed to update module unit')
     finally:
-        cursor.close(); conn.close()
+        try:
+            cursor.close()
+        finally:
+            conn.close()
 
 @router.post('/student/{student_id}/module/{module_name}/time_event')
 @rbac_required('student', audit_action='time_event', audit_logger=_audit_log)
@@ -1743,7 +1794,7 @@ def record_time_event(request: Request, student_id: int, module_name: str, body:
         ensure_base_progress_tables(cursor)
         _ensure_student_progress_unit_columns(cursor)
         ensure_unit_events_table(cursor)
-        _ensure_unit_event_duration_column(cursor)
+        _ensure_unit_event_columns(cursor)
         norm_mod = _normalize_module_key(module_name)
         _upsert_progress_row(cursor, student_id, norm_mod)
         # Insert time event (completed flag 0 for pure time tracking)
