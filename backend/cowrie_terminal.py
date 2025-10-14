@@ -21,8 +21,14 @@ class CowrieTerminal:
         await websocket.accept()
         self.websocket = websocket
         
-        # Common honeypot credentials to try (extendable)
-        credentials = [
+        # Common honeypot credentials to try (extendable). We prepend explicit env overrides if present.
+        env_user = os.getenv("COWRIE_USERNAME")
+        env_pass = os.getenv("COWRIE_PASSWORD")
+        credentials = []
+        if env_user and env_pass:
+            credentials.append((env_user, env_pass))
+            logging.info(f"[CowrieTerminal] Using explicit env credentials first: {env_user}/*****")
+        credentials.extend([
             ("root", "123456"),
             ("root", "password"),
             ("root", "toor"),
@@ -30,7 +36,7 @@ class CowrieTerminal:
             ("admin", "123456"),
             ("user", "password"),
             ("test", "test"),
-        ]
+        ])
         
         try:
             # Create SSH client
