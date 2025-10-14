@@ -4,7 +4,6 @@ import useModuleTimeSpent from '../../../../hooks/useModuleTimeSpent.js';
 import { Link } from 'react-router-dom';
 import { getActiveStudentId } from '../../../../utils/activeStudent';
 import AuthContext from '../../../../context/AuthContext';
-import AutomatonVisualizer from '../../../../components/AutomatonVisualizer.jsx';
 
 const SignaturePractical = ({ modules, setModules }) => {
   const title = 'Signature-Based Detection';
@@ -41,7 +40,6 @@ const SignaturePractical = ({ modules, setModules }) => {
   const [brMethod, setBrMethod] = useState(''); // '', GET, POST
   const [brThreshold, setBrThreshold] = useState(''); // number string
   const [toast, setToast] = useState(null); // { id, message }
-  const [showAutomaton, setShowAutomaton] = useState(false);
 
   // Debug time tracking for practical exercise
   useTimeAccumulator({
@@ -670,7 +668,7 @@ const SignaturePractical = ({ modules, setModules }) => {
         {currentStep===4 && (
           <div className="rounded-xl border p-4 bg-white">
             <h2 className="text-lg font-semibold text-gray-900">Build your rules</h2>
-            <p className="text-gray-700 mt-2 text-sm">Use the guided builder or switch to JSON if you prefer. New: preview your string‑match patterns with an Aho–Corasick trie (optional).</p>
+            <p className="text-gray-700 mt-2 text-sm">Use the guided builder or switch to JSON if you prefer.</p>
             <div className="flex items-center gap-4 text-sm mt-3">
               <label className="flex items-center gap-2">
                 <input type="radio" checked={useGuided} onChange={()=>setUseGuided(true)} /> Guided (recommended)
@@ -678,12 +676,6 @@ const SignaturePractical = ({ modules, setModules }) => {
               <label className="flex items-center gap-2">
                 <input type="radio" checked={!useGuided} onChange={()=>setUseGuided(false)} /> Advanced (paste JSON)
               </label>
-              <div className="ml-auto flex items-center gap-2">
-                <label className="flex items-center gap-2 text-xs text-gray-600">
-                  <input type="checkbox" checked={showAutomaton} onChange={e=>setShowAutomaton(e.target.checked)} />
-                  Show Pattern Automaton
-                </label>
-              </div>
             </div>
             {useGuided && (
               <div className="mt-2 text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded p-2">
@@ -766,15 +758,6 @@ const SignaturePractical = ({ modules, setModules }) => {
                   )}
                 </div>
 
-                {showAutomaton && (
-                  <div className="mt-4 border rounded-lg p-3 bg-gray-50" aria-live="polite">
-                    <div className="text-sm font-medium text-gray-800 mb-2">Pattern Automaton Preview (Aho–Corasick)</div>
-                    <div className="text-xs text-gray-600 mb-2">Shows trie built from your string patterns ("contains" or "exact"). Regex rules are ignored in this preview.</div>
-                    <AutomatonVisualizer signatures={(getUsedRules()||[])
-                      .filter(r=> String(r.type||'').toLowerCase()!== 'regex' && typeof r.match==='string' && r.match.trim())
-                      .map(r=> ({ pattern: String(r.match) }))} />
-                  </div>
-                )}
               </>
             ) : (
               <>
