@@ -36,12 +36,20 @@ class CowrieMonitor:
           - <repo_root>/cowrie/cowrie-git/var/log/cowrie/cowrie.json (local dev)
         """
         candidates = []
-        # 1) Preferred
+        # 1) Preferred (env override or explicit)
         candidates.append(Path(preferred))
         # 2) Docker compose volume defaults
+        # Depending on how the Cowrie var directory is mounted into the backend container,
+        # the JSON log may be under any of these:
+        #   - /cowrie_logs/log/cowrie/cowrie.json        (common when mapping cowrie-git/var -> /cowrie_logs)
+        #   - /cowrie_logs/var/log/cowrie/cowrie.json    (alternate var-relative layout)
+        #   - /cowrie_logs/cowrie/cowrie.json            (older layout)
+        #   - /cowrie_logs/cowrie.json                   (very old flat layout)
+        candidates.append(Path("/cowrie_logs/log/cowrie/cowrie.json"))
+        candidates.append(Path("/cowrie_logs/var/log/cowrie/cowrie.json"))
         candidates.append(Path("/cowrie_logs/cowrie/cowrie.json"))
         candidates.append(Path("/cowrie_logs/cowrie.json"))
-        # 3) Local dev: compute from repo root
+            # 3) Local dev: compute from repo root
         try:
             here = Path(__file__).resolve()
             repo_root = here.parents[2]  # backend/cowrie_integration -> backend -> repo root
