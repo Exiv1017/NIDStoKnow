@@ -919,10 +919,68 @@ const ResourceListBlock = ({ items = [] }) => (
 );
 
 // New: Video embed (YouTube/Vimeo)
+function normalizeVideoUrl(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    const qp = (name) => u.searchParams.get(name);
+    const withoutParams = (base, paramsObj) => {
+      const nu = new URL(base);
+      Object.entries(paramsObj || {}).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') nu.searchParams.set(k, String(v));
+      });
+      return nu.toString();
+    };
+    if (host.includes('youtube.com') || host.includes('youtu.be') || host.includes('youtube-nocookie.com')) {
+      let id = '';
+      if (host.includes('youtu.be')) {
+        id = (u.pathname || '/').split('/')[1] || '';
+      } else if (u.pathname.startsWith('/watch')) {
+        id = qp('v') || '';
+      } else if (u.pathname.startsWith('/embed/')) {
+        id = (u.pathname.split('/')[2] || '').split('?')[0];
+      }
+      id = id.replace(/[^a-zA-Z0-9_-]/g, '');
+      if (!id) return url;
+      let start = qp('start');
+      const t = qp('t');
+      if (!start && t) {
+        const m = String(t).match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?|(\d+)/);
+        if (m) {
+          const hrs = parseInt(m[1] || '0', 10) || 0;
+          const mins = parseInt(m[2] || '0', 10) || 0;
+          const secs = parseInt(m[3] || m[4] || '0', 10) || 0;
+          start = String(hrs * 3600 + mins * 60 + secs);
+        }
+      }
+      const base = `https://www.youtube-nocookie.com/embed/${id}`;
+      const params = { rel: '0', modestbranding: '1', playsinline: '1' };
+      if (start) params.start = start;
+      return withoutParams(base, params);
+    }
+    if (host.includes('vimeo.com')) {
+      const parts = (u.pathname || '').split('/').filter(Boolean);
+      const id = parts.find(p => /^(\d+)$/.test(p));
+      if (id) return `https://player.vimeo.com/video/${id}`;
+      if (host.includes('player.vimeo.com')) return url;
+    }
+    return url;
+  } catch { return url; }
+}
+
 const VideoEmbedBlock = ({ url }) => (
   <div className="my-6">
     <div className="aspect-video w-full rounded-xl overflow-hidden shadow">
-      <iframe src={url} title="Lesson video" className="w-full h-full" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen></iframe>
+      <iframe
+        src={normalizeVideoUrl(url)}
+        title="Lesson video"
+        className="w-full h-full"
+        frameBorder="0"
+        loading="lazy"
+        referrerPolicy="strict-origin-when-cross-origin"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+      ></iframe>
     </div>
   </div>
 );

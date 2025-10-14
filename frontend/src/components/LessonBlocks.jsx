@@ -18,6 +18,78 @@ function awardPoints(amount = 5, reason = 'interaction') {
 }
 
 /*******************************************************
+ * MEDIA HELPERS
+ *******************************************************/
+function normalizeVideoUrl(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    const qp = (name) => u.searchParams.get(name);
+    const withoutParams = (base, paramsObj) => {
+      const nu = new URL(base);
+      Object.entries(paramsObj || {}).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') nu.searchParams.set(k, String(v));
+      });
+      return nu.toString();
+    };
+
+    // Handle YouTube variants
+    if (host.includes('youtube.com') || host.includes('youtu.be') || host.includes('youtube-nocookie.com')) {
+      // Extract video id
+      let id = '';
+      if (host.includes('youtu.be')) {
+        id = (u.pathname || '/').split('/')[1] || '';
+      } else if (u.pathname.startsWith('/watch')) {
+        id = qp('v') || '';
+      } else if (u.pathname.startsWith('/embed/')) {
+        id = (u.pathname.split('/')[2] || '').split('?')[0];
+      }
+      id = id.replace(/[^a-zA-Z0-9_-]/g, '');
+      if (!id) return url; // fallback
+
+      // Support start time via t or start
+      let start = qp('start');
+      const t = qp('t');
+      if (!start && t) {
+        // Convert formats like 1m30s or 90s or 90
+        const m = String(t).match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?|(\d+)/);
+        if (m) {
+          const hrs = parseInt(m[1] || '0', 10) || 0;
+          const mins = parseInt(m[2] || '0', 10) || 0;
+          const secs = parseInt(m[3] || m[4] || '0', 10) || 0;
+          start = String(hrs * 3600 + mins * 60 + secs);
+        }
+      }
+
+      // Build a clean, privacy-enhanced embed URL (drop tracking params like "si")
+      const base = `https://www.youtube-nocookie.com/embed/${id}`;
+      const params = {
+        rel: '0',
+        modestbranding: '1',
+        playsinline: '1',
+      };
+      if (start) params.start = start;
+      const clean = withoutParams(base, params);
+      return clean;
+    }
+
+    // Handle Vimeo
+    if (host.includes('vimeo.com')) {
+      // https://vimeo.com/VIDEO_ID -> https://player.vimeo.com/video/VIDEO_ID
+      const parts = (u.pathname || '').split('/').filter(Boolean);
+      const id = parts.find(p => /^(\d+)$/.test(p));
+      if (id) return `https://player.vimeo.com/video/${id}`;
+      // Already player domain? keep as-is
+      if (host.includes('player.vimeo.com')) return url;
+    }
+
+    return url;
+  } catch {
+    return url;
+  }
+}
+
+/*******************************************************
  * COURSE UI BLOCKS
  *******************************************************/
 export const PointsTrackerBlock = () => {
@@ -177,7 +249,16 @@ export const ImageCaptionBlock = ({ src, alt, caption, source }) => (
 export const VideoEmbedBlock = ({ url }) => (
   <div className="my-6">
     <div className="aspect-video w-full rounded-xl overflow-hidden shadow">
-      <iframe src={url} title="Lesson video" className="w-full h-full" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen></iframe>
+      <iframe
+        src={normalizeVideoUrl(url)}
+        title="Lesson video"
+        className="w-full h-full"
+        frameBorder="0"
+        loading="lazy"
+        referrerPolicy="strict-origin-when-cross-origin"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+      ></iframe>
     </div>
   </div>
 );
