@@ -21,14 +21,15 @@ class CowrieTerminal:
         await websocket.accept()
         self.websocket = websocket
         
-        # Common honeypot credentials to try
+        # Common honeypot credentials to try (extendable)
         credentials = [
             ("root", "123456"),
+            ("root", "password"),
+            ("root", "toor"),
             ("admin", "admin"),
+            ("admin", "123456"),
             ("user", "password"),
             ("test", "test"),
-            ("root", "password"),
-            ("admin", "123456")
         ]
         
         try:
@@ -40,13 +41,15 @@ class CowrieTerminal:
             connected = False
             # Allow overriding Cowrie host/port via env so containers can reach the service name
             host = os.getenv('COWRIE_HOST', 'cowrie')
+            # Cowrie default SSH port is 2222; ensure fallback if env points elsewhere and fails.
+            preferred_port = os.getenv('COWRIE_SSH_PORT', '2222')
             try:
-                port = int(os.getenv('COWRIE_SSH_PORT', '2224'))
+                port = int(preferred_port)
             except Exception:
-                port = 2224
+                port = 2222
             for username, password in credentials:
                 try:
-                    logging.info(f"Trying credentials: {username}/*****")
+                    logging.info(f"[CowrieTerminal] Attempting {username}/***** on {host}:{port}")
                     self.ssh_client.connect(
                         hostname=host,
                         port=port,
@@ -57,17 +60,36 @@ class CowrieTerminal:
                         look_for_keys=False
                     )
                     connected = True
-                    logging.info(f"Successfully connected with {username}/*****")
+                    logging.info(f"[CowrieTerminal] Connected with {username}/***** on {host}:{port}")
                     break
                 except paramiko.AuthenticationException:
-                    logging.info(f"Authentication failed for {username}")
+                    logging.info(f"[CowrieTerminal] Authentication failed for {username}")
                     continue
                 except Exception as e:
-                    logging.error(f"Connection error with {username}: {e}")
+                    logging.error(f"[CowrieTerminal] Connection error with {username} on {host}:{port}: {e}")
+                    # If first attempt and port != 2222, try fallback port 2222 once, then resume
+                    if port != 2222:
+                        try:
+                            logging.info(f"[CowrieTerminal] Fallback to default Cowrie port 2222")
+                            self.ssh_client.connect(
+                                hostname=host,
+                                port=2222,
+                                username=username,
+                                password=password,
+                                timeout=10,
+                                allow_agent=False,
+                                look_for_keys=False
+                            )
+                            port = 2222  # stick with fallback for subsequent attempts
+                            connected = True
+                            logging.info(f"[CowrieTerminal] Connected with {username}/***** on fallback port 2222")
+                            break
+                        except Exception as e2:
+                            logging.error(f"[CowrieTerminal] Fallback port connect failed: {e2}")
                     continue
             
             if not connected:
-                raise Exception("All authentication attempts failed")
+                raise Exception(f"All authentication attempts failed (host={host} port={port}). Check Cowrie credentials/userdb and network reachability.")
             
             # Open an interactive shell
             self.channel = self.ssh_client.invoke_shell(
