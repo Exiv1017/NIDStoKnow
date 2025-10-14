@@ -1,10 +1,3 @@
-Got it 👍 — you want it to stay **informative and detailed** like your Lesson 2.1 and 2.2, but not too long.
-Here’s a **balanced version** of **Lesson 2.3 — Extended Workflow Techniques**, ideal for your LMS (educational tone, structured flow, and clean explanations).
-
----
-
-## **Lesson 2.3 — Extended Workflow Techniques**
-
 ### **Overview**
 
 While signature-based detection focuses on identifying known threats using predefined rules, modern intrusion detection systems (IDS) like **Suricata** and **Snort** extend this process through enhanced workflows. These techniques improve precision, reduce false positives, and provide deeper context about each event.

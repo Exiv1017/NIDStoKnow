@@ -75,6 +75,49 @@ def ensure_assignments_table(cursor):
         '''
     )
 
+def ensure_student_progress_table(cursor):
+    """Create student_progress table if it doesn't exist (minimal columns used by instructor reports)."""
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS student_progress (
+          id INT NOT NULL AUTO_INCREMENT,
+          student_id INT NOT NULL,
+          student_name VARCHAR(255) DEFAULT NULL,
+          module_name VARCHAR(255) DEFAULT NULL,
+          lessons_completed INT DEFAULT 0,
+          total_lessons INT DEFAULT 0,
+          last_lesson VARCHAR(255) DEFAULT '',
+          time_spent INT DEFAULT 0,
+          engagement_score INT DEFAULT 0,
+          updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (id),
+          UNIQUE KEY unique_student_module (student_id, module_name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+        '''
+    )
+
+def ensure_submissions_table(cursor):
+    """Create submissions table if it doesn't exist so joins don't fail."""
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS submissions (
+          id INT NOT NULL AUTO_INCREMENT,
+          student_id INT NOT NULL,
+          student_name VARCHAR(255) NOT NULL,
+          module_slug VARCHAR(255) NOT NULL,
+          module_title VARCHAR(255) NOT NULL,
+          submission_type ENUM('practical','assessment') NOT NULL,
+          payload JSON,
+          totals_rule_count INT DEFAULT 0,
+          totals_total_matches INT DEFAULT 0,
+          created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (id),
+          KEY idx_student_id (student_id),
+          KEY idx_created_at (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+        '''
+    )
+
 def _notify_once(cursor, recipient_role: str, recipient_id: Optional[int], message: str, ntype: str = 'info') -> None:
     """Insert a notification if an identical unread message doesn't already exist for that recipient."""
     try:

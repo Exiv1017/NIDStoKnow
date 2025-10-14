@@ -5,6 +5,7 @@ import paramiko
 import threading
 import io
 import time
+import os
 
 class CowrieTerminal:
     def __init__(self):
@@ -37,12 +38,18 @@ class CowrieTerminal:
             
             # Try different credentials
             connected = False
+            # Allow overriding Cowrie host/port via env so containers can reach the service name
+            host = os.getenv('COWRIE_HOST', 'cowrie')
+            try:
+                port = int(os.getenv('COWRIE_SSH_PORT', '2224'))
+            except Exception:
+                port = 2224
             for username, password in credentials:
                 try:
                     logging.info(f"Trying credentials: {username}/*****")
                     self.ssh_client.connect(
-                        hostname='localhost',
-                        port=2224,
+                        hostname=host,
+                        port=port,
                         username=username,
                         password=password,
                         timeout=10,
@@ -97,7 +104,7 @@ class CowrieTerminal:
         except Exception as e:
             logging.error(f"Failed to connect to Cowrie: {e}")
             await websocket.send_text(f"Error: Failed to connect to honeypot: {e}\r\n")
-            await websocket.send_text("Please check if Cowrie honeypot is running on port 2224\r\n")
+            await websocket.send_text("Please check if Cowrie honeypot is reachable (service: cowrie, port: 2224)\r\n")
         finally:
             await self.disconnect()
             

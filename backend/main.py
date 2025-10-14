@@ -177,29 +177,73 @@ def _ensure_signatures_schema(cursor):
         print(f"[WARN] signatures schema ensure/migrate skipped: {e}")
 
 def load_signatures_from_db():
+    """Load signatures from DB while supporting both legacy and current schemas.
+
+    Some deployments may have legacy columns (rule_name, category) while others
+    only have the new columns (description, type, regex). Referencing a
+    non-existent column in SELECT causes MySQL to error, so we first introspect
+    available columns and build a compatible SELECT list.
+    """
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         _ensure_signatures_schema(cursor)
         conn.commit()
-        # Be resilient to legacy columns by using COALESCE
-        cursor.execute(
-            """
-            SELECT id,
-                   pattern,
-                   COALESCE(description, rule_name, '') AS description,
-                   COALESCE(type, category, 'generic') AS type,
-                   COALESCE(regex, 0) AS regex
-            FROM signatures
-            """
-        )
+
+        # Discover available columns
+        try:
+            cursor.execute("SHOW COLUMNS FROM signatures")
+            cols_raw = cursor.fetchall() or []
+            if cols_raw and isinstance(cols_raw[0], dict):
+                cols = {row.get('Field') for row in cols_raw if isinstance(row, dict)}
+            else:
+                cols = {row[0] for row in cols_raw}
+        except Exception:
+            cols = set()
+
+        has_desc = 'description' in cols
+        has_rule_name = 'rule_name' in cols
+        has_type = 'type' in cols
+        has_category = 'category' in cols
+        has_regex = 'regex' in cols
+
+        # Build compatible expressions with aliases (so dict keys are stable)
+        if has_desc and has_rule_name:
+            description_expr = "COALESCE(description, rule_name, '') AS description"
+        elif has_desc:
+            description_expr = "COALESCE(description, '') AS description"
+        elif has_rule_name:
+            description_expr = "COALESCE(rule_name, '') AS description"
+        else:
+            description_expr = "'' AS description"
+
+        if has_type and has_category:
+            type_expr = "COALESCE(type, category, 'generic') AS type"
+        elif has_type:
+            type_expr = "COALESCE(type, 'generic') AS type"
+        elif has_category:
+            type_expr = "COALESCE(category, 'generic') AS type"
+        else:
+            type_expr = "'generic' AS type"
+
+        if has_regex:
+            regex_expr = "COALESCE(regex, 0) AS regex"
+        else:
+            regex_expr = "0 AS regex"
+
+        query = f"SELECT id, pattern, {description_expr}, {type_expr}, {regex_expr} FROM signatures"
+        cursor.execute(query)
         sigs = cursor.fetchall()
     finally:
         cursor.close()
         conn.close()
-    # Convert regex from int/bool to Python bool
+
+    # Normalize regex to Python bool
     for s in sigs:
-        s['regex'] = bool(s.get('regex', 0))
+        try:
+            s['regex'] = bool(s.get('regex', 0))
+        except Exception:
+            s['regex'] = False
     return sigs
 
 # Load signatures from DB at startup (defensive: don't crash app if DB unreachable)

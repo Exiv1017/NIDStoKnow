@@ -40,6 +40,64 @@ def ensure_notifications_table(cursor):
         '''
     )
 
+def ensure_base_progress_tables(cursor):
+        """Create core progress tables if they don't exist yet.
+        Safe to call on every request path that touches student progress.
+        """
+        try:
+                # student_progress
+                cursor.execute(
+                        '''
+                        CREATE TABLE IF NOT EXISTS student_progress (
+                            id INT NOT NULL AUTO_INCREMENT,
+                            student_id INT NOT NULL,
+                            student_name VARCHAR(255) DEFAULT NULL,
+                            module_name VARCHAR(255) DEFAULT NULL,
+                            lessons_completed INT DEFAULT 0,
+                            total_lessons INT DEFAULT 0,
+                            last_lesson VARCHAR(255) DEFAULT '',
+                            time_spent INT DEFAULT 0,
+                            engagement_score INT DEFAULT 0,
+                            updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                            PRIMARY KEY (id),
+                            UNIQUE KEY unique_student_module (student_id, module_name)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+                        '''
+                )
+                # student_lesson_progress
+                cursor.execute(
+                        '''
+                        CREATE TABLE IF NOT EXISTS student_lesson_progress (
+                            id INT NOT NULL AUTO_INCREMENT,
+                            student_id INT NOT NULL,
+                            module_name VARCHAR(255) NOT NULL,
+                            lesson_id VARCHAR(255) NOT NULL,
+                            completed TINYINT(1) DEFAULT 1,
+                            completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE KEY unique_student_module_lesson (student_id, module_name, lesson_id),
+                            PRIMARY KEY (id)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+                        '''
+                )
+                # student_module_quiz
+                cursor.execute(
+                        '''
+                        CREATE TABLE IF NOT EXISTS student_module_quiz (
+                            student_id INT NOT NULL,
+                            module_name VARCHAR(255) NOT NULL,
+                            passed TINYINT(1) NOT NULL DEFAULT 0,
+                            score INT DEFAULT 0,
+                            total INT DEFAULT 0,
+                            attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                            PRIMARY KEY (student_id, module_name)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+                        '''
+                )
+                # unit events table (newer schema variant used by runtime)
+                ensure_unit_events_table(cursor)
+        except Exception as e:
+                print(f"[WARN] ensure_base_progress_tables failed (will continue): {e}")
+
 def ensure_users_table_and_migrate_password_hash(cursor):
     """Ensure users table exists and password_hash column can hold long hashes (TEXT).
     On older schemas, this may have been VARCHAR(255); upgrade it in-place if needed.
@@ -674,6 +732,8 @@ def get_real_dashboard(student_id: int):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
+        # Ensure required tables exist to avoid 1146 errors on fresh DBs
+        ensure_base_progress_tables(cursor)
         # Get student progress data (ignore blank module names)
         cursor.execute(
             '''
@@ -1159,6 +1219,9 @@ def update_student_progress(request: Request, progress: StudentProgressRequest):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        # Ensure core tables exist for empty databases
+        ensure_base_progress_tables(cursor)
+        _ensure_student_progress_unit_columns(cursor)
         # Guard against empty/blank module names creating junk rows
         mod_name = (getattr(progress, 'module_name', None) or '').strip()
         if not mod_name:
@@ -1249,7 +1312,7 @@ def update_student_progress(request: Request, progress: StudentProgressRequest):
             conn.commit()
             
             # Fetch the updated value for confirmation
-            cursor.execute('SELECT time_spent FROM student_progress WHERE student_id=%s AND module_name=%s', (progress.student_id, mod_name))
+            cursor.execute('SELECT time_spent FROM student_progress WHERE student_id=%s AND module_name=%s', (progress. student_id, mod_name))
             row = cursor.fetchone()
             print(f"[DEBUG] DB value after upsert: time_spent={row[0] if row else 'N/A'}")
         except Exception as sql_e:
@@ -1270,6 +1333,7 @@ def get_student_module_lessons(student_id: int, module_name: str):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        ensure_base_progress_tables(cursor)
         cursor.execute('SELECT lesson_id FROM student_lesson_progress WHERE student_id=%s AND module_name=%s AND completed=1', (student_id, module_name))
         rows = cursor.fetchall()
         lesson_ids = [r[0] for r in rows]
@@ -1289,6 +1353,7 @@ def set_student_lesson_completion(request: Request, student_id: int, module_name
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        ensure_base_progress_tables(cursor)
         # Normalize module and ensure progress row exists so we can update last_lesson
         norm_mod = _normalize_module_key(module_name)
         _upsert_progress_row(cursor, student_id, norm_mod)
@@ -1336,6 +1401,7 @@ def set_student_lessons_bulk(request: Request, student_id: int, module_name: str
     conn = get_db_connection(); cursor = conn.cursor()
     completed_val = 1 if (req.completed is None or req.completed) else 0
     try:
+        ensure_base_progress_tables(cursor)
         for lid in req.lesson_ids:
             cursor.execute('''
                 INSERT INTO student_lesson_progress (student_id, module_name, lesson_id, completed)
@@ -1581,6 +1647,7 @@ def set_student_module_unit(request: Request, student_id: int, module_name: str,
     """Mark a high-level unit complete (overview, practical, assessment, quiz). Quizzes increment counters if first pass."""
     conn = get_db_connection(); cursor = conn.cursor()
     try:
+        ensure_base_progress_tables(cursor)
         _ensure_student_progress_unit_columns(cursor)
         ensure_unit_events_table(cursor)
         _ensure_unit_event_duration_column(cursor)
@@ -1658,6 +1725,7 @@ def record_time_event(request: Request, student_id: int, module_name: str, body:
         raise HTTPException(status_code=400, detail='Invalid unit_type')
     conn = get_db_connection(); cursor = conn.cursor()
     try:
+        ensure_base_progress_tables(cursor)
         _ensure_student_progress_unit_columns(cursor)
         ensure_unit_events_table(cursor)
         _ensure_unit_event_duration_column(cursor)
@@ -1760,6 +1828,8 @@ def get_student_modules_summary(student_id: int, seed: bool = True, cleanup: boo
         print(f"[ERROR] get_student_modules_summary DB connect failed: {e}")
         return []
     try:
+        # Ensure tables exist before attempting to add columns or query
+        ensure_base_progress_tables(cursor)
         _ensure_student_progress_unit_columns(cursor)
         _ensure_student_progress_unique_index(cursor)
         # Defensive: ensure student_progress table exists (in case migration not applied)
@@ -2124,6 +2194,7 @@ def get_student_module_quiz(student_id: int, module_name: str):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        ensure_base_progress_tables(cursor)
         cursor.execute('SELECT passed, score, total, attempted_at FROM student_module_quiz WHERE student_id=%s AND module_name=%s', (student_id, module_name))
         row = cursor.fetchone()
         if not row:
@@ -2142,6 +2213,7 @@ def set_student_module_quiz(student_id: int, module_name: str, req: ModuleQuizRe
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        ensure_base_progress_tables(cursor)
         passed_val = 1 if req.passed else 0
         # Fetch previous row to compare score/pass for activity log
         prev_passed = 0
