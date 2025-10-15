@@ -1158,6 +1158,7 @@ def list_submissions():
     except Exception:
         pass
     try:
+        # Primary: recent content submissions enriched with last sim scores
         cursor.execute('''
             SELECT s.id,
                    s.student_id as studentId,
@@ -1182,9 +1183,29 @@ def list_submissions():
                    ) AS defenderScore
             FROM submissions s
             ORDER BY s.created_at DESC
-            LIMIT 200
+            LIMIT 120
         ''')
-        rows = cursor.fetchall()
+        rows = cursor.fetchall() or []
+        # Secondary: if no content submissions exist, surface recent pure simulation sessions
+        if not rows:
+            cursor.execute('''
+                SELECT 
+                    ss.id,
+                    ss.student_id AS studentId,
+                    ss.student_name AS studentName,
+                    NULL AS moduleSlug,
+                    'Simulation' AS moduleTitle,
+                    'practical' AS submissionType,
+                    NULL AS ruleCount,
+                    NULL AS totalMatches,
+                    ss.created_at AS createdAt,
+                    CASE WHEN ss.role='attacker' THEN ss.score END AS attackerScore,
+                    CASE WHEN ss.role='defender' THEN ss.score END AS defenderScore
+                FROM simulation_sessions ss
+                ORDER BY ss.created_at DESC
+                LIMIT 200
+            ''')
+            rows = cursor.fetchall() or []
         cursor.close(); conn.close()
         return rows or []
     except Exception as e:

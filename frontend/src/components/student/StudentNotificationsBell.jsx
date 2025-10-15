@@ -95,6 +95,21 @@ const StudentNotificationsBell = ({ refreshIntervalMs = 30000, appearance = 'lig
     };
   }, [headers, refreshIntervalMs]);
 
+  // Listen to localStorage flag to refresh counts immediately after sim completion
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === 'notify_refresh') {
+        fetchCount();
+        try {
+          const raw = localStorage.getItem('student_last_simulation_score');
+          if (raw) setLastSim(JSON.parse(raw));
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   useEffect(() => {
     const onDocClick = (e) => {
       if (!open) return;

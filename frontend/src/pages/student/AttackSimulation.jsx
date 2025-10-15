@@ -120,6 +120,23 @@ const AttackSimulation = () => {
         case MessageTypes.SIMULATION_RESUMED: setPaused(false); break;
         case MessageTypes.SIMULATION_ENDED:
         case MessageTypes.SIMULATION_END:
+          try {
+            // Persist completion for instructor reports/notifications
+            const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+            const rawUser = localStorage.getItem('user');
+            const u = rawUser ? JSON.parse(rawUser) : (user || {});
+            const sid = u?.id || user?.id;
+            const tok = u?.token || user?.token;
+            if (sid && tok) {
+              fetch(`${API_BASE}/api/student/${sid}/simulation-completed`.replace(/([^:]?)\/\/+/g,'$1/'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+                body: JSON.stringify({ role: 'attacker', score, lobby_code: lobbyCode })
+              }).then(() => {
+                try { localStorage.setItem('notify_refresh', String(Date.now())); } catch {}
+              }).catch(() => {});
+            }
+          } catch {}
           showToast('Simulation ended', 'warning'); setTimeout(() => navigate('/student/lobby'), 1200); break;
         case MessageTypes.BROADCAST:
           setChat((prev) => [...prev, { id: Date.now(), sender: 'Broadcast', message: data.message, timestamp: new Date() }]);
