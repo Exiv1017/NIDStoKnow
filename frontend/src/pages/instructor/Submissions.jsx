@@ -46,6 +46,7 @@ export default function Submissions() {
                 <option value="all">All types</option>
                 <option value="practical">Practical</option>
                 <option value="assessment">Assessment</option>
+                <option value="simulation">Simulation</option>
               </select>
             </div>
           </div>
@@ -65,6 +66,8 @@ export default function Submissions() {
                       <th className="text-left py-3 px-4">Type</th>
                       <th className="text-left py-3 px-4">Rules</th>
                       <th className="text-left py-3 px-4">Matches</th>
+                      <th className="text-left py-3 px-4">Attacker Pts</th>
+                      <th className="text-left py-3 px-4">Defender Pts</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -74,12 +77,14 @@ export default function Submissions() {
                         <td className="py-3 px-4 font-medium">{s.studentName}</td>
                         <td className="py-3 px-4">{s.moduleTitle}</td>
                         <td className="py-3 px-4 capitalize">{s.submissionType}</td>
-                        <td className="py-3 px-4">{s.ruleCount}</td>
-                        <td className="py-3 px-4">{s.totalMatches}</td>
+                        <td className="py-3 px-4">{s.ruleCount ?? '-'}</td>
+                        <td className="py-3 px-4">{s.totalMatches ?? '-'}</td>
+                        <td className="py-3 px-4">{s.attackerScore ?? '-'}</td>
+                        <td className="py-3 px-4">{s.defenderScore ?? '-'}</td>
                       </tr>
                     ))}
                     {filtered.length === 0 && (
-                      <tr><td colSpan={6} className="py-10 text-center text-gray-400">No submissions</td></tr>
+                      <tr><td colSpan={8} className="py-10 text-center text-gray-400">No submissions</td></tr>
                     )}
                   </tbody>
                 </table>

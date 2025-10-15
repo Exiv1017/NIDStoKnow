@@ -194,7 +194,11 @@ export default function InstructorAssessments() {
   };
 
   const TypeBadge = ({ type }) => {
-    const map = { practical: 'bg-indigo-100 text-indigo-700', assessment: 'bg-teal-100 text-teal-700' };
+    const map = {
+      practical: 'bg-indigo-100 text-indigo-700',
+      assessment: 'bg-teal-100 text-teal-700',
+      simulation: 'bg-purple-100 text-purple-700'
+    };
     return <span className={`px-2 py-0.5 text-xs font-medium rounded capitalize ${map[type] || 'bg-gray-100 text-gray-600'}`}>{type}</span>;
   };
 
@@ -324,6 +328,7 @@ export default function InstructorAssessments() {
                 <option value="all">All Types</option>
                 <option value="practical">Practical</option>
                 <option value="assessment">Assessment</option>
+                <option value="simulation">Simulation</option>
               </select>
               <div className="flex items-center gap-1 text-sm text-gray-500 ml-auto">
                 <span>Sort:</span>
@@ -355,8 +360,8 @@ export default function InstructorAssessments() {
                         <td className="py-3 px-4 font-medium whitespace-nowrap">{s.studentName}</td>
                         <td className="py-3 px-4 whitespace-nowrap">{s.moduleTitle}</td>
                         <td className="py-3 px-4 whitespace-nowrap"><TypeBadge type={s.submissionType} /></td>
-                        <td className="py-3 px-4">{s.ruleCount}</td>
-                        <td className="py-3 px-4">{s.totalMatches}</td>
+                        <td className="py-3 px-4">{s.ruleCount ?? '-'}</td>
+                        <td className="py-3 px-4">{s.totalMatches ?? '-'}</td>
                         <td className="py-3 px-4 whitespace-nowrap">{s.attackerScore ?? '-'}</td>
                         <td className="py-3 px-4 whitespace-nowrap">{s.defenderScore ?? '-'}</td>
                       </tr>

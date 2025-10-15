@@ -1158,54 +1158,43 @@ def list_submissions():
     except Exception:
         pass
     try:
-        # Primary: recent content submissions enriched with last sim scores
+        # Unified: combine practical/assessment submissions with simulation session rows
         cursor.execute('''
-            SELECT s.id,
-                   s.student_id as studentId,
-                   s.student_name as studentName,
-                   s.module_slug as moduleSlug,
-                   s.module_title as moduleTitle,
-                   s.submission_type as submissionType,
-                   s.totals_rule_count as ruleCount,
-                   s.totals_total_matches as totalMatches,
-                   s.created_at as createdAt,
-                   (
-                     SELECT ss.score FROM simulation_sessions ss
-                     WHERE ss.student_id = s.student_id AND ss.role = 'attacker'
-                     ORDER BY ss.created_at DESC
-                     LIMIT 1
-                   ) AS attackerScore,
-                   (
-                     SELECT ss.score FROM simulation_sessions ss
-                     WHERE ss.student_id = s.student_id AND ss.role = 'defender'
-                     ORDER BY ss.created_at DESC
-                     LIMIT 1
-                   ) AS defenderScore
-            FROM submissions s
-            ORDER BY s.created_at DESC
-            LIMIT 120
+            (
+              SELECT 
+                   s.id AS id,
+                   s.student_id AS studentId,
+                   s.student_name AS studentName,
+                   s.module_slug AS moduleSlug,
+                   s.module_title AS moduleTitle,
+                   s.submission_type AS submissionType,
+                   s.totals_rule_count AS ruleCount,
+                   s.totals_total_matches AS totalMatches,
+                   s.created_at AS createdAt,
+                   NULL AS attackerScore,
+                   NULL AS defenderScore
+              FROM submissions s
+            )
+            UNION ALL
+                        (
+                            SELECT 
+                                     ss.id AS id,
+                                     ss.student_id AS studentId,
+                                     ss.student_name AS studentName,
+                                     NULL AS moduleSlug,
+                                     '-' AS moduleTitle,
+                                     'simulation' AS submissionType,
+                                     NULL AS ruleCount,
+                                     NULL AS totalMatches,
+                                     ss.created_at AS createdAt,
+                                     CASE WHEN ss.role='attacker' THEN ss.score ELSE NULL END AS attackerScore,
+                                     CASE WHEN ss.role='defender' THEN ss.score ELSE NULL END AS defenderScore
+                            FROM simulation_sessions ss
+                        )
+            ORDER BY createdAt DESC
+            LIMIT 300
         ''')
         rows = cursor.fetchall() or []
-        # Secondary: if no content submissions exist, surface recent pure simulation sessions
-        if not rows:
-            cursor.execute('''
-                SELECT 
-                    ss.id,
-                    ss.student_id AS studentId,
-                    ss.student_name AS studentName,
-                    NULL AS moduleSlug,
-                    'Simulation' AS moduleTitle,
-                    'practical' AS submissionType,
-                    NULL AS ruleCount,
-                    NULL AS totalMatches,
-                    ss.created_at AS createdAt,
-                    CASE WHEN ss.role='attacker' THEN ss.score END AS attackerScore,
-                    CASE WHEN ss.role='defender' THEN ss.score END AS defenderScore
-                FROM simulation_sessions ss
-                ORDER BY ss.created_at DESC
-                LIMIT 200
-            ''')
-            rows = cursor.fetchall() or []
         cursor.close(); conn.close()
         return rows or []
     except Exception as e:
