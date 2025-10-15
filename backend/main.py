@@ -212,7 +212,16 @@ def _seed_default_signatures(cursor):
             return
         # Insert defaults (mirror backend/sql/signatures.sql examples)
         defaults = [
+            # Aho-Corasick literal patterns
             ("nmap", "Nmap scan detected", "Recon", 0),
+            ("curl", "Curl usage detected", "Download", 0),
+            ("wget", "Wget usage detected", "Download", 0),
+            ("ssh", "SSH usage detected", "SSH", 0),
+            ("/etc/passwd", "Sensitive file reference", "File Access", 0),
+            ("/etc/shadow", "Shadow file reference", "File Access", 0),
+            ("chmod +x", "Chmod +x execution", "Execution", 0),
+            ("rm -rf", "Dangerous file removal", "Destruction", 0),
+            # Regex patterns for flexible matching
             (r"cat\s+.*\/etc\/passwd", "Sensitive file access", "File Access", 1),
             (r"cat\s+.*\/etc\/shadow", "Shadow file access", "File Access", 1),
             (r"wget\s+.*", "Wget download", "Download", 1),
@@ -301,8 +310,19 @@ def load_signatures_from_db():
     # This guarantees out-of-the-box detections for common commands used in demos.
     try:
         existing_patterns = {str(s.get('pattern')) for s in sigs}
+        # Provide both literal (AC) and regex variants so AC detections appear for common commands.
         builtin = [
+            # Aho-Corasick (literal) patterns
             {"pattern": "nmap", "description": "Nmap scan detected", "type": "Recon", "regex": False},
+            {"pattern": "curl", "description": "Curl usage detected", "type": "Download", "regex": False},
+            {"pattern": "wget", "description": "Wget usage detected", "type": "Download", "regex": False},
+            {"pattern": "ssh", "description": "SSH usage detected", "type": "SSH", "regex": False},
+            {"pattern": "/etc/passwd", "description": "Sensitive file reference", "type": "File Access", "regex": False},
+            {"pattern": "/etc/shadow", "description": "Shadow file reference", "type": "File Access", "regex": False},
+            {"pattern": "chmod +x", "description": "Chmod +x execution", "type": "Execution", "regex": False},
+            {"pattern": "rm -rf", "description": "Dangerous file removal", "type": "Destruction", "regex": False},
+
+            # Regex variants for flexible matching
             {"pattern": r"cat\s+.*\/etc\/passwd", "description": "Sensitive file access", "type": "File Access", "regex": True},
             {"pattern": r"cat\s+.*\/etc\/shadow", "description": "Shadow file access", "type": "File Access", "regex": True},
             {"pattern": r"wget\s+.*", "description": "Wget download", "type": "Download", "regex": True},
