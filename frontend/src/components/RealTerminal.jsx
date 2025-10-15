@@ -23,6 +23,7 @@ const getWsUrl = (simulationType = 'terminal', token) => {
 const RealTerminal = ({ onCommand, simulationType = 'terminal' }) => {
   const auth = useContext(AuthContext);
   const [fatalError, setFatalError] = useState(null);
+  const fatalRef = useRef(null);
   const [retryKey, setRetryKey] = useState(0); // force re-connect
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
@@ -30,7 +31,7 @@ const RealTerminal = ({ onCommand, simulationType = 'terminal' }) => {
   const wsRef = useRef(null);
 
   useEffect(() => {
-    xtermRef.current = new Terminal({
+  xtermRef.current = new Terminal({
       fontSize: 16,
       theme: {
         background: '#1e1e1e',
@@ -45,49 +46,59 @@ const RealTerminal = ({ onCommand, simulationType = 'terminal' }) => {
     xtermRef.current.open(terminalRef.current);
     fitAddonRef.current.fit();
 
-    const token = auth?.user?.token || (() => {
+  const token = auth?.user?.token || (() => {
       try {
         const u = localStorage.getItem('user');
         return u ? (JSON.parse(u).token) : null;
       } catch { return null; }
     })();
+    const safeWrite = (text) => {
+      try {
+        if (xtermRef.current && typeof xtermRef.current.writeln === 'function') {
+          xtermRef.current.writeln(text);
+        }
+      } catch (_) {}
+    };
+
     const connect = (attempt = 0) => {
       setFatalError(null);
+      fatalRef.current = null;
       const url = getWsUrl(simulationType, token);
       wsRef.current = new WebSocket(url);
       wsRef.current.onopen = () => {
         const msg = simulationType === 'terminal'
           ? 'Connected to simulation shell...'
           : `Connected to ${simulationType} simulation honeypot...`;
-        xtermRef.current.writeln(msg);
+        safeWrite(msg);
         attempt = 0; // reset
       };
       wsRef.current.onmessage = (event) => {
         const data = String(event.data).replace(/\r\n|\r|\n/g, '\r\n');
-        xtermRef.current.write(data);
+        try { xtermRef.current && xtermRef.current.write(data); } catch (_) {}
         // Detect authentication failure and mark fatal so we stop auto-reconnect.
         if (/All authentication attempts failed/i.test(data)) {
           setFatalError('Authentication to Cowrie failed. Please ensure the honeypot container is running and reachable.');
+          fatalRef.current = 'auth-failed';
         }
       };
       wsRef.current.onclose = () => {
-        xtermRef.current.writeln('\r\n[Disconnected from shell]');
-        if (!fatalError) {
+        safeWrite('\r\n[Disconnected from shell]');
+        if (!fatalRef.current) {
           // Auto-reconnect with capped backoff (up to ~10s)
           if (attempt < 6) {
             const delay = Math.min(10000, 500 * Math.pow(2, attempt));
-            xtermRef.current.writeln(`[Reconnecting in ${Math.round(delay/1000)}s]`);
+            safeWrite(`[Reconnecting in ${Math.round(delay/1000)}s]`);
             setTimeout(() => connect(attempt + 1), delay);
           } else {
-            xtermRef.current.writeln('[Reconnect attempts exhausted]');
+            safeWrite('[Reconnect attempts exhausted]');
           }
         } else {
-          xtermRef.current.writeln('[Auto-reconnect disabled due to fatal error]');
-          xtermRef.current.writeln('[Click RETRY below after fixing honeypot]');
+          safeWrite('[Auto-reconnect disabled due to fatal error]');
+          safeWrite('[Click RETRY below after fixing honeypot]');
         }
       };
       wsRef.current.onerror = (e) => {
-        xtermRef.current.writeln(`\r\n[Connection error] ${e?.message || ''}`);
+        safeWrite(`\r\n[Connection error] ${e?.message || ''}`);
       };
     };
     connect();
@@ -117,17 +128,20 @@ const RealTerminal = ({ onCommand, simulationType = 'terminal' }) => {
     });
 
     return () => {
-      if (xtermRef.current) {
-        xtermRef.current.dispose();
-        xtermRef.current = null;
-      }
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      if (fitAddonRef.current) {
-        fitAddonRef.current = null;
-      }
+      try {
+        if (wsRef.current) {
+          try { wsRef.current.onopen = wsRef.current.onmessage = wsRef.current.onclose = wsRef.current.onerror = null; } catch(_) {}
+          try { wsRef.current.close(); } catch(_) {}
+          wsRef.current = null;
+        }
+      } catch (_) {}
+      try {
+        if (xtermRef.current) {
+          xtermRef.current.dispose();
+        }
+      } catch (_) {}
+      xtermRef.current = null;
+      fitAddonRef.current = null;
       window.removeEventListener('resize', () => fitAddonRef.current?.fit());
     };
   }, [simulationType, retryKey]); // Include simulationType & retryKey in dependencies

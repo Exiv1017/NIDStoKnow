@@ -213,12 +213,12 @@ def _seed_default_signatures(cursor):
         # Insert defaults (mirror backend/sql/signatures.sql examples)
         defaults = [
             ("nmap", "Nmap scan detected", "Recon", 0),
-            (r"cat\\s+.*\\/etc\\/passwd", "Sensitive file access", "File Access", 1),
-            (r"cat\\s+.*\\/etc\\/shadow", "Shadow file access", "File Access", 1),
-            (r"wget\\s+.*", "Wget download", "Download", 1),
-            (r"curl\\s+.*", "Curl download", "Download", 1),
-            (r"chmod\\s+\\+x\\s+.*", "Chmod +x execution", "Execution", 1),
-            (r"rm\\s+-rf\\s+.*", "Dangerous file removal", "Destruction", 1),
+            (r"cat\s+.*\/etc\/passwd", "Sensitive file access", "File Access", 1),
+            (r"cat\s+.*\/etc\/shadow", "Shadow file access", "File Access", 1),
+            (r"wget\s+.*", "Wget download", "Download", 1),
+            (r"curl\s+.*", "Curl download", "Download", 1),
+            (r"chmod\s+\+x\s+.*", "Chmod +x execution", "Execution", 1),
+            (r"rm\s+-rf\s+.*", "Dangerous file removal", "Destruction", 1),
         ]
         cursor.executemany(
             "INSERT INTO signatures (pattern, description, type, regex) VALUES (%s, %s, %s, %s)",
@@ -296,6 +296,41 @@ def load_signatures_from_db():
             s['regex'] = bool(s.get('regex', 0))
         except Exception:
             s['regex'] = False
+
+    # Merge in a small set of built-in signatures if they're missing in DB.
+    # This guarantees out-of-the-box detections for common commands used in demos.
+    try:
+        existing_patterns = {str(s.get('pattern')) for s in sigs}
+        builtin = [
+            {"pattern": "nmap", "description": "Nmap scan detected", "type": "Recon", "regex": False},
+            {"pattern": r"cat\s+.*\/etc\/passwd", "description": "Sensitive file access", "type": "File Access", "regex": True},
+            {"pattern": r"cat\s+.*\/etc\/shadow", "description": "Shadow file access", "type": "File Access", "regex": True},
+            {"pattern": r"wget\s+.*", "description": "Wget download", "type": "Download", "regex": True},
+            {"pattern": r"curl\s+.*", "description": "Curl download", "type": "Download", "regex": True},
+            {"pattern": r"chmod\s+\+x\s+.*", "description": "Chmod +x execution", "type": "Execution", "regex": True},
+            {"pattern": r"rm\s+-rf\s+.*", "description": "Dangerous file removal", "type": "Destruction", "regex": True},
+        ]
+        added = 0
+        for b in builtin:
+            if b["pattern"] not in existing_patterns:
+                sigs.append({
+                    "id": None,
+                    "pattern": b["pattern"],
+                    "description": b["description"],
+                    "type": b["type"],
+                    "regex": bool(b["regex"]) 
+                })
+                added += 1
+        if added:
+            try:
+                logging.info(f"[signature.load] augmented with {added} builtin signatures (in-memory only)")
+            except Exception:
+                pass
+    except Exception as _e:
+        try:
+            logging.warning(f"[signature.load] builtin merge skipped: {_e}")
+        except Exception:
+            pass
     return sigs
 
 # Load signatures from DB at startup (defensive: don't crash app if DB unreachable)
@@ -1526,12 +1561,24 @@ async def get_stats():
 @app.post("/api/signature/detect")
 async def detect_signature(payload: dict):
     command = payload.get("command", "")
+    try:
+        logging.info(f"[signature.detect] cmd='{command}'")
+    except Exception:
+        pass
     
     # Reload signatures and matcher to ensure we have the latest data
     try:
         current_signatures = load_signatures_from_db()
+        try:
+            logging.info(f"[signature.detect] signatures loaded: {len(current_signatures)}")
+        except Exception:
+            pass
         current_matcher = SignatureMatcher(current_signatures)
         matches = current_matcher.match(command)
+        try:
+            logging.info(f"[signature.detect] matches: {len(matches)}")
+        except Exception:
+            pass
         
         # Format matches for frontend clarity with offsets & origin
         formatted_matches = []
@@ -1551,6 +1598,10 @@ async def detect_signature(payload: dict):
     except Exception as e:
         # Log the error and return empty matches
         print(f"Error in signature detection: {e}")
+        try:
+            logging.error(f"[signature.detect] error: {e}")
+        except Exception:
+            pass
         return {"matches": [], "error": str(e)}
 
 @app.websocket("/ws/terminal")
@@ -1581,7 +1632,23 @@ class SignatureIn(BaseModel):
 
 @app.get("/api/signatures")
 def list_signatures():
-    return load_signatures_from_db()
+    try:
+        return load_signatures_from_db()
+    except Exception as e:
+        try:
+            logging.error(f"[signatures.list] DB error: {e}")
+        except Exception:
+            pass
+        # Fallback to builtin set to avoid 500 in UI
+        return [
+            {"id": None, "pattern": "nmap", "description": "Nmap scan detected", "type": "Recon", "regex": False},
+            {"id": None, "pattern": r"cat\s+.*\/etc\/passwd", "description": "Sensitive file access", "type": "File Access", "regex": True},
+            {"id": None, "pattern": r"cat\s+.*\/etc\/shadow", "description": "Shadow file access", "type": "File Access", "regex": True},
+            {"id": None, "pattern": r"wget\s+.*", "description": "Wget download", "type": "Download", "regex": True},
+            {"id": None, "pattern": r"curl\s+.*", "description": "Curl download", "type": "Download", "regex": True},
+            {"id": None, "pattern": r"chmod\s+\+x\s+.*", "description": "Chmod +x execution", "type": "Execution", "regex": True},
+            {"id": None, "pattern": r"rm\s+-rf\s+.*", "description": "Dangerous file removal", "type": "Destruction", "regex": True},
+        ]
 
 @app.post("/api/signatures")
 def add_signature(sig: SignatureIn):

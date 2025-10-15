@@ -164,6 +164,8 @@ const SignatureBased = () => {
   // Utility to call backend signature detection
   const detectWithBackend = async (command) => {
     try {
+      // Debug: trace request
+      // console.debug('[detect] sending', command);
       const response = await fetch('/api/signature/detect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -171,6 +173,7 @@ const SignatureBased = () => {
       });
       if (!response.ok) throw new Error('Detection API error');
       const data = await response.json();
+      // console.debug('[detect] response', data);
       return data.matches || [];
     } catch (err) {
       return [{ type: 'Error', description: err.message }];
@@ -186,6 +189,7 @@ const SignatureBased = () => {
   const handleTerminalCommand = async (command) => {
     if (paused) return; // skip while paused
     const detections = await detectWithBackend(command);
+    // console.debug('[terminal] detections', detections);
     if (detections.length > 0) {
       setDetectionResults(prev => [
         ...prev,
