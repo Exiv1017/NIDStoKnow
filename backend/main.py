@@ -96,7 +96,13 @@ app.include_router(cowrie_router, prefix="/api")
 app.include_router(student_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(instructor_router, prefix="/api")
+# Expose lobby WS under both /api/ws/... and /ws/... so Nginx rewrites and clients work
 app.include_router(lobby_ws_router, prefix="/api")
+try:
+    # Also mount without /api prefix to accept paths like /ws/lobby/* directly
+    app.include_router(lobby_ws_router)
+except Exception:
+    pass
 
 # Serve uploaded files (avatars, etc.)
 try:
@@ -212,23 +218,64 @@ def _seed_default_signatures(cursor):
             return
         # Insert defaults (mirror backend/sql/signatures.sql examples)
         defaults = [
-            # Aho-Corasick literal patterns
-            ("nmap", "Nmap scan detected", "Recon", 0),
-            ("curl", "Curl usage detected", "Download", 0),
-            ("wget", "Wget usage detected", "Download", 0),
-            ("ssh", "SSH usage detected", "SSH", 0),
-            ("/etc/passwd", "Sensitive file reference", "File Access", 0),
-            ("/etc/shadow", "Shadow file reference", "File Access", 0),
-            ("chmod +x", "Chmod +x execution", "Execution", 0),
-            ("rm -rf", "Dangerous file removal", "Destruction", 0),
-            # Regex patterns for flexible matching
-            (r"cat\s+.*\/etc\/passwd", "Sensitive file access", "File Access", 1),
-            (r"cat\s+.*\/etc\/shadow", "Shadow file access", "File Access", 1),
-            (r"wget\s+.*", "Wget download", "Download", 1),
-            (r"curl\s+.*", "Curl download", "Download", 1),
-            (r"chmod\s+\+x\s+.*", "Chmod +x execution", "Execution", 1),
-            (r"rm\s+-rf\s+.*", "Dangerous file removal", "Destruction", 1),
-        ]
+                # --- Reconnaissance ---
+                ("nmap", "Nmap scan detected", "Recon", 0),
+                ("masscan", "Masscan port scan detected", "Recon", 0),
+                ("curl", "Curl usage detected", "Recon", 0),
+                ("wget", "Wget usage detected", "Recon", 0),
+                ("whois", "WHOIS lookup detected", "Recon", 0),
+                ("dig", "DNS reconnaissance detected", "Recon", 0),
+                ("ping", "ICMP echo request detected", "Recon", 0),
+
+                # --- Exploitation / Command Execution ---
+                ("bash -i", "Interactive bash shell spawned", "Execution", 0),
+                ("nc -e", "Netcat reverse shell attempt", "Execution", 0),
+                ("/bin/sh", "Shell execution detected", "Execution", 0),
+                ("python -c", "Python command execution", "Execution", 0),
+                ("perl -e", "Perl command execution", "Execution", 0),
+                ("php -r", "PHP command execution", "Execution", 0),
+
+                # --- Privilege Escalation ---
+                ("sudo", "Potential privilege escalation via sudo", "Privilege Escalation", 0),
+                ("chmod +x", "File permission modification (chmod +x)", "Privilege Escalation", 0),
+                ("/etc/sudoers", "Access to sudoers file", "Privilege Escalation", 0),
+                ("su root", "Root user switch attempt", "Privilege Escalation", 0),
+
+                # --- Sensitive File Access ---
+                ("/etc/passwd", "Sensitive file reference", "File Access", 0),
+                ("/etc/shadow", "Shadow file reference", "File Access", 0),
+                ("/var/log/auth.log", "Authentication log access", "File Access", 0),
+                ("/root/.ssh/id_rsa", "Private SSH key access", "File Access", 0),
+
+                # --- Destructive Behavior ---
+                ("rm -rf", "Dangerous recursive file deletion", "Destruction", 0),
+                ("mkfs", "Filesystem format command detected", "Destruction", 0),
+                ("dd if=", "Disk overwrite command detected", "Destruction", 0),
+
+                # --- Network / Exfiltration ---
+                ("scp", "Secure copy usage detected", "Exfiltration", 0),
+                ("ftp", "FTP data transfer detected", "Exfiltration", 0),
+                ("curl -T", "Curl file upload attempt", "Exfiltration", 0),
+                ("wget --post-file", "Wget data exfiltration attempt", "Exfiltration", 0),
+
+                # --- Malware / Persistence Indicators ---
+                ("crontab -e", "Cronjob modification attempt", "Persistence", 0),
+                ("/etc/rc.local", "Persistence via rc.local", "Persistence", 0),
+                ("systemctl enable", "Service persistence attempt", "Persistence", 0),
+
+                # --- Regex patterns for flexible matching ---
+                (r"cat\s+.*\/etc\/passwd", "Sensitive file access", "File Access", 1),
+                (r"cat\s+.*\/etc\/shadow", "Shadow file access", "File Access", 1),
+                (r"wget\s+.*", "Wget download activity", "Download", 1),
+                (r"curl\s+.*", "Curl download activity", "Download", 1),
+                (r"chmod\s+\+x\s+.*", "File permission change", "Privilege Escalation", 1),
+                (r"rm\s+-rf\s+.*", "Recursive file deletion", "Destruction", 1),
+                (r"scp\s+.*@.*:.*", "SCP data transfer", "Exfiltration", 1),
+                (r"python3?\s+-c\s+['\"].*['\"]", "Inline Python code execution", "Execution", 1),
+                (r"bash\s+-i\s+>&", "Reverse shell attempt via bash", "Execution", 1),
+                (r"nc\s+-e\s+/bin/sh", "Netcat reverse shell attempt", "Execution", 1),
+            ]
+
         cursor.executemany(
             "INSERT INTO signatures (pattern, description, type, regex) VALUES (%s, %s, %s, %s)",
             defaults,
@@ -321,6 +368,48 @@ def load_signatures_from_db():
             {"pattern": "/etc/shadow", "description": "Shadow file reference", "type": "File Access", "regex": False},
             {"pattern": "chmod +x", "description": "Chmod +x execution", "type": "Execution", "regex": False},
             {"pattern": "rm -rf", "description": "Dangerous file removal", "type": "Destruction", "regex": False},
+            # Additional patterns to append (paste into your builtin list)
+            {"pattern": "masscan", "description": "Masscan port scan detected", "type": "Recon", "regex": False},
+            {"pattern": "whois", "description": "WHOIS lookup detected", "type": "Recon", "regex": False},
+            {"pattern": "dig", "description": "DNS lookup detected", "type": "Recon", "regex": False},
+            {"pattern": "ncat", "description": "Ncat/netcat detected", "type": "Recon", "regex": False},
+            {"pattern": "nc -e", "description": "Netcat reverse shell attempt", "type": "Execution", "regex": False},
+            {"pattern": "socat", "description": "Socat detected (potential tunneling)", "type": "Execution", "regex": False},
+            {"pattern": "python -m http.server", "description": "Python simple HTTP server", "type": "Exfiltration", "regex": False},
+            {"pattern": "python3 -m http.server", "description": "Python simple HTTP server", "type": "Exfiltration", "regex": False},
+            {"pattern": "php -S", "description": "PHP built-in web server", "type": "Exfiltration", "regex": False},
+            {"pattern": "git clone", "description": "Repository clone detected", "type": "Recon", "regex": False},
+            {"pattern": "curl -X POST", "description": "HTTP POST detected (possible exfiltration/C2)", "type": "Exfiltration", "regex": False},
+            {"pattern": "wget -O -", "description": "Wget streaming to stdout (possible downloader)", "type": "Download", "regex": False},
+            {"pattern": "base64 -d", "description": "Base64 decode (possible payload decoding)", "type": "Obfuscation", "regex": False},
+            {"pattern": "openssl s_client", "description": "OpenSSL client usage (TLS connections)", "type": "Network", "regex": False},
+            {"pattern": "certutil -urlcache -f", "description": "Certutil used to download files (Windows)", "type": "Download", "regex": False},
+            {"pattern": "powershell -enc", "description": "Encoded PowerShell command", "type": "Execution", "regex": False},
+            {"pattern": "powershell -nop -w hidden", "description": "Suspicious PowerShell flags", "type": "Execution", "regex": False},
+            {"pattern": "mshta", "description": "mshta usage (HTML application execution)", "type": "Execution", "regex": False},
+            {"pattern": "rundll32", "description": "rundll32 usage (DLL execution)", "type": "Execution", "regex": False},
+            {"pattern": "reg add", "description": "Registry modification attempt", "type": "Persistence", "regex": False},
+            {"pattern": "schtasks /create", "description": "Scheduled task creation (Windows persistence)", "type": "Persistence", "regex": False},
+            {"pattern": "crontab -e", "description": "Crontab edit (Unix persistence)", "type": "Persistence", "regex": False},
+            {"pattern": "systemctl enable", "description": "Service enable (persistence)", "type": "Persistence", "regex": False},
+            {"pattern": "systemctl disable", "description": "Service disable (suspicious)", "type": "Persistence", "regex": False},
+            {"pattern": "useradd", "description": "User creation detected", "type": "Privilege Escalation", "regex": False},
+            {"pattern": "passwd ", "description": "Password change operation", "type": "Privilege Escalation", "regex": False},
+            {"pattern": "chown ", "description": "Ownership change detected", "type": "Privilege Escalation", "regex": False},
+            {"pattern": "dd if=", "description": "Disk overwrite/read with dd", "type": "Destruction", "regex": False},
+            {"pattern": "tar czf", "description": "Archive creation (potential data staging)", "type": "Exfiltration", "regex": False},
+
+            # Regex-based flexible patterns
+            {"pattern": r"curl\s+.*-u\s+[^ ]+", "description": "Curl with basic auth (possible credential use)", "type": "Network", "regex": True},
+            {"pattern": r"wget\s+https?://\S+", "description": "Wget fetching URL", "type": "Download", "regex": True},
+            {"pattern": r"scp\s+.*@.*:.*", "description": "SCP data transfer", "type": "Exfiltration", "regex": True},
+            {"pattern": r"ssh\s+.*@.*", "description": "SSH to remote host (interactive sessions)", "type": "SSH", "regex": True},
+            {"pattern": r"curl\s+.*--data|-d\s+.*", "description": "Curl sending data (POST/PUT) - possible exfil/C2", "type": "Exfiltration", "regex": True},
+            {"pattern": r"powershell\s+.*-EncodedCommand\s+\S+", "description": "Encoded PowerShell command (regex)", "type": "Execution", "regex": True},
+            {"pattern": r"base64\s+.*-d", "description": "Base64 decode command", "type": "Obfuscation", "regex": True},
+            {"pattern": r"python\d?\s+.*-c\s+['\"].*['\"]", "description": "Inline Python execution", "type": "Execution", "regex": True},
+            {"pattern": r"nc\s+.*\d+\s+-e\s+\/bin\/sh", "description": "Netcat reverse shell pattern", "type": "Execution", "regex": True},
+            {"pattern": r"openssl\s+req|openssl\s+smime|openssl\s+enc", "description": "OpenSSL suspicious usage", "type": "Network", "regex": True},
 
             # Regex variants for flexible matching
             {"pattern": r"cat\s+.*\/etc\/passwd", "description": "Sensitive file access", "type": "File Access", "regex": True},
