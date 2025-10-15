@@ -11,6 +11,11 @@ lobby_connections: Dict[str, List[WebSocket]] = {}
 
 @router.websocket("/ws/lobby/{lobby_code}")
 async def lobby_websocket(websocket: WebSocket, lobby_code: str):
+    # Debug: log connection attempt
+    try:
+        logging.info(f"[lobby_ws] WS connect attempt: code={lobby_code} headers={dict(websocket.headers)} query={dict(websocket.query_params)}")
+    except Exception:
+        pass
     # Enforce token from headers or query params
     try:
         auth = websocket.headers.get('authorization') or websocket.headers.get('Authorization')
@@ -21,16 +26,28 @@ async def lobby_websocket(websocket: WebSocket, lobby_code: str):
             # allow token via query param `token` as fallback
             token = websocket.query_params.get('token')
         if not token:
+            try:
+                logging.warning(f"[lobby_ws] WS denied: missing token for code={lobby_code}")
+            except Exception:
+                pass
             await websocket.close(code=4401)
             return
         payload = decode_token(token)
         # Optionally check role here depending on route usage
-    except Exception:
+    except Exception as e:
+        try:
+            logging.error(f"[lobby_ws] WS denied: token decode error for code={lobby_code}: {e}")
+        except Exception:
+            pass
         await websocket.close(code=4403)
         return
     await websocket.accept()
     # Only allow joining if lobby exists (created by instructor)
     if lobby_code not in lobbies:
+        try:
+            logging.warning(f"[lobby_ws] WS denied: lobby code not found: {lobby_code}")
+        except Exception:
+            pass
         await websocket.send_json({"type": "error", "message": "Invalid lobby code. Please check with your instructor."})
         await websocket.close()
         return
