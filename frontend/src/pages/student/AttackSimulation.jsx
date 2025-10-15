@@ -83,6 +83,8 @@ const AttackSimulation = () => {
           break;
         case MessageTypes.OBJECTIVES:
           setObjectives((data.objectives || []).map((o) => ({ id: o.id, description: o.description, completed: !!o.completed, points: o.points })));
+          // Ensure the quick-start guide is visible once objectives arrive
+          setShowGuide(true);
           break;
         case MessageTypes.OBJECTIVES_UPDATE:
           {
@@ -113,7 +115,7 @@ const AttackSimulation = () => {
           break;
         case MessageTypes.SESSION_STATE:
           if ((data.status || '').toLowerCase() === 'paused') setPaused(true);
-          if ((data.status || '').toLowerCase() === 'running') setPaused(false);
+          if ((data.status || '').toLowerCase() === 'running') { setPaused(false); setShowGuide(true); }
           if ((data.status || '').toLowerCase() === 'ended') { showToast('Simulation ended', 'warning'); setTimeout(() => navigate('/student/lobby'), 1200); }
           break;
         case MessageTypes.SIMULATION_PAUSED: setPaused(true); break;
@@ -121,19 +123,23 @@ const AttackSimulation = () => {
         case MessageTypes.SIMULATION_ENDED:
         case MessageTypes.SIMULATION_END:
           try {
-            // Persist completion for instructor reports/notifications
+            // Persist completion for instructor reports/notifications using latest stored score (fallback to state)
             const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
             const rawUser = localStorage.getItem('user');
             const u = rawUser ? JSON.parse(rawUser) : (user || {});
             const sid = u?.id || user?.id;
             const tok = u?.token || user?.token;
+            let finalScore = score;
+            try { const ls = JSON.parse(localStorage.getItem('student_last_simulation_score') || 'null'); if (ls && typeof ls.score === 'number') finalScore = ls.score; } catch {}
             if (sid && tok) {
               fetch(`${API_BASE}/api/student/${sid}/simulation-completed`.replace(/([^:]?)\/\/+/g,'$1/'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
-                body: JSON.stringify({ role: 'attacker', score, lobby_code: lobbyCode })
+                body: JSON.stringify({ role: 'attacker', score: finalScore, lobby_code: lobbyCode })
               }).then(() => {
+                // notify bell in same tab and any other tabs
                 try { localStorage.setItem('notify_refresh', String(Date.now())); } catch {}
+                try { window.dispatchEvent(new CustomEvent('student-notify-refresh')); } catch {}
               }).catch(() => {});
             }
           } catch {}

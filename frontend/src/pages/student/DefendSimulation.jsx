@@ -96,13 +96,19 @@ const DefendSimulation = () => {
             const u = rawUser ? JSON.parse(rawUser) : (user || {});
             const sid = u?.id || user?.id;
             const tok = u?.token || user?.token;
+            let finalScore = score;
+            try {
+              const ls = JSON.parse(localStorage.getItem('student_last_simulation_score') || 'null');
+              if (ls && typeof ls.score === 'number') finalScore = ls.score;
+            } catch {}
             if (sid && tok) {
               fetch(`${API_BASE}/api/student/${sid}/simulation-completed`.replace(/([^:]?)\/\/+/g,'$1/'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
-                body: JSON.stringify({ role: 'defender', score, lobby_code: lobbyCode })
+                body: JSON.stringify({ role: 'defender', score: finalScore, lobby_code: lobbyCode })
               }).then(() => {
                 try { localStorage.setItem('notify_refresh', String(Date.now())); } catch {}
+                try { window.dispatchEvent(new CustomEvent('student-notify-refresh')); } catch {}
               }).catch(() => {});
             }
           } catch {}

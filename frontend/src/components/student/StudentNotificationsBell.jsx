@@ -107,7 +107,18 @@ const StudentNotificationsBell = ({ refreshIntervalMs = 30000, appearance = 'lig
       }
     };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    const onCustom = () => {
+      fetchCount();
+      try {
+        const raw = localStorage.getItem('student_last_simulation_score');
+        if (raw) setLastSim(JSON.parse(raw));
+      } catch {}
+    };
+    window.addEventListener('student-notify-refresh', onCustom);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('student-notify-refresh', onCustom);
+    };
   }, []);
 
   useEffect(() => {
