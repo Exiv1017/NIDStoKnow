@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import AutomatonVisualizer from '../../components/AutomatonVisualizer';
 import { Link } from 'react-router-dom';
-import { Box, Button, IconButton, Typography, Paper, useTheme, Select, MenuItem, FormControl, InputLabel, Slider, Switch, FormControlLabel } from '@mui/material';
+import { Box, Typography, useTheme } from '@mui/material';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import KeyboardIcon from '@mui/icons-material/Keyboard';
@@ -138,18 +138,7 @@ const SignatureBased = () => {
   const [commandHistory, setCommandHistory] = useState([]);
   const [timeWindows, setTimeWindows] = useState({});
 
-  // Custom Signatures State (keep for compatibility)
-  const [customSignatures, setCustomSignatures] = useState([]);
-  const [newSignature, setNewSignature] = useState({
-    name: '',
-    pattern: '',
-    description: '',
-    severity: 'Medium',
-    threshold: 1,
-    timeWindow: 60,
-    regex: false
-  });
-  const [selectedCategory, setSelectedCategory] = useState('ssh_attacks');
+  // Signature Management removed
 
   // Detection Log State
   const [detectionLog, setDetectionLog] = useState([]);
@@ -158,7 +147,7 @@ const SignatureBased = () => {
   const [filterText, setFilterText] = useState('');
   const [showLivePanel, setShowLivePanel] = useState(true);
   const [showAnalytics, setShowAnalytics] = useState(true);
-  const [showManagement, setShowManagement] = useState(true);
+  // Signature Management removed
   const MAX_LIVE = 5;
 
   // Utility to call backend signature detection
@@ -255,47 +244,7 @@ const SignatureBased = () => {
     }
   };
 
-  const handleAddSignature = async () => {
-    if (!newSignature.name || !newSignature.pattern) return;
-    
-    try {
-      const response = await fetch('/api/signatures', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pattern: newSignature.pattern,
-          description: newSignature.name,
-          type: newSignature.description || 'Custom',
-          regex: newSignature.regex || false
-        })
-      });
-      
-      if (response.ok) {
-        // Reload signatures from API
-        await loadSignaturesFromAPI();
-        setNewSignature({ name: '', pattern: '', description: '', severity: 'Medium', threshold: 1, timeWindow: 60, regex: false });
-      } else {
-        alert('Failed to add signature');
-      }
-    } catch (error) {
-      console.error('Error adding signature:', error);
-      alert('Error adding signature');
-    }
-  };
-  const handleDeleteSignature = async (id) => {
-    try {
-      const response = await fetch(`/api/signatures/${id}`, { method: 'DELETE' });
-      if (response.ok) {
-        // Reload signatures from API
-        await loadSignaturesFromAPI();
-      } else {
-        alert('Failed to delete signature');
-      }
-    } catch (error) {
-      console.error('Error deleting signature:', error);
-      alert('Error deleting signature');
-    }
-  };
+  // Signature Management handlers removed
 
   // Update detection log when detectionResults change
   useEffect(() => {
@@ -574,7 +523,7 @@ const SignatureBased = () => {
                 )}
               </div>
 
-              {/* Right: Live Detections + Management */}
+              {/* Right: Live Detections */}
               <div className="xl:col-span-1 space-y-6">
                 {showLivePanel && (
                   <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm relative">
@@ -610,61 +559,7 @@ const SignatureBased = () => {
                     )}
                   </div>
                 )}
-
-                {/* Signature Management */}
-                <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                    <h4 className="font-semibold text-gray-800 text-sm tracking-wide uppercase">Signature Management</h4>
-                    <button onClick={() => setShowManagement(v => !v)} className="text-xs text-blue-600 hover:underline">{showManagement ? 'Hide' : 'Show'}</button>
-                  </div>
-                  {showManagement && (
-                    <div className="p-4 space-y-6">
-                      <div className="grid grid-cols-1 gap-6">
-                        <div>
-                          <FormControl fullWidth size="small">
-                            <InputLabel>Select Category</InputLabel>
-                            <Select value={selectedCategory} label="Category" onChange={e => setSelectedCategory(e.target.value)} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}>
-                              {Object.keys(signatureDatabase).map(cat => (
-                                <MenuItem key={cat} value={cat}>{signatureDatabase[cat].name}</MenuItem>
-                              ))}
-                              <MenuItem value="custom">Custom Signatures</MenuItem>
-                            </Select>
-                          </FormControl>
-                        </div>
-                        <div className="space-y-3">
-                          <input type="text" placeholder="Signature Name" value={newSignature.name} onChange={e => setNewSignature({ ...newSignature, name: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" />
-                          <input type="text" placeholder="Pattern (e.g., ssh or cat\\s+.*\\/etc\\/passwd)" value={newSignature.pattern} onChange={e => setNewSignature({ ...newSignature, pattern: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-xs" />
-                          <input type="text" placeholder="Description" value={newSignature.description} onChange={e => setNewSignature({ ...newSignature, description: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" />
-                          <div className="flex items-center justify-between">
-                            <FormControlLabel control={<Switch size="small" checked={newSignature.regex || false} onChange={e => setNewSignature({ ...newSignature, regex: e.target.checked })} color="primary" />} label={<span className="text-xs">{newSignature.regex ? 'Regex Pattern' : 'String Pattern'}</span>} />
-                            <Button variant="contained" color="primary" onClick={handleAddSignature} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }} disabled={!newSignature.name || !newSignature.pattern} size="small">Add</Button>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="bg-white border border-gray-200 rounded-lg p-3 max-h-56 overflow-y-auto">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Current ({(selectedCategory === 'custom' ? allSignatures.filter(sig => sig.type === 'Custom') : (signatureDatabase[selectedCategory]?.patterns || [])).length})</span>
-                        </div>
-                        <div className="space-y-2">
-                          {(selectedCategory === 'custom' ? allSignatures.filter(sig => sig.type === 'Custom') : (signatureDatabase[selectedCategory]?.patterns || [])).map(sig => (
-                            <div key={sig.id} className="bg-gray-50 border border-gray-200 rounded-md p-2 hover:bg-gray-100 transition-colors">
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1 pr-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium text-gray-800 text-xs truncate" title={sig.name || sig.description}>{sig.name || sig.description}</span>
-                                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${sig.regex ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>{sig.regex ? 'Regex' : 'String'}</span>
-                                  </div>
-                                  <div className="text-[10px] text-gray-500 mt-1 truncate" title={sig.pattern}><code className="bg-gray-200 px-1 rounded">{sig.pattern}</code></div>
-                                </div>
-                                <Button color="error" size="small" variant="text" onClick={() => handleDeleteSignature(sig.id)} sx={{ textTransform: 'none', fontSize: '0.65rem' }}>Del</Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {/* Signature Management removed */}
               </div>
             </div>
           </div>
