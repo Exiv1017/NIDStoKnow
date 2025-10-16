@@ -417,18 +417,26 @@ const DefendSimulation = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="md:col-span-3 mb-2">
-                  <div className="text-sm text-gray-300 mb-1">Select detection to classify</div>
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {liveDetections.slice(-8).map(d => (
-                      <button
-                        key={d.id}
-                        title={d.threats && d.threats.length ? d.threats.join(', ') : (d.detected ? 'Threat detected' : 'Clean')}
-                        onClick={() => setSelectedDetectionId(d.id)}
-                        className={`px-2 py-1 rounded border text-xs whitespace-nowrap ${selectedDetectionId === d.id ? 'bg-blue-700 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600'}`}
-                      >
-                        #{d.id % 10000} · {d.detected ? 'Threat' : 'Clean'} · {(d.confidence * 100).toFixed(0)}%
-                      </button>
-                    ))}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-sm text-gray-300">Select detection to classify</div>
+                    <div className="text-xs text-gray-400">Detections: {liveDetections.length}</div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 max-h-28 overflow-y-auto pr-1">
+                    {[...liveDetections].reverse().map(d => {
+                      const asPercent = typeof d.confidence === 'number' ? Math.round(d.confidence * 100) : 0;
+                      const isSel = selectedDetectionId === d.id;
+                      const tone = d.detected ? 'bg-red-700 border-red-500 text-white hover:bg-red-600' : 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600';
+                      return (
+                        <button
+                          key={d.id}
+                          title={d.threats && d.threats.length ? d.threats.join(', ') : (d.detected ? 'Threat detected' : 'Clean')}
+                          onClick={() => setSelectedDetectionId(d.id)}
+                          className={`px-2 py-1 rounded border text-xs whitespace-nowrap transition-colors ${tone} ${isSel ? 'ring-2 ring-blue-400 border-blue-400' : ''}`}
+                        >
+                          #{d.id % 10000} · {d.detected ? 'Threat' : 'Clean'} · {asPercent}%
+                        </button>
+                      );
+                    })}
                     {!liveDetections.length && (
                       <span className="text-xs text-gray-500">No detections yet</span>
                     )}
@@ -626,10 +634,11 @@ const DefendSimulation = () => {
           <div className="bg-[#111827] rounded-xl border border-slate-800 p-4">
             <h3 className="text-lg font-semibold mb-4 text-yellow-400">Defense Actions</h3>
             <div className="space-y-1 max-h-32 overflow-y-auto">
-              {defendActions.length === 0 ? (
+              {liveDetections.length === 0 ? (
                 <p className="text-gray-400 text-sm">No actions taken yet...</p>
               ) : (
-                defendActions.slice(-5).reverse().map(action => (
+                <div className="max-h-96 overflow-y-auto pr-1">
+                {liveDetections.slice().reverse().map(detection => (
                   <div key={action.id} className="bg-gray-700 p-2 rounded text-sm">
                     <div className="font-semibold text-green-400">
                       {action.action.replace('_', ' ')}
@@ -647,7 +656,8 @@ const DefendSimulation = () => {
           <div className="bg-[#111827] rounded-xl border border-slate-800 p-4">
             <h3 className="text-lg font-semibold mb-4 text-blue-400">Attack Events</h3>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {attackEvents.length === 0 ? (
+                ))}
+                </div>
                 <p className="text-gray-400">No attack events detected...</p>
               ) : (
                 attackEvents.slice(-5).reverse().map(event => (
