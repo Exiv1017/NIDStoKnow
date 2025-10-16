@@ -37,12 +37,17 @@ def ensure_lobby_tables(cursor):
                 cursor.execute(
                         """
                         CREATE TABLE IF NOT EXISTS lobbies (
-                            code VARCHAR(32) PRIMARY KEY,
-                            difficulty VARCHAR(32) DEFAULT 'Beginner',
-                            created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+                      code VARCHAR(32) PRIMARY KEY,
+                      difficulty VARCHAR(32) DEFAULT 'Beginner',
+                      created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                      created_by INT NULL
                         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
                         """
                 )
+                try:
+                    cursor.execute("ALTER TABLE lobbies ADD COLUMN created_by INT NULL")
+                except Exception:
+                    pass
                 cursor.execute(
                         """
                         CREATE TABLE IF NOT EXISTS lobby_participants (
@@ -92,6 +97,40 @@ class AuditLogEntry(BaseModel):
     action: str
     timestamp: str
 
+# -------- User maintenance models (admin side) ---------
+class AdminUserUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+
+class AdminResetPasswordRequest(BaseModel):
+    new_password: str
+
+def ensure_users_table(cursor):
+    """Ensure users table exists and password_hash allows long hashes (TEXT)."""
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS users (
+          id INT NOT NULL AUTO_INCREMENT,
+          name VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          password_hash TEXT NOT NULL,
+          userType ENUM('student','instructor','admin') NOT NULL,
+          status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'approved',
+          PRIMARY KEY (id),
+          UNIQUE KEY email (email)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        '''
+    )
+    try:
+        cursor.execute("SHOW COLUMNS FROM users LIKE 'password_hash'")
+        row = cursor.fetchone()
+        if row and isinstance(row, (list, tuple)):
+            col_type = str(row[1]).lower() if len(row) > 1 else ''
+            if 'varchar' in col_type:
+                cursor.execute('ALTER TABLE users MODIFY COLUMN password_hash TEXT NOT NULL')
+    except Exception:
+        pass
+
 # -------- Module Request Models (admin side) ---------
 class ModuleRequestAdminView(BaseModel):
     id: int
@@ -125,22 +164,92 @@ def admin_login(req: AdminLoginRequest):
     return {"message": "Login successful", "token": token, "admin": {"id": admin["id"], "name": admin["name"], "email": admin["email"]}}
 
 @router.get("/admin/users")
-def get_all_users():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    # Exclude admins and sort by status (pending, approved, rejected), then name
-    cursor.execute("""
-        SELECT id, name, email, userType, status FROM users
-        WHERE userType != 'admin'
-        ORDER BY FIELD(status, 'pending', 'approved', 'rejected'), name ASC
-    """)
-    users = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return {"users": users}
+@router.get("/admin/users")
+def get_all_users(request: Request):
+    # Enforce admin auth
+    require_role(request, 'admin')
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    try:
+        ensure_users_table(cursor)
+        # Exclude admins and sort by status (pending, approved, rejected), then name
+        cursor.execute(
+            """
+            SELECT id, name, email, userType, status FROM users
+            WHERE userType != 'admin'
+            ORDER BY FIELD(status, 'pending', 'approved', 'rejected'), name ASC
+            """
+        )
+        users = cursor.fetchall() or []
+        return {"users": users}
+    finally:
+        cursor.close(); conn.close()
+
+@router.put('/admin/users/{user_id}')
+def admin_update_user(request: Request, user_id: int, body: AdminUserUpdateRequest):
+    # Only admins can update user core info
+    require_role(request, 'admin')
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    try:
+        ensure_users_table(cursor)
+        cursor.execute('SELECT id, name, email, userType, status FROM users WHERE id=%s', (user_id,))
+        user = cursor.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail='User not found')
+        new_name = body.name if body.name is not None else user['name']
+        new_email = body.email if body.email is not None else user['email']
+        # Uniqueness check if email changed
+        if new_email != user['email']:
+            cursor.execute('SELECT id FROM users WHERE email=%s AND id<>%s', (new_email, user_id))
+            exists = cursor.fetchone()
+            if exists:
+                raise HTTPException(status_code=400, detail='Email already in use by another account')
+        cursor.execute('UPDATE users SET name=%s, email=%s WHERE id=%s', (new_name, new_email, user_id))
+        conn.commit()
+        try:
+            admin_id = int(require_role(request, 'admin').get('sub'))
+            log_admin_action(admin_id, f"edit_user id={user_id} name={new_name} email={new_email}")
+        except Exception:
+            pass
+        return { 'status': 'success', 'user': { 'id': user_id, 'name': new_name, 'email': new_email, 'userType': user['userType'], 'status': user['status'] } }
+    finally:
+        cursor.close(); conn.close()
+
+@router.post('/admin/users/{user_id}/reset-password')
+def admin_reset_user_password(request: Request, user_id: int, body: AdminResetPasswordRequest):
+    require_role(request, 'admin')
+    from werkzeug.security import generate_password_hash
+    if not body.new_password or len(body.new_password) < 6:
+        raise HTTPException(status_code=400, detail='New password must be at least 6 characters long')
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    try:
+        ensure_users_table(cursor)
+        cursor.execute('SELECT id FROM users WHERE id=%s AND userType IN (\'student\', \'instructor\')', (user_id,))
+        user = cursor.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail='User not found or not eligible')
+        new_hash = generate_password_hash(body.new_password)
+        cursor.execute('UPDATE users SET password_hash=%s WHERE id=%s', (new_hash, user_id))
+        conn.commit()
+        try:
+            # Best-effort audit/notification
+            c2 = conn.cursor()
+            ensure_notifications_table(c2); migrate_notifications_schema(c2)
+            create_notification(c2, 'admin', f"Password reset for user id={user_id}", 'warning', None)
+            conn.commit(); c2.close()
+        except Exception:
+            pass
+        try:
+            admin_id = int(require_role(request, 'admin').get('sub'))
+            log_admin_action(admin_id, f"reset_password id={user_id}")
+        except Exception:
+            pass
+        return { 'status': 'success' }
+    finally:
+        cursor.close(); conn.close()
 
 @router.post("/admin/approve/{user_id}")
-def approve_user(user_id: int):
+def approve_user(request: Request, user_id: int):
+    require_role(request, 'admin')
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     # Check if user exists and is an instructor
@@ -162,11 +271,18 @@ def approve_user(user_id: int):
         conn.commit(); c2.close()
     except Exception:
         pass
+    # Audit
+    try:
+        admin_id = int(require_role(request, 'admin').get('sub'))
+        log_admin_action(admin_id, f"approve_user id={user_id}")
+    except Exception:
+        pass
     cursor.close(); conn.close()
     return {"message": "User approved successfully"}
 
 @router.post("/admin/reject/{user_id}")
-def reject_user(user_id: int):
+def reject_user(request: Request, user_id: int):
+    require_role(request, 'admin')
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     # Check if user exists and is an instructor
@@ -188,11 +304,17 @@ def reject_user(user_id: int):
         conn.commit(); c2.close()
     except Exception:
         pass
+    try:
+        admin_id = int(require_role(request, 'admin').get('sub'))
+        log_admin_action(admin_id, f"reject_user id={user_id}")
+    except Exception:
+        pass
     cursor.close(); conn.close()
     return {"message": "User rejected successfully"}
 
 @router.delete("/admin/delete/{user_id}")
-def delete_user(user_id: int):
+def delete_user(request: Request, user_id: int):
+    require_role(request, 'admin')
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     # Check if user exists
@@ -206,12 +328,16 @@ def delete_user(user_id: int):
     # Delete user
     cursor.execute("DELETE FROM users WHERE id=%s", (user_id,))
     conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        admin_id = int(require_role(request, 'admin').get('sub'))
+        log_admin_action(admin_id, f"delete_user id={user_id}")
+    except Exception:
+        pass
+    cursor.close(); conn.close()
     return {"message": "User deleted successfully"}
 
 @router.put("/admin/profile")
-def update_admin_profile(req: AdminProfileUpdateRequest):
+def update_admin_profile(request: Request, req: AdminProfileUpdateRequest):
     print(f"[DEBUG] Admin profile update: {req}")
     try:
         conn = get_db_connection()
@@ -220,6 +346,11 @@ def update_admin_profile(req: AdminProfileUpdateRequest):
         conn.commit()
         cursor.close()
         conn.close()
+        try:
+            admin_id = int(require_role(request, 'admin').get('sub'))
+            log_admin_action(admin_id, f"update_admin_profile id={req.id}")
+        except Exception:
+            pass
         print("[DEBUG] Admin profile updated successfully.")
         return {"status": "success", "message": "Profile updated."}
     except Exception as e:
@@ -360,10 +491,22 @@ def admin_list_lobbies(request: Request):
         # Ensure tables exist so fresh deployments don't error
         ensure_lobby_tables(cursor)
         conn.commit()
-        cursor.execute("SELECT code, difficulty, created_at FROM lobbies ORDER BY created_at DESC LIMIT 200")
+        cursor.execute("SELECT code, difficulty, created_at, created_by FROM lobbies ORDER BY created_at DESC LIMIT 200")
         rows = cursor.fetchall() or []
         codes = [r['code'] for r in rows]
         parts_map = {}
+        # Map instructor id to basic info for convenience
+        creator_info = {}
+        creator_ids = [int(r['created_by']) for r in rows if r.get('created_by')]
+        creator_ids = list(dict.fromkeys(creator_ids))  # dedupe
+        if creator_ids:
+            placeholders = ','.join(['%s'] * len(creator_ids))
+            try:
+                cursor.execute(f"SELECT id, name, email FROM users WHERE id IN ({placeholders})", creator_ids)
+                for u in cursor.fetchall() or []:
+                    creator_info[int(u['id'])] = { 'id': int(u['id']), 'name': u.get('name'), 'email': u.get('email') }
+            except Exception:
+                pass
         if codes:
             # Fetch participants for listed lobbies
             placeholders = ','.join(['%s'] * len(codes))
@@ -383,11 +526,14 @@ def admin_list_lobbies(request: Request):
                 })
         out = []
         for r in rows:
+            cid = r.get('created_by')
             out.append({
                 'code': r.get('code'),
                 'difficulty': r.get('difficulty') or 'Beginner',
                 'created_at': str(r.get('created_at') or ''),
-                'participants': parts_map.get(r.get('code'), [])
+                'participants': parts_map.get(r.get('code'), []),
+                'created_by': int(cid) if cid is not None else None,
+                'created_by_user': creator_info.get(int(cid)) if cid else None
             })
         return { 'lobbies': out }
     finally:

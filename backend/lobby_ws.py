@@ -22,10 +22,16 @@ def ensure_tables():
             CREATE TABLE IF NOT EXISTS lobbies (
               code VARCHAR(32) PRIMARY KEY,
               difficulty VARCHAR(32) DEFAULT 'Beginner',
-              created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+              created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+              created_by INT NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """
         )
+        # Backfill column on existing deployments (ignore if already present)
+        try:
+            cur.execute("ALTER TABLE lobbies ADD COLUMN created_by INT NULL")
+        except Exception:
+            pass
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS lobby_participants (
@@ -53,12 +59,12 @@ def hydrate_lobby_from_db(lobby_code: str) -> bool:
     """Load a lobby definition and participants from DB into memory if present."""
     try:
         conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-        cur.execute("SELECT code, difficulty FROM lobbies WHERE code=%s", (lobby_code,))
+        cur.execute("SELECT code, difficulty, created_by FROM lobbies WHERE code=%s", (lobby_code,))
         row = cur.fetchone()
         if not row:
             cur.close(); conn.close(); return False
         # Create in-memory lobby
-        lobbies[lobby_code] = {"participants": [], "chat": [], "difficulty": row.get("difficulty") or "Beginner"}
+        lobbies[lobby_code] = {"participants": [], "chat": [], "difficulty": row.get("difficulty") or "Beginner", "created_by": row.get("created_by")}
         cur.execute("SELECT name, role, ready FROM lobby_participants WHERE code=%s ORDER BY joined_at ASC", (lobby_code,))
         for p in cur.fetchall() or []:
             lobbies[lobby_code]["participants"].append({"name": p["name"], "role": p["role"], "ready": bool(p["ready"])})
@@ -278,30 +284,103 @@ async def broadcast_lobby(lobby_code: str):
     """Legacy function - keeping for compatibility"""
     await broadcast_participant_update(lobby_code)
 
-def create_lobby(lobby_code: str):
+def create_lobby(lobby_code: str, created_by: int | None = None):
     if lobby_code not in lobbies:
-        lobbies[lobby_code] = {"participants": [], "chat": [], "difficulty": "Beginner"}
+        lobbies[lobby_code] = {"participants": [], "chat": [], "difficulty": "Beginner", "created_by": created_by}
         # Persist lobby row so other instances/devices recognize it
         try:
             ensure_tables()
             conn = get_db_connection(); cur = conn.cursor()
-            cur.execute("INSERT IGNORE INTO lobbies (code, difficulty) VALUES (%s,%s)", (lobby_code, "Beginner"))
+            if created_by is not None:
+                cur.execute("INSERT INTO lobbies (code, difficulty, created_by) VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE difficulty=VALUES(difficulty), created_by=VALUES(created_by)", (lobby_code, "Beginner", int(created_by)))
+            else:
+                cur.execute("INSERT IGNORE INTO lobbies (code, difficulty) VALUES (%s,%s)", (lobby_code, "Beginner"))
             conn.commit(); cur.close(); conn.close()
         except Exception as e:
             try: logging.error(f"[lobby_ws] persist lobby failed: {e}")
             except Exception: pass
 
+from fastapi import Request, HTTPException
+from auth import require_role
+from admin_api import log_admin_action
+
 @router.post("/create_lobby/{lobby_code}")
-async def api_create_lobby(lobby_code: str):
+async def api_create_lobby(lobby_code: str, request: Request):
+    # Require instructor token; extract id for created_by
+    try:
+        payload = require_role(request, 'instructor')
+        instructor_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+    except Exception:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     if lobby_code not in lobbies:
-        lobbies[lobby_code] = {"participants": [], "chat": [], "difficulty": "Beginner"}
+        create_lobby(lobby_code, created_by=instructor_id)
+    else:
+        # Ensure persistence row has creator set
         try:
             ensure_tables()
             conn = get_db_connection(); cur = conn.cursor()
-            cur.execute("INSERT IGNORE INTO lobbies (code, difficulty) VALUES (%s,%s)", (lobby_code, "Beginner"))
+            cur.execute("UPDATE lobbies SET created_by=%s WHERE code=%s AND (created_by IS NULL OR created_by<>%s)", (instructor_id, lobby_code, instructor_id))
             conn.commit(); cur.close(); conn.close()
-        except Exception: pass
-    return {"success": True}
+        except Exception:
+            pass
+    return {"success": True, "code": lobby_code, "created_by": instructor_id}
+
+@router.post("/admin/lobbies/{lobby_code}/close")
+async def admin_close_lobby(lobby_code: str, request: Request):
+    # Only admin can force-close a lobby
+    payload = require_role(request, 'admin')
+    # Best-effort notify and close all connections
+    if lobby_code in lobby_connections:
+        for ws in list(lobby_connections[lobby_code]):
+            try:
+                await ws.send_json({"type": "lobby_closed", "message": "Lobby closed by admin"})
+                await ws.close()
+            except Exception:
+                pass
+        lobby_connections.pop(lobby_code, None)
+    # Remove in-memory lobby
+    lobbies.pop(lobby_code, None)
+    # Cleanup DB persistence
+    try:
+        conn = get_db_connection(); cur = conn.cursor()
+        cur.execute("DELETE FROM lobby_participants WHERE code=%s", (lobby_code,))
+        cur.execute("DELETE FROM lobbies WHERE code=%s", (lobby_code,))
+        conn.commit(); cur.close(); conn.close()
+    except Exception:
+        pass
+    try:
+        # Log admin action
+        admin_id = int(payload.get('sub')) if payload and payload.get('sub') else 0
+        log_admin_action(admin_id, f"admin_close_lobby code={lobby_code}")
+    except Exception:
+        pass
+    return {"status": "success"}
+
+@router.post("/admin/lobbies/{lobby_code}/participants/{name}/remove")
+async def admin_remove_participant(lobby_code: str, name: str, request: Request):
+    payload = require_role(request, 'admin')
+    # Remove from in-memory
+    lobby = lobbies.get(lobby_code)
+    if lobby:
+        lobby["participants"] = [p for p in lobby.get("participants", []) if p.get("name") != name]
+    # Remove from DB
+    try:
+        conn = get_db_connection(); cur = conn.cursor()
+        cur.execute("DELETE FROM lobby_participants WHERE code=%s AND name=%s", (lobby_code, name))
+        conn.commit(); cur.close(); conn.close()
+    except Exception:
+        pass
+    # Broadcast participant update
+    try:
+        await broadcast_participant_update(lobby_code)
+    except Exception:
+        pass
+    try:
+        admin_id = int(payload.get('sub')) if payload and payload.get('sub') else 0
+        log_admin_action(admin_id, f"admin_remove_participant code={lobby_code} name={name}")
+    except Exception:
+        pass
+    return {"status": "success"}
 
 @router.post("/close_lobby/{lobby_code}")
 async def api_close_lobby(lobby_code: str):

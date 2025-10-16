@@ -9,6 +9,10 @@ const UserManagement = () => {
   const [confirmAction, setConfirmAction] = useState({ show: false, action: '', userId: null, userName: '' });
   const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
   const [filter, setFilter] = useState('all');
+  const [editUser, setEditUser] = useState(null); // {id, name, email}
+  const [editForm, setEditForm] = useState({ name: '', email: '' });
+  const [resetUser, setResetUser] = useState(null); // {id, name}
+  const [resetPassword, setResetPassword] = useState('');
   const navigate = useNavigate();
 
   // Add a prop or callback to notify parent (dashboard) to refresh stats
@@ -26,7 +30,8 @@ const UserManagement = () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/users');
+      const headers = authHeaders();
+      const res = await fetch('/api/admin/users', { headers });
       const data = await res.json();
       if (res.ok) {
         setUsers(data.users);
@@ -56,7 +61,7 @@ const UserManagement = () => {
   const handleApprove = async (userId, userName) => {
     setConfirmAction({ show: false, action: '', userId: null, userName: '' });
     try {
-      const res = await fetch(`/api/admin/approve/${userId}`, { method: 'POST' });
+      const res = await fetch(`/api/admin/approve/${userId}`, { method: 'POST', headers: authHeaders() });
       if (res.ok) {
         await fetchUsers(); // Refresh user list from server
         showToast(`${userName} has been approved successfully`);
@@ -72,7 +77,7 @@ const UserManagement = () => {
   const handleReject = async (userId, userName) => {
     setConfirmAction({ show: false, action: '', userId: null, userName: '' });
     try {
-      const res = await fetch(`/api/admin/reject/${userId}`, { method: 'POST' });
+      const res = await fetch(`/api/admin/reject/${userId}`, { method: 'POST', headers: authHeaders() });
       if (res.ok) {
         await fetchUsers(); // Refresh user list from server
         showToast(`${userName} has been rejected`);
@@ -88,7 +93,7 @@ const UserManagement = () => {
   const handleDelete = async (userId, userName) => {
     setConfirmAction({ show: false, action: '', userId: null, userName: '' });
     try {
-      const res = await fetch(`/api/admin/delete/${userId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/delete/${userId}`, { method: 'DELETE', headers: authHeaders() });
       if (res.ok) {
         await fetchUsers(); // Refresh user list from server
         showToast(`${userName} has been deleted`);
@@ -100,6 +105,44 @@ const UserManagement = () => {
     } catch (err) {
       showToast('Error deleting user', 'error');
     }
+  };
+
+  const authHeaders = () => {
+    let token = null;
+    try { const raw = localStorage.getItem('admin_user'); if(raw){ const parsed = JSON.parse(raw); token = parsed.token; } } catch {}
+    if(!token) token = localStorage.getItem('admin_token');
+    if(!token) token = localStorage.getItem('token_admin');
+    return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+  };
+
+  const openEdit = (u) => { setEditUser(u); setEditForm({ name: u.name, email: u.email }); };
+  const cancelEdit = () => { setEditUser(null); setEditForm({ name: '', email: '' }); };
+  const submitEdit = async () => {
+    if(!editUser) return;
+    try {
+      const res = await fetch(`/api/admin/users/${editUser.id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(editForm) });
+      const data = await res.json().catch(()=>({}));
+      if(res.ok){
+        showToast('User updated');
+        // apply change locally
+        setUsers(prev => prev.map(u=> u.id===editUser.id ? { ...u, name: editForm.name, email: editForm.email } : u));
+        cancelEdit();
+      } else {
+        showToast(data.detail || 'Update failed', 'error');
+      }
+    } catch { showToast('Network error', 'error'); }
+  };
+
+  const openReset = (u) => { setResetUser(u); setResetPassword(''); };
+  const cancelReset = () => { setResetUser(null); setResetPassword(''); };
+  const submitReset = async () => {
+    if(!resetUser || !resetPassword) return;
+    try {
+      const res = await fetch(`/api/admin/users/${resetUser.id}/reset-password`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ new_password: resetPassword }) });
+      const data = await res.json().catch(()=>({}));
+      if(res.ok){ showToast('Password reset'); cancelReset(); }
+      else { showToast(data.detail || 'Reset failed', 'error'); }
+    } catch { showToast('Network error', 'error'); }
   };
 
   const handleLogout = () => {
@@ -328,7 +371,7 @@ const UserManagement = () => {
             <h2 className="text-2xl font-semibold text-[#1E5780] mb-4 sm:mb-0">User List</h2>
             
             {/* Filter Controls */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               <button 
                 onClick={() => setFilter('all')}
                 className={`px-3 py-1 text-sm rounded-md ${filter === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'}`}
@@ -352,6 +395,35 @@ const UserManagement = () => {
                 className={`px-3 py-1 text-sm rounded-md ${filter === 'pending' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-800'}`}
               >
                 Pending
+              </button>
+              {/* Bulk actions for instructors pending */}
+              <button
+                onClick={async()=>{
+                  const pend = filteredUsers.filter(u=>u.userType==='instructor' && u.status==='pending');
+                  for(const u of pend){
+                    try{ await fetch(`/api/admin/approve/${u.id}`, { method:'POST', headers: authHeaders() }); } catch {}
+                  }
+                  await fetchUsers();
+                  showToast('Approved all pending instructors in current filter');
+                }}
+                className="ml-2 px-3 py-1 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
+                title="Approve all pending instructors in current view"
+              >
+                Bulk Approve
+              </button>
+              <button
+                onClick={async()=>{
+                  const pend = filteredUsers.filter(u=>u.userType==='instructor' && u.status==='pending');
+                  for(const u of pend){
+                    try{ await fetch(`/api/admin/reject/${u.id}`, { method:'POST', headers: authHeaders() }); } catch {}
+                  }
+                  await fetchUsers();
+                  showToast('Rejected all pending instructors in current filter');
+                }}
+                className="px-3 py-1 text-sm rounded-md bg-red-600 text-white hover:bg-red-700"
+                title="Reject all pending instructors in current view"
+              >
+                Bulk Reject
               </button>
             </div>
           </div>
@@ -455,6 +527,18 @@ const UserManagement = () => {
                           >
                             Delete
                           </button>
+                          <button
+                            onClick={() => openEdit(user)}
+                            className="px-3 py-1 bg-gray-200 text-gray-900 rounded-md hover:bg-gray-300 transition-colors shadow text-sm"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => openReset(user)}
+                            className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors shadow text-sm"
+                          >
+                            Reset Password
+                          </button>
                           </div>
                         </td>
                       </tr>
@@ -477,3 +561,43 @@ const UserManagement = () => {
 };
 
 export default UserManagement; 
+      {/* Edit Modal */}
+      {editUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-lg font-semibold mb-4">Edit User</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Name</label>
+                <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} className="w-full px-3 py-2 border rounded" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Email</label>
+                <input value={editForm.email} onChange={e=>setEditForm(f=>({...f,email:e.target.value}))} className="w-full px-3 py-2 border rounded" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={cancelEdit} className="px-3 py-1 rounded bg-gray-200">Cancel</button>
+              <button onClick={submitEdit} className="px-3 py-1 rounded bg-[#1E5780] text-white">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Reset Password Modal */}
+      {resetUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-lg font-semibold mb-4">Reset Password</h3>
+            <p className="text-sm text-gray-600 mb-3">User: <strong>{resetUser.name}</strong> (#{resetUser.id})</p>
+            <div>
+              <label className="block text-sm text-gray-700 mb-1">New Password</label>
+              <input type="password" value={resetPassword} onChange={e=>setResetPassword(e.target.value)} className="w-full px-3 py-2 border rounded" placeholder="Enter new password" />
+              <p className="text-[12px] text-gray-500 mt-1">Minimum 6 characters.</p>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={cancelReset} className="px-3 py-1 rounded bg-gray-200">Cancel</button>
+              <button onClick={submitReset} className="px-3 py-1 rounded bg-indigo-600 text-white">Reset</button>
+            </div>
+          </div>
+        </div>
+      )}

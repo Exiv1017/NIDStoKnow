@@ -23,7 +23,8 @@ const InstructorLobby = () => {
   const handleGenerateLobby = async () => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     // Call backend to create lobby
-    await fetch(`/api/create_lobby/${code}`, { method: 'POST' });
+    const headers = user?.token ? { 'Authorization': `Bearer ${user.token}` } : {};
+    await fetch(`/api/create_lobby/${code}`, { method: 'POST', headers });
     setLobbyCode(code);
     setGenerated(true);
   };
@@ -155,7 +156,8 @@ const InstructorLobby = () => {
 
   const handleCloseLobby = async () => {
     if (!lobbyCode) return;
-    await fetch(`/api/close_lobby/${lobbyCode}`, { method: 'POST' });
+    const headers = user?.token ? { 'Authorization': `Bearer ${user.token}` } : {};
+    await fetch(`/api/close_lobby/${lobbyCode}`, { method: 'POST', headers });
     setLobbyCode('');
     setGenerated(false);
     setParticipants([]);

@@ -59,6 +59,32 @@ export default function AdminLobbies(){
     navigate('/admin-login');
   };
 
+  const closeLobby = async (code) => {
+    try{
+      const res = await fetch(`/api/admin/lobbies/${code}/close`, { method: 'POST', headers });
+      if(res.ok){
+        // Remove from list locally to be snappy
+        setLobbies(prev => prev.filter(l=>l.code!==code));
+      } else {
+        const data = await res.json().catch(()=>({}));
+        setError(data.detail || 'Failed to close lobby');
+      }
+    } catch { setError('Network error closing lobby'); }
+  };
+
+  const removeParticipant = async (code, name) => {
+    try{
+      const res = await fetch(`/api/admin/lobbies/${encodeURIComponent(code)}/participants/${encodeURIComponent(name)}/remove`, { method: 'POST', headers });
+      if(res.ok){
+        // Update locally
+        setLobbies(prev => prev.map(l => l.code===code ? { ...l, participants: (l.participants||[]).filter(p=>p.name!==name) } : l));
+      } else {
+        const data = await res.json().catch(()=>({}));
+        setError(data.detail || 'Failed to remove participant');
+      }
+    } catch { setError('Network error removing participant'); }
+  };
+
   return (
     <div className="min-h-screen bg-[#E3E3E3] flex">
       {/* Sidebar */}
@@ -159,9 +185,17 @@ export default function AdminLobbies(){
                 <div key={l.code} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <div className="font-semibold text-lg text-[#1E5780]">Code: {l.code}</div>
-                    <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">{l.difficulty || 'Beginner'}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">{l.difficulty || 'Beginner'}</span>
+                      <button onClick={()=>closeLobby(l.code)} className="text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700">Close</button>
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500 mb-3">Created: {l.created_at ? new Date(l.created_at).toLocaleString() : '-'}</div>
+                  <div className="text-xs text-gray-500 mb-3">
+                    <div>Created: {l.created_at ? new Date(l.created_at).toLocaleString() : '-'}</div>
+                    <div>Instructor: {l.created_by_user?.name ? (
+                      <span title={l.created_by_user?.email}>{l.created_by_user.name} (#{l.created_by_user.id})</span>
+                    ) : (l.created_by ? `#${l.created_by}` : 'Unknown')}</div>
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
@@ -181,7 +215,12 @@ export default function AdminLobbies(){
                             <td className="py-2 pr-2">{p.name}</td>
                             <td className="py-2 pr-2"><span className={`px-2 py-0.5 rounded text-xs border ${p.role==='Instructor'?'bg-purple-50 text-purple-700 border-purple-200':'bg-gray-50 text-gray-700 border-gray-200'}`}>{p.role}</span></td>
                             <td className="py-2 pr-2">{p.ready ? <span className="text-green-600 font-medium">Ready</span> : <span className="text-gray-500">Not ready</span>}</td>
-                            <td className="py-2">{p.joined_at ? new Date(p.joined_at).toLocaleString() : '-'}</td>
+                            <td className="py-2 flex items-center gap-2">
+                              <span>{p.joined_at ? new Date(p.joined_at).toLocaleString() : '-'}</span>
+                              {p.role !== 'Instructor' && (
+                                <button onClick={()=>removeParticipant(l.code, p.name)} className="text-[11px] px-2 py-0.5 rounded bg-amber-600 text-white hover:bg-amber-700">Remove</button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
