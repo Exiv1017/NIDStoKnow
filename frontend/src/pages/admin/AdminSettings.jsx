@@ -1,26 +1,24 @@
-import { useState, useRef, useContext, useEffect } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthContext from '../../context/AuthContext';
 
 const AdminSettings = () => {
-  const { user, setUser } = useContext(AuthContext);
-  const [activeTab, setActiveTab] = useState('profile');
+  const { user } = useContext(AuthContext);
+  const [activeTab, setActiveTab] = useState('system');
+  const defaultSystem = {
+    enableUserRegistration: true,
+    autoApproveInstructors: false,
+    maintenanceMode: false,
+    backupFrequency: 'daily',
+    sessionTimeoutMinutes: 60,
+    requireStrongPasswords: true,
+    allowInstructorBulkActions: true,
+  };
   const [formData, setFormData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    role: user?.role || 'Administrator',
-    avatar: null,
-    systemSettings: user?.systemSettings || {
-      enableUserRegistration: true,
-      autoApproveInstructors: false,
-      maintenanceMode: false,
-      backupFrequency: 'daily',
-    }
+    systemSettings: defaultSystem,
   });
-  const [originalFormData, setOriginalFormData] = useState(formData);
-  const [profileMsg, setProfileMsg] = useState('');
+  const [originalFormData, setOriginalFormData] = useState({ systemSettings: defaultSystem });
   const [systemMsg, setSystemMsg] = useState('');
-  const [avatarPreview, setAvatarPreview] = useState(null);
   const [security, setSecurity] = useState({
     current: '',
     new: '',
@@ -31,74 +29,50 @@ const AdminSettings = () => {
   });
   const [securityMsg, setSecurityMsg] = useState('');
   const [securityError, setSecurityError] = useState('');
-  const fileInputRef = useRef();
-  const [systemSettings, setSystemSettings] = useState(formData.systemSettings);
   const [notifSettings, setNotifSettings] = useState({ email: true, browser: true, systemAlerts: true });
+  const [notifMsg, setNotifMsg] = useState('');
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditLoading, setAuditLoading] = useState(false);
 
-  useEffect(() => {
-    // When user data is available, update the form
-    if (user) {
-      setFormData(prev => ({
-        ...prev,
-        name: user.name || prev.name,
-        email: user.email || prev.email
-      }));
-      setOriginalFormData(prev => ({
-        ...prev,
-        name: user.name || prev.name,
-        email: user.email || prev.email
-      }));
-    }
-  }, [user]);
+  // Helper to include Authorization header on all admin requests
+  const authHeaders = () => {
+    let token = null;
+    try { const raw = localStorage.getItem('admin_user'); if(raw){ const parsed = JSON.parse(raw); token = parsed.token; } } catch {}
+    if(!token) token = localStorage.getItem('admin_token');
+    if(!token) token = localStorage.getItem('token_admin');
+    return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+  };
 
   useEffect(() => {
-    // Fetch persisted system settings
-    fetch('/api/admin/system-settings')
+    // Fetch persisted system settings, notifications, and audit logs
+    const headers = authHeaders();
+    fetch('/api/admin/system-settings', { headers })
       .then(res => res.json())
-      .then(data => setSystemSettings(data));
-              <li>
-                <Link
-                  to="/admin/lobbies"
-                  className="flex items-center p-3 rounded-lg hover:bg-white/10 font-medium"
-                >
-                  <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5V4H2v16h5m10 0v-4H7v4m10 0H7" />
-                  </svg>
-                  Active Lobbies
-                </Link>
-              </li>
-    // Fetch notification preferences
+      .then(data => {
+        if (data && typeof data === 'object') {
+          setFormData(prev => ({ ...prev, systemSettings: { ...prev.systemSettings, ...data } }));
+          setOriginalFormData(prev => ({ ...prev, systemSettings: { ...prev.systemSettings, ...data } }));
+        }
+      })
+      .catch(() => {});
     if (user?.id) {
-      fetch(`/api/admin/notifications/${user.id}`)
+      fetch(`/api/admin/notifications/${user.id}`, { headers })
         .then(res => res.json())
-        .then(data => setNotifSettings(data));
-      // Fetch audit logs
+        .then(data => { if (data && typeof data === 'object') setNotifSettings(s => ({ ...s, ...data })); })
+        .catch(() => {});
       setAuditLoading(true);
-      fetch(`/api/admin/audit-logs/${user.id}`)
+      fetch(`/api/admin/audit-logs/${user.id}`, { headers })
         .then(res => res.json())
-        .then(data => setAuditLogs(data))
+        .then(data => setAuditLogs(Array.isArray(data) ? data : []))
+        .catch(() => setAuditLogs([]))
         .finally(() => setAuditLoading(false));
     }
   }, [user]);
 
-  // Profile change detection
-  const isProfileChanged = JSON.stringify({ ...formData, systemSettings: undefined, avatar: undefined }) !== 
-                          JSON.stringify({ ...originalFormData, systemSettings: undefined, avatar: undefined }) || 
-                          avatarPreview;
+  // No-op effect removed stray JSX bug
 
   // System settings change detection
   const isSystemChanged = JSON.stringify(formData.systemSettings) !== JSON.stringify(originalFormData.systemSettings);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    setProfileMsg('');
-  };
 
   const handleSystemSettingChange = (setting) => {
     setFormData(prev => ({
@@ -123,55 +97,12 @@ const AdminSettings = () => {
     setSystemMsg('');
   };
 
-  const handleProfileSave = async (e) => {
-    e.preventDefault();
-    const profileData = {
-      id: user?.id,
-      name: formData.name,
-      email: formData.email,
-      role: formData.role
-    };
-    try {
-      const res = await fetch('/api/admin/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profileData)
-      });
-      let data;
-      try {
-        data = await res.json();
-      } catch (err) {
-        data = {};
-      }
-      if (res.ok && data.status === 'success') {
-        setOriginalFormData({ ...formData, avatar: undefined });
-        setProfileMsg('Profile updated!');
-        setAvatarPreview(null);
-        if (setUser) {
-          setUser(prev => ({ ...prev, ...profileData }));
-        }
-      } else if (!res.ok && data.detail) {
-        setProfileMsg(data.detail);
-      } else {
-        setProfileMsg(data.message || 'Failed to update profile.');
-      }
-    } catch (err) {
-      setProfileMsg('Error updating profile.');
-    }
-  };
-
-  const handleProfileCancel = () => {
-    setFormData({ ...originalFormData, avatar: null });
-    setAvatarPreview(null);
-    setProfileMsg('Changes reverted.');
-  };
-
   const handleSystemSave = async () => {
     try {
       const res = await fetch('/api/admin/system-settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(systemSettings)
+        headers: authHeaders(),
+        body: JSON.stringify(formData.systemSettings)
       });
       let data;
       try {
@@ -181,6 +112,7 @@ const AdminSettings = () => {
       }
       if (res.ok && data.status === 'success') {
         setSystemMsg('System settings updated!');
+        setOriginalFormData(prev => ({ ...prev, systemSettings: { ...formData.systemSettings } }));
       } else if (!res.ok && data.detail) {
         setSystemMsg(data.detail);
       } else {
@@ -196,7 +128,7 @@ const AdminSettings = () => {
     try {
       const res = await fetch(`/api/admin/notifications/${user.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(notifSettings)
       });
       let data;
@@ -230,7 +162,7 @@ const AdminSettings = () => {
     try {
       const res = await fetch('/api/admin/change-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ id: user.id, current_password: security.current, new_password: security.new })
       });
       let data;
@@ -243,9 +175,6 @@ const AdminSettings = () => {
         setSecurityMsg('Password updated!');
         setSecurityError('');
         setSecurity({ current: '', new: '', confirm: '', showCurrent: false, showNew: false, showConfirm: false });
-        if (setUser) {
-          setUser(null);
-        }
       } else if (!res.ok && data.detail) {
         setSecurityError(data.detail);
         setSecurityMsg('');
@@ -262,14 +191,6 @@ const AdminSettings = () => {
   const handleSystemCancel = () => {
     setFormData(prev => ({ ...prev, systemSettings: { ...originalFormData.systemSettings } }));
     setSystemMsg('Changes reverted.');
-  };
-
-  const handleAvatarChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFormData(prev => ({ ...prev, avatar: file }));
-      setAvatarPreview(URL.createObjectURL(file));
-    }
   };
 
   const handleSecurityInput = (e) => {
@@ -365,22 +286,22 @@ const AdminSettings = () => {
   <main className="flex-1 ml-64 p-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-black mb-1">Admin Settings</h1>
-          <p className="text-gray-600 text-base">Manage your admin account and system settings</p>
+          <p className="text-gray-600 text-base">Manage system behavior, security policies, maintenance and notifications</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm">
           <div className="border-b">
             <div className="flex p-4 gap-4">
               <button
-                onClick={() => setActiveTab('profile')}
+                onClick={() => setActiveTab('system')}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${
-                  activeTab === 'profile'
+                  activeTab === 'system'
                     ? 'bg-[#1E5780] text-white'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
-                aria-label="Profile Tab"
+                aria-label="System Settings Tab"
               >
-                Profile
+                System
               </button>
               <button
                 onClick={() => setActiveTab('security')}
@@ -394,119 +315,41 @@ const AdminSettings = () => {
                 Security
               </button>
               <button
-                onClick={() => setActiveTab('system')}
+                onClick={() => setActiveTab('maintenance')}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${
-                  activeTab === 'system'
+                  activeTab === 'maintenance'
                     ? 'bg-[#1E5780] text-white'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
-                aria-label="System Settings Tab"
+                aria-label="Maintenance Tab"
               >
-                System Settings
+                Maintenance
+              </button>
+              <button
+                onClick={() => setActiveTab('audit')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${
+                  activeTab === 'audit'
+                    ? 'bg-[#1E5780] text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+                aria-label="Audit Logs Tab"
+              >
+                Audit & Logs
+              </button>
+              <button
+                onClick={() => setActiveTab('notifications')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${
+                  activeTab === 'notifications'
+                    ? 'bg-[#1E5780] text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+                aria-label="Notifications Tab"
+              >
+                Notifications
               </button>
             </div>
           </div>
           <div className="p-6">
-            {activeTab === 'profile' && (
-              <form className="space-y-6" onSubmit={handleProfileSave}>
-                <div className="flex items-center mb-6 gap-6">
-                  <div className="relative h-20 w-20 rounded-full bg-blue-500 flex items-center justify-center text-white text-2xl overflow-hidden">
-                    {avatarPreview ? (
-                      <img src={avatarPreview} alt="Avatar Preview" className="h-full w-full object-cover" />
-                    ) : (
-                      <span>{formData.name[0]}</span>
-                    )}
-                    <button
-                      type="button"
-                      className="absolute bottom-0 right-0 bg-[#1E5780] text-white rounded-full p-2 border-2 border-white shadow-lg hover:bg-[#164666] focus:outline-none focus:ring-2 focus:ring-[#1E5780] transition-all duration-150"
-                      onClick={() => fileInputRef.current.click()}
-                      aria-label="Change avatar"
-                      title="Change avatar"
-                      style={{ transform: 'translate(25%, 25%)' }}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-4.553a1.5 1.5 0 00-2.121-2.121L13 7.879M7 17h.01M12 17h.01M17 17h.01M12 7v6m0 0l-2-2m2 2l2-2" />
-                        <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" fill="none" />
-                      </svg>
-                    </button>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      ref={fileInputRef}
-                      onChange={handleAvatarChange}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#1E5780] focus:border-transparent"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#1E5780] focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Role
-                  </label>
-                  <input
-                    type="text"
-                    name="role"
-                    value={formData.role}
-                    disabled
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 bg-gray-50 cursor-not-allowed"
-                  />
-                  <p className="text-sm text-gray-500 mt-1">The role cannot be changed</p>
-                </div>
-                
-                {profileMsg && (
-                  <div className={`p-3 rounded-lg ${
-                    profileMsg.includes('reverted') ? 'bg-blue-50 text-blue-800' : 'bg-green-50 text-green-800'
-                  }`}>
-                    {profileMsg}
-                  </div>
-                )}
-                
-                <div className="flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={handleProfileCancel}
-                    disabled={!isProfileChanged}
-                    className={`px-4 py-2 rounded-lg border border-gray-300 text-gray-700 ${
-                      isProfileChanged ? 'hover:bg-gray-100' : 'opacity-50 cursor-not-allowed'
-                    }`}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!isProfileChanged}
-                    className={`px-4 py-2 rounded-lg bg-[#1E5780] text-white ${
-                      isProfileChanged ? 'hover:bg-[#164666]' : 'opacity-50 cursor-not-allowed'
-                    }`}
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              </form>
-            )}
             
             {activeTab === 'security' && (
               <form className="space-y-6" onSubmit={handlePasswordUpdate}>
@@ -679,6 +522,55 @@ const AdminSettings = () => {
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1E5780]"></div>
                     </label>
                   </div>
+
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Session Timeout</h4>
+                      <p className="text-sm text-gray-600">Auto-logout inactive sessions after this many minutes</p>
+                    </div>
+                    <select
+                      name="sessionTimeoutMinutes"
+                      value={formData.systemSettings.sessionTimeoutMinutes}
+                      onChange={handleSelectChange}
+                      className="px-3 py-2 border rounded-lg"
+                    >
+                      <option value={30}>30 minutes</option>
+                      <option value={60}>60 minutes</option>
+                      <option value={120}>120 minutes</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Require Strong Passwords</h4>
+                      <p className="text-sm text-gray-600">Enforce minimum complexity on new passwords</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={formData.systemSettings.requireStrongPasswords}
+                        onChange={() => handleSystemSettingChange('requireStrongPasswords')}
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1E5780]"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <h4 className="font-medium">Allow Instructor Bulk Actions</h4>
+                      <p className="text-sm text-gray-600">Permit instructors to perform limited bulk operations</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={formData.systemSettings.allowInstructorBulkActions}
+                        onChange={() => handleSystemSettingChange('allowInstructorBulkActions')}
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1E5780]"></div>
+                    </label>
+                  </div>
                   
                   <div className="p-3 bg-gray-50 rounded-lg">
                     <div className="mb-2">
@@ -729,7 +621,23 @@ const AdminSettings = () => {
                     Save Changes
                   </button>
                 </div>
-                <h3 className="text-lg font-semibold mt-8 mb-2">Recent Admin Actions</h3>
+              </div>
+            )}
+
+            {activeTab === 'maintenance' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold mb-2">Maintenance Tools</h3>
+                <div className="flex flex-wrap gap-3">
+                  <button className="px-4 py-2 rounded bg-amber-600 text-white opacity-70 cursor-not-allowed" title="Coming soon">Purge Expired Sessions</button>
+                  <button className="px-4 py-2 rounded bg-emerald-600 text-white opacity-70 cursor-not-allowed" title="Coming soon">Reindex Search</button>
+                  <button className="px-4 py-2 rounded bg-sky-600 text-white opacity-70 cursor-not-allowed" title="Coming soon">Run DB Backup Now</button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'audit' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold mb-2">Recent Admin Actions</h3>
                 {auditLoading ? (
                   <div>Loading logs...</div>
                 ) : (
@@ -746,6 +654,30 @@ const AdminSettings = () => {
                     )}
                   </ul>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'notifications' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold mb-2">Notifications</h3>
+                <label className="flex items-center gap-3">
+                  <input type="checkbox" checked={notifSettings.email} onChange={()=> setNotifSettings(s => ({ ...s, email: !s.email }))} />
+                  <span>Email Notifications</span>
+                </label>
+                <label className="flex items-center gap-3">
+                  <input type="checkbox" checked={notifSettings.browser} onChange={()=> setNotifSettings(s => ({ ...s, browser: !s.browser }))} />
+                  <span>Browser Notifications</span>
+                </label>
+                <label className="flex items-center gap-3">
+                  <input type="checkbox" checked={notifSettings.systemAlerts} onChange={()=> setNotifSettings(s => ({ ...s, systemAlerts: !s.systemAlerts }))} />
+                  <span>System Alerts</span>
+                </label>
+                {notifMsg && (
+                  <div className="p-3 bg-green-50 text-green-800 rounded-lg">{notifMsg}</div>
+                )}
+                <div className="flex justify-end">
+                  <button type="button" onClick={handleNotifSave} className="px-4 py-2 rounded bg-[#1E5780] text-white hover:bg-[#164666]">Save Preferences</button>
+                </div>
               </div>
             )}
           </div>

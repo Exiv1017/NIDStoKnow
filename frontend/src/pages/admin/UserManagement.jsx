@@ -520,13 +520,13 @@ const UserManagement = () => {
                             <>
                               <button 
                                 onClick={() => showConfirmation('approve', user.id, user.name)}
-                                className="px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors shadow text-sm"
+                                className="w-28 justify-center px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors shadow text-sm inline-flex"
                               >
                                 Approve
                               </button>
                               <button 
                                 onClick={() => showConfirmation('reject', user.id, user.name)}
-                                className="px-3 py-1 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors shadow text-sm"
+                                className="w-28 justify-center px-3 py-1 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors shadow text-sm inline-flex"
                               >
                                 Reject
                               </button>
@@ -534,19 +534,19 @@ const UserManagement = () => {
                           )}
                           <button 
                             onClick={() => showConfirmation('delete', user.id, user.name)}
-                            className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors shadow text-sm"
+                            className="w-28 justify-center px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors shadow text-sm inline-flex"
                           >
                             Delete
                           </button>
                           <button
                             onClick={() => openEdit(user)}
-                            className="px-3 py-1 bg-gray-200 text-gray-900 rounded-md hover:bg-gray-300 transition-colors shadow text-sm"
+                            className="w-28 justify-center px-3 py-1 bg-gray-200 text-gray-900 rounded-md hover:bg-gray-300 transition-colors shadow text-sm inline-flex"
                           >
                             Edit
                           </button>
                           <button
                             onClick={() => openReset(user)}
-                            className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors shadow text-sm"
+                            className="w-28 justify-center px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors shadow text-sm inline-flex"
                           >
                             Reset Password
                           </button>

@@ -7,8 +7,20 @@ from datetime import datetime
 
 router = APIRouter()
 
-from config import MYSQL_CONFIG, get_db_connection
+from config import MYSQL_CONFIG, get_db_connection, get_admin_system_settings_cached, invalidate_admin_system_settings_cache
 from auth import create_access_token
+def _password_strong_enough(pw: str) -> bool:
+    try:
+        import re
+        if not pw or len(pw) < 8:
+            return False
+        has_upper = re.search(r'[A-Z]', pw) is not None
+        has_lower = re.search(r'[a-z]', pw) is not None
+        has_digit = re.search(r'\d', pw) is not None
+        has_symbol = re.search(r'[^A-Za-z0-9]', pw) is not None
+        return has_upper and has_lower and has_digit and has_symbol
+    except Exception:
+        return False
 from auth import require_role
 from notifications_helper import ensure_notifications_table, create_notification, migrate_notifications_schema
 
@@ -80,6 +92,9 @@ class AdminSystemSettings(BaseModel):
     autoApproveInstructors: bool
     maintenanceMode: bool
     backupFrequency: str
+    sessionTimeoutMinutes: int | None = 60
+    requireStrongPasswords: bool | None = True
+    allowInstructorBulkActions: bool | None = True
 
 class AdminNotificationSettings(BaseModel):
     email: bool
@@ -160,7 +175,15 @@ def admin_login(req: AdminLoginRequest):
     if not admin or not check_password_hash(admin['password_hash'], req.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     # Issue JWT so protected endpoints (module requests, etc.) can enforce role.
-    token = create_access_token({"sub": str(admin['id']), "role": "admin", "email": admin['email']})
+    # Use system settings for session timeout minutes
+    from datetime import timedelta
+    try:
+        settings = get_admin_system_settings_cached()
+        minutes = int(settings.get('sessionTimeoutMinutes') or 60)
+        exp_delta = timedelta(minutes=minutes)
+    except Exception:
+        exp_delta = None
+    token = create_access_token({"sub": str(admin['id']), "role": "admin", "email": admin['email']}, expires_delta=exp_delta)
     return {"message": "Login successful", "token": token, "admin": {"id": admin["id"], "name": admin["name"], "email": admin["email"]}}
 
 @router.get("/admin/users")
@@ -218,8 +241,18 @@ def admin_update_user(request: Request, user_id: int, body: AdminUserUpdateReque
 def admin_reset_user_password(request: Request, user_id: int, body: AdminResetPasswordRequest):
     require_role(request, 'admin')
     from werkzeug.security import generate_password_hash
-    if not body.new_password or len(body.new_password) < 6:
-        raise HTTPException(status_code=400, detail='New password must be at least 6 characters long')
+    # Enforce strong password if enabled
+    try:
+        settings = get_admin_system_settings_cached()
+        if bool(settings.get('requireStrongPasswords', True)) and not _password_strong_enough(body.new_password):
+            raise HTTPException(status_code=400, detail='Password does not meet strength requirements (min 8, upper, lower, number, symbol).')
+        elif not body.new_password or len(body.new_password) < 6:
+            raise HTTPException(status_code=400, detail='New password must be at least 6 characters long')
+    except HTTPException:
+        raise
+    except Exception:
+        if not body.new_password or len(body.new_password) < 6:
+            raise HTTPException(status_code=400, detail='New password must be at least 6 characters long')
     conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
     try:
         ensure_users_table(cursor)
@@ -361,6 +394,34 @@ def update_admin_profile(request: Request, req: AdminProfileUpdateRequest):
 def get_system_settings():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Ensure table and columns exist
+    try:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS admin_system_settings (
+                id INT NOT NULL PRIMARY KEY,
+                enableUserRegistration TINYINT(1) DEFAULT 1,
+                autoApproveInstructors TINYINT(1) DEFAULT 0,
+                maintenanceMode TINYINT(1) DEFAULT 0,
+                backupFrequency VARCHAR(16) DEFAULT 'daily',
+                sessionTimeoutMinutes INT DEFAULT 60,
+                requireStrongPasswords TINYINT(1) DEFAULT 1,
+                allowInstructorBulkActions TINYINT(1) DEFAULT 1
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """
+        )
+        # Attempt to add new columns if missing (idempotent)
+        for col_def in [
+            ("sessionTimeoutMinutes", "INT DEFAULT 60"),
+            ("requireStrongPasswords", "TINYINT(1) DEFAULT 1"),
+            ("allowInstructorBulkActions", "TINYINT(1) DEFAULT 1"),
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE admin_system_settings ADD COLUMN {col_def[0]} {col_def[1]}")
+            except Exception:
+                pass
+    except Exception:
+        pass
     cursor.execute("SELECT * FROM admin_system_settings LIMIT 1")
     settings = cursor.fetchone()
     cursor.close()
@@ -371,8 +432,28 @@ def get_system_settings():
             "enableUserRegistration": True,
             "autoApproveInstructors": False,
             "maintenanceMode": False,
-            "backupFrequency": "daily"
+            "backupFrequency": "daily",
+            "sessionTimeoutMinutes": 60,
+            "requireStrongPasswords": True,
+            "allowInstructorBulkActions": True,
         }
+    # Normalize types from MySQL (0/1 to bool)
+    def as_bool(v):
+        return bool(int(v)) if isinstance(v, (int,)) else bool(v)
+    settings["enableUserRegistration"] = as_bool(settings.get("enableUserRegistration", 1))
+    settings["autoApproveInstructors"] = as_bool(settings.get("autoApproveInstructors", 0))
+    settings["maintenanceMode"] = as_bool(settings.get("maintenanceMode", 0))
+    settings["requireStrongPasswords"] = as_bool(settings.get("requireStrongPasswords", 1))
+    settings["allowInstructorBulkActions"] = as_bool(settings.get("allowInstructorBulkActions", 1))
+    if settings.get("sessionTimeoutMinutes") is None:
+        settings["sessionTimeoutMinutes"] = 60
+    if not settings.get("backupFrequency"):
+        settings["backupFrequency"] = "daily"
+    # Also refresh cache consumers
+    try:
+        invalidate_admin_system_settings_cache()
+    except Exception:
+        pass
     return settings
 
 @router.put("/admin/system-settings")
@@ -381,12 +462,51 @@ def update_system_settings(settings: AdminSystemSettings):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("REPLACE INTO admin_system_settings (id, enableUserRegistration, autoApproveInstructors, maintenanceMode, backupFrequency) VALUES (1, %s, %s, %s, %s)",
-            (settings.enableUserRegistration, settings.autoApproveInstructors, settings.maintenanceMode, settings.backupFrequency))
+        # Ensure table exists with required columns
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS admin_system_settings (
+                id INT NOT NULL PRIMARY KEY,
+                enableUserRegistration TINYINT(1) DEFAULT 1,
+                autoApproveInstructors TINYINT(1) DEFAULT 0,
+                maintenanceMode TINYINT(1) DEFAULT 0,
+                backupFrequency VARCHAR(16) DEFAULT 'daily',
+                sessionTimeoutMinutes INT DEFAULT 60,
+                requireStrongPasswords TINYINT(1) DEFAULT 1,
+                allowInstructorBulkActions TINYINT(1) DEFAULT 1
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """
+        )
+        # Idempotent adds for columns
+        for col_def in [
+            ("sessionTimeoutMinutes", "INT DEFAULT 60"),
+            ("requireStrongPasswords", "TINYINT(1) DEFAULT 1"),
+            ("allowInstructorBulkActions", "TINYINT(1) DEFAULT 1"),
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE admin_system_settings ADD COLUMN {col_def[0]} {col_def[1]}")
+            except Exception:
+                pass
+        cursor.execute(
+            "REPLACE INTO admin_system_settings (id, enableUserRegistration, autoApproveInstructors, maintenanceMode, backupFrequency, sessionTimeoutMinutes, requireStrongPasswords, allowInstructorBulkActions) VALUES (1, %s, %s, %s, %s, %s, %s, %s)",
+            (
+                int(bool(settings.enableUserRegistration)),
+                int(bool(settings.autoApproveInstructors)),
+                int(bool(settings.maintenanceMode)),
+                settings.backupFrequency,
+                int(settings.sessionTimeoutMinutes or 60),
+                int(bool(settings.requireStrongPasswords if settings.requireStrongPasswords is not None else True)),
+                int(bool(settings.allowInstructorBulkActions if settings.allowInstructorBulkActions is not None else True)),
+            )
+        )
         conn.commit()
         cursor.close()
         conn.close()
         print("[DEBUG] Admin system settings updated successfully.")
+        try:
+            invalidate_admin_system_settings_cache()
+        except Exception:
+            pass
         return {"status": "success", "message": "System settings updated."}
     except Exception as e:
         print(f"[DEBUG] Error updating admin system settings: {e}")
@@ -443,6 +563,15 @@ def change_admin_password(req: AdminPasswordChangeRequest):
         cursor.close()
         conn.close()
         raise HTTPException(status_code=401, detail='Current password is incorrect')
+    # Enforce strong password if enabled
+    try:
+        settings = get_admin_system_settings_cached()
+        if bool(settings.get('requireStrongPasswords', True)) and not _password_strong_enough(req.new_password):
+            raise HTTPException(status_code=400, detail='Password does not meet strength requirements (min 8, upper, lower, number, symbol).')
+    except HTTPException:
+        raise
+    except Exception:
+        pass
     from werkzeug.security import generate_password_hash
     new_hash = generate_password_hash(req.new_password)
     print(f"[DEBUG] Updating password hash for admin id {admin_id}")

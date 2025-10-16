@@ -6,6 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from typing import List, Optional, Dict, Any
 import json
 from auth import create_access_token, require_role
+from config import get_admin_system_settings_cached
 from notifications_helper import migrate_notifications_schema
 
 router = APIRouter()
@@ -449,6 +450,20 @@ def instructor_signup(req: InstructorSignupRequest):
         cursor.close()
         conn.close()
         raise HTTPException(status_code=400, detail='Email already registered')
+    # Enforce strong password at signup if enabled by admin policy
+    try:
+        settings = get_admin_system_settings_cached()
+        if bool(settings.get('requireStrongPasswords', True)):
+            import re
+            def strong(p):
+                return bool(p and len(p)>=8 and re.search(r'[A-Z]',p) and re.search(r'[a-z]',p) and re.search(r'\d',p) and re.search(r'[^A-Za-z0-9]',p))
+            if not strong(req.password):
+                cursor.close(); conn.close()
+                raise HTTPException(status_code=400, detail='Password does not meet strength requirements (min 8, upper, lower, number, symbol).')
+    except HTTPException:
+        raise
+    except Exception:
+        pass
     password_hash = generate_password_hash(req.password)
     cursor.execute(
         'INSERT INTO users (name, email, password_hash, userType, status) VALUES (%s, %s, %s, %s, %s)',
@@ -482,12 +497,19 @@ def instructor_login(req: InstructorLoginRequest):
         raise HTTPException(status_code=401, detail='Incorrect password')
     if user['status'] != 'approved':
         raise HTTPException(status_code=403, detail='Instructor account not approved yet.')
+    from datetime import timedelta
+    try:
+        settings = get_admin_system_settings_cached()
+        minutes = int(settings.get('sessionTimeoutMinutes') or 60)
+        exp_delta = timedelta(minutes=minutes)
+    except Exception:
+        exp_delta = None
     token = create_access_token({
         'sub': str(user['id']),
         'role': user['userType'],
         'email': user['email'],
         'name': user['name']
-    })
+    }, expires_delta=exp_delta)
     return {
         'message': 'Login successful',
         'user': {
@@ -529,6 +551,19 @@ def change_instructor_password(req: ChangePasswordRequest):
         cursor.close()
         conn.close()
         raise HTTPException(status_code=401, detail='Current password is incorrect')
+    # Enforce strong password if enabled
+    try:
+        settings = get_admin_system_settings_cached()
+        if bool(settings.get('requireStrongPasswords', True)):
+            import re
+            def strong(p):
+                return bool(p and len(p)>=8 and re.search(r'[A-Z]',p) and re.search(r'[a-z]',p) and re.search(r'\d',p) and re.search(r'[^A-Za-z0-9]',p))
+            if not strong(req.new_password):
+                raise HTTPException(status_code=400, detail='Password does not meet strength requirements (min 8, upper, lower, number, symbol).')
+    except HTTPException:
+        raise
+    except Exception:
+        pass
     new_hash = generate_password_hash(req.new_password)
     print(f"[DEBUG] Updating password hash for user id {user['id']}")
     cursor.execute('UPDATE users SET password_hash=%s WHERE id=%s', (new_hash, user['id']))
@@ -1552,6 +1587,15 @@ def create_assignments(request: Request, req: AssignmentCreate):
     except HTTPException as e:
         if e.status_code not in (401, 403):
             raise
+    # Gate bulk actions by system settings
+    try:
+        settings = get_admin_system_settings_cached()
+        if not bool(settings.get('allowInstructorBulkActions', True)):
+            raise HTTPException(status_code=403, detail='Bulk actions are disabled by admin policy.')
+    except HTTPException:
+        raise
+    except Exception:
+        pass
     if not req.student_ids:
         raise HTTPException(status_code=400, detail='student_ids is required')
     conn = get_db_connection()

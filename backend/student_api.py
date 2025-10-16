@@ -1005,6 +1005,21 @@ def change_password(req: ChangePasswordRequest):
         cursor.close()
         conn.close()
         raise HTTPException(status_code=401, detail='Current password is incorrect')
+    # Enforce strong password if enabled
+    try:
+        from config import get_admin_system_settings_cached
+        settings = get_admin_system_settings_cached()
+        if bool(settings.get('requireStrongPasswords', True)):
+            import re
+            def strong(p):
+                return bool(p and len(p)>=8 and re.search(r'[A-Z]',p) and re.search(r'[a-z]',p) and re.search(r'\d',p) and re.search(r'[^A-Za-z0-9]',p))
+            if not strong(req.new_password):
+                cursor.close(); conn.close()
+                raise HTTPException(status_code=400, detail='Password does not meet strength requirements (min 8, upper, lower, number, symbol).')
+    except HTTPException:
+        raise
+    except Exception:
+        pass
     new_hash = generate_password_hash(req.new_password)
     print(f"[DEBUG] Updating password hash for user id {user['id']}")
     cursor.execute('UPDATE users SET password_hash=%s WHERE id=%s', (new_hash, user['id']))
@@ -1032,6 +1047,21 @@ def student_signup(req: StudentSignupRequest):
         cursor.close()
         conn.close()
         raise HTTPException(status_code=400, detail='Email already registered')
+    # Enforce strong password at signup if enabled by admin policy
+    try:
+        from config import get_admin_system_settings_cached
+        settings = get_admin_system_settings_cached()
+        if bool(settings.get('requireStrongPasswords', True)):
+            import re
+            def strong(p):
+                return bool(p and len(p)>=8 and re.search(r'[A-Z]',p) and re.search(r'[a-z]',p) and re.search(r'\d',p) and re.search(r'[^A-Za-z0-9]',p))
+            if not strong(req.password):
+                cursor.close(); conn.close()
+                raise HTTPException(status_code=400, detail='Password does not meet strength requirements (min 8, upper, lower, number, symbol).')
+    except HTTPException:
+        raise
+    except Exception:
+        pass
     password_hash = generate_password_hash(req.password)
     cursor.execute(
         'INSERT INTO users (name, email, password_hash, userType, status) VALUES (%s, %s, %s, %s, %s)',
@@ -1063,12 +1093,20 @@ def student_login(req: StudentLoginRequest):
     conn.close()
     if not user or not check_password_hash(user['password_hash'], req.password):
         raise HTTPException(status_code=401, detail='Invalid email or password')
+    from datetime import timedelta
+    try:
+        from config import get_admin_system_settings_cached
+        settings = get_admin_system_settings_cached()
+        minutes = int(settings.get('sessionTimeoutMinutes') or 60)
+        exp_delta = timedelta(minutes=minutes)
+    except Exception:
+        exp_delta = None
     token = create_access_token({
         'sub': str(user['id']),
         'role': user['userType'],
         'email': user['email'],
         'name': user['name']
-    })
+    }, expires_delta=exp_delta)
     return {
         'message': 'Login successful',
         'user': {
