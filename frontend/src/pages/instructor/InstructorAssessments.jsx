@@ -273,9 +273,7 @@ export default function InstructorAssessments() {
                 <div className="text-lg font-semibold text-rose-600">{assignmentCounts.overdue}</div>
               </div>
               </div>
-              <div className="flex items-center">
-                <button onClick={() => { loadAssignments(); loadSubmissions(); }} className="px-3 py-2 border rounded hover:bg-gray-50">Refresh</button>
-              </div>
+              <div />
             </div>
 
             <div className="flex flex-wrap gap-2 items-center">
@@ -294,7 +292,7 @@ export default function InstructorAssessments() {
                   <button key={f} onClick={() => toggleAssignSort(f)} className={`px-2 py-1 rounded border text-xs ${assignSort===f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}>{f.charAt(0).toUpperCase() + f.slice(1)}{assignSort===f ? (assignSortDir==='asc' ? ' ↑' : ' ↓') : ''}</button>
                 ))}
               </div>
-              <button onClick={loadAssignments} className="px-3 py-2 border rounded hover:bg-gray-50">Refresh</button>
+              
             </div>
             {assignError && <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded">{assignError}</div>}
             <div className="bg-white border rounded-xl shadow-sm overflow-x-auto">
