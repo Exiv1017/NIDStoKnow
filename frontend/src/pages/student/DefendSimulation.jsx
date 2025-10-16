@@ -634,20 +634,21 @@ const DefendSimulation = () => {
           <div className="bg-[#111827] rounded-xl border border-slate-800 p-4">
             <h3 className="text-lg font-semibold mb-4 text-yellow-400">Defense Actions</h3>
             <div className="space-y-1 max-h-32 overflow-y-auto">
-              {liveDetections.length === 0 ? (
+              {defendActions.length === 0 ? (
                 <p className="text-gray-400 text-sm">No actions taken yet...</p>
               ) : (
                 <div className="max-h-96 overflow-y-auto pr-1">
-                {liveDetections.slice().reverse().map(detection => (
-                  <div key={action.id} className="bg-gray-700 p-2 rounded text-sm">
-                    <div className="font-semibold text-green-400">
-                      {action.action.replace('_', ' ')}
+                  {defendActions.slice().reverse().map(action => (
+                    <div key={action.id} className="bg-gray-700 p-2 rounded text-sm">
+                      <div className="font-semibold text-green-400">
+                        {String(action.action).replace('_', ' ')}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        Target: {action.target} | {new Date(action.timestamp).toLocaleTimeString()}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-400">
-                      Target: {action.target} | {action.timestamp.toLocaleTimeString()}
-                    </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -656,8 +657,7 @@ const DefendSimulation = () => {
           <div className="bg-[#111827] rounded-xl border border-slate-800 p-4">
             <h3 className="text-lg font-semibold mb-4 text-blue-400">Attack Events</h3>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-                ))}
-                </div>
+              {attackEvents.length === 0 ? (
                 <p className="text-gray-400">No attack events detected...</p>
               ) : (
                 attackEvents.slice(-5).reverse().map(event => (
