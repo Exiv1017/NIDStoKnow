@@ -26,6 +26,7 @@ export default function AdminModuleRequests(){
   const [contentLoading,setContentLoading] = useState(false);
   const [contentError,setContentError] = useState('');
   const [content,setContent] = useState(null); // parsed structure { meta, overview, theory, practical, assessment }
+
   const handleLogout = () => {
     try {
       localStorage.removeItem('admin');
@@ -39,11 +40,10 @@ export default function AdminModuleRequests(){
   const showToast=(message,type='success')=>{ setToast({show:true,message,type}); setTimeout(()=>setToast({show:false,message:'',type:'success'}),3000); };
 
   const fetchRequests = async () => {
-    // Avoid parallel duplicate fetches
     if (loading) return;
     setLoading(true); setError('');
     try {
-  const res = await fetch(`/api/admin/module-requests`, { headers: authHeaders() });
+      const res = await fetch(`/api/admin/module-requests`, { headers: authHeaders() });
       const data = await res.json();
       if (res.ok) {
         const sorted = [...data].sort((a,b)=>{
@@ -52,7 +52,6 @@ export default function AdminModuleRequests(){
           return new Date(b.created_at) - new Date(a.created_at);
         });
         setRequests(sorted);
-        // Only refresh selected if it still exists in new list
         if (selected) {
           const found = sorted.find(r=>r.id===selected.id);
           if (!found) setSelected(null); else setSelected(prev => ({...prev, ...found}));
@@ -153,19 +152,19 @@ export default function AdminModuleRequests(){
               </Link>
             </li>
             <li>
-              <Link to="/admin/lobbies" className="flex items-center p-3 rounded-lg hover:bg-white/10 font-medium">
-                <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5V4H2v16h5m10 0v-4H7v4m10 0H7" />
-                </svg>
-                Active Lobbies
-              </Link>
-            </li>
-            <li>
               <Link to="/admin/module-requests" className="flex items-center p-3 rounded-lg bg-white/10 font-medium text-white">
                 <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0120 9.414V19a2 2 0 01-2 2z" />
                 </svg>
                 Module Requests
+              </Link>
+            </li>
+            <li>
+              <Link to="/admin/lobbies" className="flex items-center p-3 rounded-lg hover:bg-white/10 font-medium">
+                <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5V4H2v16h5m10 0v-4H7v4m10 0H7" />
+                </svg>
+                Active Lobbies
               </Link>
             </li>
             <li>

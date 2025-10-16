@@ -9,6 +9,7 @@ const UserManagement = () => {
   const [confirmAction, setConfirmAction] = useState({ show: false, action: '', userId: null, userName: '' });
   const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
   const [filter, setFilter] = useState('all');
+  const [query, setQuery] = useState('');
   const [editUser, setEditUser] = useState(null); // {id, name, email}
   const [editForm, setEditForm] = useState({ name: '', email: '' });
   const [resetUser, setResetUser] = useState(null); // {id, name}
@@ -184,7 +185,13 @@ const UserManagement = () => {
     return <span className="ml-1">▼</span>;
   };
 
-  const sortedUsers = [...users].sort((a, b) => {
+  const sortedUsers = [...users]
+    .filter(u => {
+      const q = query.trim().toLowerCase();
+      if(!q) return true;
+      return (u.name||'').toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q) || (u.userType||'').toLowerCase().includes(q) || (u.status||'').toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
     if (a[sortConfig.key] < b[sortConfig.key]) {
       return sortConfig.direction === 'asc' ? -1 : 1;
     }
@@ -238,17 +245,6 @@ const UserManagement = () => {
             </li>
             <li>
               <Link
-                to="/admin/lobbies"
-                className="flex items-center p-3 rounded-lg hover:bg-white/10 font-medium"
-              >
-                <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5V4H2v16h5m10 0v-4H7v4m10 0H7" />
-                </svg>
-                Active Lobbies
-              </Link>
-            </li>
-            <li>
-              <Link
                 to="/admin/module-requests"
                 className="flex items-center p-3 rounded-lg hover:bg-white/10 font-medium"
               >
@@ -260,7 +256,18 @@ const UserManagement = () => {
             </li>
             <li>
               <Link
-                to="#"
+                to="/admin/lobbies"
+                className="flex items-center p-3 rounded-lg hover:bg-white/10 font-medium"
+              >
+                <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5V4H2v16h5m10 0v-4H7v4m10 0H7" />
+                </svg>
+                Active Lobbies
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/admin/settings"
                 className="flex items-center p-3 rounded-lg hover:bg-white/10 font-medium"
               >
                 <img src="/settings.svg" alt="" className="w-6 h-6 mr-3" />
@@ -372,6 +379,10 @@ const UserManagement = () => {
             
             {/* Filter Controls */}
             <div className="flex flex-wrap gap-2 items-center">
+              <div className="relative">
+                <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search name, email, role, status" className="pl-8 pr-3 py-1.5 text-sm rounded-md border border-gray-300" />
+                <svg className="w-4 h-4 absolute left-2 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z" /></svg>
+              </div>
               <button 
                 onClick={() => setFilter('all')}
                 className={`px-3 py-1 text-sm rounded-md ${filter === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'}`}
@@ -449,9 +460,9 @@ const UserManagement = () => {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse table-auto">
+              <table className="w-full border-collapse table-auto text-sm">
                 <thead>
-                  <tr className="bg-gray-100 border-b">
+                  <tr className="bg-gray-100 border-b text-gray-700">
                     <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700 whitespace-nowrap">
                       <button 
                         onClick={() => requestSort('name')}
@@ -491,19 +502,19 @@ const UserManagement = () => {
                   {filteredUsers.length > 0 ? (
                     filteredUsers.map(user => (
                       <tr key={user.id} className="border-t hover:bg-gray-50 align-middle">
-                        <td className="py-3 px-4 max-w-[240px] whitespace-nowrap overflow-hidden text-ellipsis align-middle">{user.name}</td>
-                        <td className="py-3 px-4 max-w-[320px] whitespace-nowrap overflow-hidden text-ellipsis align-middle">{user.email}</td>
-                        <td className="py-3 px-4 whitespace-nowrap align-middle">
+                        <td className="py-2 px-4 max-w-[240px] whitespace-nowrap overflow-hidden text-ellipsis align-middle">{user.name}</td>
+                        <td className="py-2 px-4 max-w-[320px] whitespace-nowrap overflow-hidden text-ellipsis align-middle">{user.email}</td>
+                        <td className="py-2 px-4 whitespace-nowrap align-middle">
                           <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
                             user.userType === 'instructor' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
                           }`}>
                             {user.userType}
                           </span>
                         </td>
-                        <td className="py-3 px-4 whitespace-nowrap align-middle">
+                        <td className="py-2 px-4 whitespace-nowrap align-middle">
                           {getStatusBadge(user.status)}
                         </td>
-                        <td className="py-3 px-4 align-middle">
+                        <td className="py-2 px-4 align-middle">
                           <div className="flex items-center gap-2 flex-wrap">
                           {user.userType === 'instructor' && user.status === 'pending' && (
                             <>
