@@ -223,6 +223,19 @@ export default function InstructorAssessments() {
     return Array.from(seen.values());
   };
 
+  // Sorting helper for submissions
+  const sortSubs = (arr) => {
+    const dir = subsSortDir === 'asc' ? 1 : -1;
+    const key = subsSort === 'when' ? 'createdAt' : subsSort === 'student' ? 'studentName' : subsSort === 'module' ? 'moduleTitle' : 'submissionType';
+    return [...arr].sort((a,b) => {
+      const av = (a[key] ?? '') || '';
+      const bv = (b[key] ?? '') || '';
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <InstructorSidebar />
@@ -237,7 +250,8 @@ export default function InstructorAssessments() {
 
         {activeTab === 'assignments' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="p-3 rounded-lg border bg-white">
                 <div className="text-xs text-gray-500">Total</div>
                 <div className="text-lg font-semibold">{assignmentCounts.total}</div>
@@ -258,10 +272,15 @@ export default function InstructorAssessments() {
                 <div className="text-xs text-gray-500">Overdue</div>
                 <div className="text-lg font-semibold text-rose-600">{assignmentCounts.overdue}</div>
               </div>
+              </div>
+              <div className="flex items-center">
+                <button onClick={() => { loadAssignments(); loadSubmissions(); }} className="px-3 py-2 border rounded hover:bg-gray-50">Refresh</button>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2 items-center">
               <input className="border rounded px-3 py-2 w-64" placeholder="Search student/module" value={assignSearchRaw} onChange={e => setAssignSearchRaw(e.target.value)} />
+              <button onClick={loadAssignments} className="px-3 py-2 border rounded hover:bg-gray-50">Refresh</button>
               <select className="border rounded px-3 py-2" value={assignFilters.status} onChange={e => setAssignFilters({ ...assignFilters, status: e.target.value })}>
                 <option value="all">All Statuses</option>
                 <option value="assigned">Assigned</option>
@@ -353,7 +372,7 @@ export default function InstructorAssessments() {
                       const matchesQ = subsSearchRaw.trim() === '' || `${s.studentName} ${s.moduleTitle} ${s.moduleSlug}`.toLowerCase().includes(subsSearchRaw.toLowerCase());
                       return matchesQ && s.submissionType === 'practical';
                     });
-                    const practicalSubs = uniqueById(base);
+                    const practicalSubs = sortSubs(uniqueById(base));
                     if (practicalSubs.length === 0) return <div className="py-6 text-center text-gray-400">No practical submissions.</div>;
                     return (
                       <table className="w-full text-sm">
@@ -399,7 +418,7 @@ export default function InstructorAssessments() {
                         const matchesQ = subsSearchRaw.trim() === '' || `${s.studentName} ${s.moduleTitle} ${s.moduleSlug}`.toLowerCase().includes(subsSearchRaw.toLowerCase());
                         return matchesQ && s.submissionType === 'simulation';
                       });
-                      const attackerSubs = uniqueById(base);
+                      const attackerSubs = sortSubs(uniqueById(base));
                       if (attackerSubs.length === 0) return <div className="py-6 text-center text-gray-400">No attacker submissions.</div>;
                       return (
                         <table className="w-full text-sm">
@@ -438,7 +457,7 @@ export default function InstructorAssessments() {
                         const matchesQ = subsSearchRaw.trim() === '' || `${s.studentName} ${s.moduleTitle} ${s.moduleSlug}`.toLowerCase().includes(subsSearchRaw.toLowerCase());
                         return matchesQ && s.submissionType === 'simulation';
                       });
-                      const defenderSubs = uniqueById(base);
+                      const defenderSubs = sortSubs(uniqueById(base));
                       if (defenderSubs.length === 0) return <div className="py-6 text-center text-gray-400">No defender submissions.</div>;
                       return (
                         <table className="w-full text-sm">

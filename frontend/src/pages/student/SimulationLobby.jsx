@@ -209,17 +209,12 @@ const SimulationLobby = () => {
 
   const handleStartSimulation = () => {
     // Ask server to start; navigation will also work locally as a fallback
-    // Set difficulty before starting via instructor ws channel quickly
+    // Fire-and-forget: open a transient instructor ws to trigger any server-side start work, then start
     try {
-      sessionStorage.setItem('simDifficulty', difficulty);
-    } catch {}
-    // Fire-and-forget: open a transient instructor ws to set difficulty, then start
-    try {
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const host = window.location.host;
-    const isw = new WebSocket(`${proto}://${host}/instructor/simulation/${lobbyCode}${user?.token ? `?token=${encodeURIComponent(user.token)}` : ''}`);
+      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const host = window.location.host;
+      const isw = new WebSocket(`${proto}://${host}/instructor/simulation/${lobbyCode}${user?.token ? `?token=${encodeURIComponent(user.token)}` : ''}`);
       isw.onopen = () => {
-        isw.send(JSON.stringify({ action: 'set_difficulty', payload: { difficulty } }));
         // small delay to ensure room updates
         setTimeout(() => {
           isw.close();
@@ -429,7 +424,6 @@ const SimulationLobby = () => {
                 <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mt-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
                   <div className="space-y-3">
-                    <div className="text-sm text-gray-600">Difficulty: <span className="font-semibold">{difficulty}</span></div>
                     {!isReady && !isInstructor && (
                       <button className="w-full bg-green-50 hover:bg-green-100 text-green-700 py-2 px-4 rounded-lg font-medium transition-colors duration-200 text-left" onClick={handleReady}>
                         I am Ready
