@@ -555,12 +555,7 @@ const UserManagement = () => {
             </div>            )}
           </div>
         </div>
-      </main>
-    </div>
-  );
-};
 
-export default UserManagement; 
       {/* Edit Modal */}
       {editUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -601,3 +596,10 @@ export default UserManagement;
           </div>
         </div>
       )}
+
+      </main>
+    </div>
+  );
+};
+
+export default UserManagement;
