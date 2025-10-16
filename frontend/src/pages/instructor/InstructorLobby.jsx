@@ -442,47 +442,7 @@ const InstructorLobby = () => {
               </div>
             </div>
           )}
-          {/* Settings Modal */}
-          {configOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-              <div className="bg-white rounded-xl border border-gray-200 shadow-xl w-full max-w-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Configure Settings</h3>
-                  <button onClick={() => setConfigOpen(false)} className="text-gray-500 hover:text-gray-700">✕</button>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="difficulty" className="block text-sm font-medium text-gray-700 mb-1">Difficulty</label>
-                    <select
-                      id="difficulty"
-                      value={difficulty}
-                      onChange={(e) => setDifficulty(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    >
-                      <option>Beginner</option>
-                      <option>Intermediate</option>
-                      <option>Hard</option>
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">This will be applied when the simulation starts. You can still adjust it later in the control panel.</p>
-                  </div>
-                </div>
-                <div className="mt-6 flex justify-end gap-2">
-                  <button onClick={() => setConfigOpen(false)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700">Cancel</button>
-                  <button
-                    onClick={() => {
-                      try {
-                        // Persist selection for the upcoming simulation
-                        const cfg = { lobbyCode, difficulty };
-                        sessionStorage.setItem('simConfig', JSON.stringify(cfg));
-                      } catch {}
-                      setConfigOpen(false);
-                    }}
-                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold"
-                  >Save</button>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Settings modal removed */}
   </div>
       </div>
     </div>
