@@ -29,6 +29,38 @@ def ensure_admins_table(cursor):
                 '''
         )
 
+def ensure_lobby_tables(cursor):
+        """Create minimal lobby tables if missing to avoid 1146 errors.
+        Mirrors the schema used by lobby_ws for cross-device persistence.
+        """
+        try:
+                cursor.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS lobbies (
+                            code VARCHAR(32) PRIMARY KEY,
+                            difficulty VARCHAR(32) DEFAULT 'Beginner',
+                            created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                        """
+                )
+                cursor.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS lobby_participants (
+                            id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                            code VARCHAR(32) NOT NULL,
+                            name VARCHAR(255) NOT NULL,
+                            role VARCHAR(32) NOT NULL,
+                            ready TINYINT(1) DEFAULT 0,
+                            joined_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE KEY uniq_code_name (code, name),
+                            KEY idx_code (code)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                        """
+                )
+        except Exception:
+                # Best-effort: leave to other code paths if creation fails here
+                pass
+
 class AdminLoginRequest(BaseModel):
     email: str
     password: str
@@ -308,6 +340,61 @@ def log_admin_action(admin_id: int, action: str):
     conn.commit()
     cursor.close()
     conn.close()
+
+# ---------------- Lobbies visibility (Admin) -----------------
+
+@router.get('/admin/lobbies')
+def admin_list_lobbies(request: Request):
+    """Return active lobbies and their participants for quick admin visibility.
+
+    Shape:
+    {
+      "lobbies": [
+         { code, difficulty, created_at, participants: [ { name, role, ready, joined_at } ] }
+      ]
+    }
+    """
+    require_role(request, 'admin')
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    try:
+        # Ensure tables exist so fresh deployments don't error
+        ensure_lobby_tables(cursor)
+        conn.commit()
+        cursor.execute("SELECT code, difficulty, created_at FROM lobbies ORDER BY created_at DESC LIMIT 200")
+        rows = cursor.fetchall() or []
+        codes = [r['code'] for r in rows]
+        parts_map = {}
+        if codes:
+            # Fetch participants for listed lobbies
+            placeholders = ','.join(['%s'] * len(codes))
+            cursor.execute(
+                f"SELECT code, name, role, ready, joined_at FROM lobby_participants WHERE code IN ({placeholders}) ORDER BY joined_at ASC",
+                codes
+            )
+            for p in cursor.fetchall() or []:
+                code = p.get('code')
+                if code not in parts_map:
+                    parts_map[code] = []
+                parts_map[code].append({
+                    'name': p.get('name'),
+                    'role': p.get('role'),
+                    'ready': bool(p.get('ready') or 0),
+                    'joined_at': str(p.get('joined_at') or '')
+                })
+        out = []
+        for r in rows:
+            out.append({
+                'code': r.get('code'),
+                'difficulty': r.get('difficulty') or 'Beginner',
+                'created_at': str(r.get('created_at') or ''),
+                'participants': parts_map.get(r.get('code'), [])
+            })
+        return { 'lobbies': out }
+    finally:
+        try:
+            cursor.close(); conn.close()
+        except Exception:
+            pass
 
 # ---------------- Shared Notifications (Admin view) -----------------
 

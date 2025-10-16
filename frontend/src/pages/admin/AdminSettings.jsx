@@ -58,6 +58,17 @@ const AdminSettings = () => {
     fetch('/api/admin/system-settings')
       .then(res => res.json())
       .then(data => setSystemSettings(data));
+              <li>
+                <Link
+                  to="/admin/lobbies"
+                  className="flex items-center p-3 rounded-lg hover:bg-white/10 font-medium"
+                >
+                  <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5V4H2v16h5m10 0v-4H7v4m10 0H7" />
+                  </svg>
+                  Active Lobbies
+                </Link>
+              </li>
     // Fetch notification preferences
     if (user?.id) {
       fetch(`/api/admin/notifications/${user.id}`)

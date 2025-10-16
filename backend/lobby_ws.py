@@ -3,12 +3,72 @@ from typing import Dict, List
 import asyncio
 import logging
 from auth import decode_token
+from config import get_db_connection
 
 router = APIRouter()
 
 # In-memory lobby state (for demo; use Redis/db for production)
 lobbies: Dict[str, Dict] = {}
 lobby_connections: Dict[str, List[WebSocket]] = {}
+
+
+def ensure_tables():
+    """Create minimal persistence so lobbies work across devices/instances."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS lobbies (
+              code VARCHAR(32) PRIMARY KEY,
+              difficulty VARCHAR(32) DEFAULT 'Beginner',
+              created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS lobby_participants (
+              id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+              code VARCHAR(32) NOT NULL,
+              name VARCHAR(255) NOT NULL,
+              role VARCHAR(32) NOT NULL,
+              ready TINYINT(1) DEFAULT 0,
+              joined_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE KEY uniq_code_name (code, name),
+              KEY idx_code (code)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """
+        )
+        conn.commit()
+        cur.close(); conn.close()
+    except Exception as e:
+        try:
+            logging.error(f"[lobby_ws] ensure_tables error: {e}")
+        except Exception:
+            pass
+
+
+def hydrate_lobby_from_db(lobby_code: str) -> bool:
+    """Load a lobby definition and participants from DB into memory if present."""
+    try:
+        conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT code, difficulty FROM lobbies WHERE code=%s", (lobby_code,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close(); return False
+        # Create in-memory lobby
+        lobbies[lobby_code] = {"participants": [], "chat": [], "difficulty": row.get("difficulty") or "Beginner"}
+        cur.execute("SELECT name, role, ready FROM lobby_participants WHERE code=%s ORDER BY joined_at ASC", (lobby_code,))
+        for p in cur.fetchall() or []:
+            lobbies[lobby_code]["participants"].append({"name": p["name"], "role": p["role"], "ready": bool(p["ready"])})
+        cur.close(); conn.close(); return True
+    except Exception as e:
+        try:
+            logging.error(f"[lobby_ws] hydrate error for {lobby_code}: {e}")
+        except Exception:
+            pass
+        return False
 
 @router.websocket("/ws/lobby/{lobby_code}")
 async def lobby_websocket(websocket: WebSocket, lobby_code: str):
@@ -43,15 +103,18 @@ async def lobby_websocket(websocket: WebSocket, lobby_code: str):
         await websocket.close(code=4403)
         return
     await websocket.accept()
-    # Only allow joining if lobby exists (created by instructor)
+    # Only allow joining if lobby exists (created by instructor). If not in memory, try DB.
     if lobby_code not in lobbies:
-        try:
-            logging.warning(f"[lobby_ws] WS denied: lobby code not found: {lobby_code}")
-        except Exception:
-            pass
-        await websocket.send_json({"type": "error", "message": "Invalid lobby code. Please check with your instructor."})
-        await websocket.close()
-        return
+        ensure_tables()
+        hydrated = hydrate_lobby_from_db(lobby_code)
+        if not hydrated:
+            try:
+                logging.warning(f"[lobby_ws] WS denied: lobby code not found: {lobby_code}")
+            except Exception:
+                pass
+            await websocket.send_json({"type": "error", "message": "Invalid lobby code. Please check with your instructor."})
+            await websocket.close()
+            return
     if lobby_code not in lobby_connections:
         lobby_connections[lobby_code] = []
     lobby_connections[lobby_code].append(websocket)
@@ -68,6 +131,15 @@ async def lobby_websocket(websocket: WebSocket, lobby_code: str):
                 # Prevent duplicate participants
                 if not any(p["name"] == payload["name"] for p in lobby["participants"]):
                     lobby["participants"].append(participant)
+                    # Persist participant join
+                    try:
+                        ensure_tables()
+                        conn = get_db_connection(); cur = conn.cursor()
+                        cur.execute("INSERT INTO lobby_participants (code, name, role, ready) VALUES (%s,%s,%s,%s) ON DUPLICATE KEY UPDATE role=VALUES(role), ready=VALUES(ready)", (lobby_code, payload["name"], payload["role"], 0))
+                        conn.commit(); cur.close(); conn.close()
+                    except Exception as e:
+                        try: logging.error(f"[lobby_ws] persist join failed: {e}")
+                        except Exception: pass
                 
                 # Send join success to the joining participant
                 is_instructor = payload["role"] == "Instructor"
@@ -83,18 +155,33 @@ async def lobby_websocket(websocket: WebSocket, lobby_code: str):
                 
             elif action == "leave":
                 lobby["participants"] = [p for p in lobby["participants"] if p["name"] != payload["name"]]
+                try:
+                    conn = get_db_connection(); cur = conn.cursor()
+                    cur.execute("DELETE FROM lobby_participants WHERE code=%s AND name=%s", (lobby_code, payload["name"]))
+                    conn.commit(); cur.close(); conn.close()
+                except Exception: pass
                 await broadcast_participant_update(lobby_code)
                 
             elif action == "ready":
                 for p in lobby["participants"]:
                     if p["name"] == payload["name"]:
                         p["ready"] = payload["ready"]
+                try:
+                    conn = get_db_connection(); cur = conn.cursor()
+                    cur.execute("UPDATE lobby_participants SET ready=%s WHERE code=%s AND name=%s", (1 if payload.get("ready") else 0, lobby_code, payload["name"]))
+                    conn.commit(); cur.close(); conn.close()
+                except Exception: pass
                 await broadcast_participant_update(lobby_code)
                 
             elif action == "role":
                 for p in lobby["participants"]:
                     if p["name"] == payload["name"]:
                         p["role"] = payload["role"]
+                try:
+                    conn = get_db_connection(); cur = conn.cursor()
+                    cur.execute("UPDATE lobby_participants SET role=%s WHERE code=%s AND name=%s", (payload.get("role"), lobby_code, payload["name"]))
+                    conn.commit(); cur.close(); conn.close()
+                except Exception: pass
                 await broadcast_participant_update(lobby_code)
                 
             elif action == "chat":
@@ -106,6 +193,11 @@ async def lobby_websocket(websocket: WebSocket, lobby_code: str):
             elif action == "reset":
                 lobby["participants"] = [p for p in lobby["participants"] if p["role"] == "Instructor"]
                 lobby["chat"] = []
+                try:
+                    conn = get_db_connection(); cur = conn.cursor()
+                    cur.execute("DELETE FROM lobby_participants WHERE code=%s AND role<> 'Instructor'", (lobby_code,))
+                    conn.commit(); cur.close(); conn.close()
+                except Exception: pass
                 await broadcast_participant_update(lobby_code)
                 
             elif action == "remove":
@@ -189,11 +281,26 @@ async def broadcast_lobby(lobby_code: str):
 def create_lobby(lobby_code: str):
     if lobby_code not in lobbies:
         lobbies[lobby_code] = {"participants": [], "chat": [], "difficulty": "Beginner"}
+        # Persist lobby row so other instances/devices recognize it
+        try:
+            ensure_tables()
+            conn = get_db_connection(); cur = conn.cursor()
+            cur.execute("INSERT IGNORE INTO lobbies (code, difficulty) VALUES (%s,%s)", (lobby_code, "Beginner"))
+            conn.commit(); cur.close(); conn.close()
+        except Exception as e:
+            try: logging.error(f"[lobby_ws] persist lobby failed: {e}")
+            except Exception: pass
 
 @router.post("/create_lobby/{lobby_code}")
 async def api_create_lobby(lobby_code: str):
     if lobby_code not in lobbies:
         lobbies[lobby_code] = {"participants": [], "chat": [], "difficulty": "Beginner"}
+        try:
+            ensure_tables()
+            conn = get_db_connection(); cur = conn.cursor()
+            cur.execute("INSERT IGNORE INTO lobbies (code, difficulty) VALUES (%s,%s)", (lobby_code, "Beginner"))
+            conn.commit(); cur.close(); conn.close()
+        except Exception: pass
     return {"success": True}
 
 @router.post("/close_lobby/{lobby_code}")
@@ -209,3 +316,11 @@ async def api_close_lobby(lobby_code: str):
                 pass
         del lobby_connections[lobby_code]
     return {"success": True}
+    # Best-effort cleanup persistence
+    try:
+        conn = get_db_connection(); cur = conn.cursor()
+        cur.execute("DELETE FROM lobby_participants WHERE code=%s", (lobby_code,))
+        cur.execute("DELETE FROM lobbies WHERE code=%s", (lobby_code,))
+        conn.commit(); cur.close(); conn.close()
+    except Exception:
+        pass
