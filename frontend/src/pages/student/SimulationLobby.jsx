@@ -21,7 +21,7 @@ const SimulationLobby = () => {
   const [inviteEmail, setInviteEmail] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [maxParticipants, setMaxParticipants] = useState(6);
-  const [difficulty, setDifficulty] = useState('Beginner');
+  // difficulty removed from student lobby UI
   const [lobbyError, setLobbyError] = useState('');
   const [simulationStarted, setSimulationStarted] = useState(false);
   const chatEndRef = useRef(null);
@@ -65,10 +65,6 @@ const SimulationLobby = () => {
             setJoined(true);
             setParticipants(data.participants);
             setIsInstructor(data.isInstructor);
-            if (data.difficulty) setDifficulty(data.difficulty);
-            break;
-          case 'difficulty_updated':
-            if (data.difficulty) setDifficulty(data.difficulty);
             break;
           case 'participant_update':
             setParticipants(data.participants);

@@ -99,6 +99,8 @@ const UserManagement = () => {
         await fetchUsers(); // Refresh user list from server
         showToast(`${userName} has been deleted`);
         notifyStatsUpdate(); // Notify dashboard to refresh stats
+        // Notify other admin UIs to refresh audit logs
+        try { window.dispatchEvent(new CustomEvent('auditRefresh')); } catch {}
       } else {
         const data = await res.json();
         showToast(data.detail || 'Failed to delete user', 'error');

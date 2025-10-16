@@ -187,6 +187,14 @@ export default function AdminLobbies(){
                     <div className="font-semibold text-lg text-[#1E5780]">Code: {l.code}</div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">{l.difficulty || 'Beginner'}</span>
+                      {/* lobby state: prefer explicit status or state fields, fall back to boolean running */}
+                      {(() => {
+                        const state = l.status || l.state || (l.running ? 'running' : 'ended');
+                        const isRunning = String(state).toLowerCase() === 'running' || String(state).toLowerCase() === 'active';
+                        return (
+                          <span className={`text-xs px-2 py-1 rounded-full ${isRunning ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-gray-100 text-gray-700 border border-gray-200'}`}>{isRunning ? 'Running' : 'Ended'}</span>
+                        );
+                      })()}
                       <button onClick={()=>closeLobby(l.code)} className="text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700">Close</button>
                     </div>
                   </div>

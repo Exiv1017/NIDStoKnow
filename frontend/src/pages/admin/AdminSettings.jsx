@@ -61,11 +61,19 @@ const AdminSettings = () => {
         .then(data => { if (data && typeof data === 'object') setNotifSettings(s => ({ ...s, ...data })); })
         .catch(() => {});
       setAuditLoading(true);
-      fetch(`/api/admin/audit-logs/${user.id}`, { headers })
-        .then(res => res.json())
-        .then(data => setAuditLogs(Array.isArray(data) ? data : []))
-        .catch(() => setAuditLogs([]))
-        .finally(() => setAuditLoading(false));
+      const fetchAudit = () => {
+        setAuditLoading(true);
+        fetch(`/api/admin/audit-logs/${user.id}`, { headers })
+          .then(res => res.json())
+          .then(data => setAuditLogs(Array.isArray(data) ? data : []))
+          .catch(() => setAuditLogs([]))
+          .finally(() => setAuditLoading(false));
+      };
+      fetchAudit();
+      // listen for external triggers to refresh audit logs (e.g., after user deletion)
+      const handler = () => fetchAudit();
+      window.addEventListener('auditRefresh', handler);
+      return () => window.removeEventListener('auditRefresh', handler);
     }
   }, [user]);
 
@@ -313,17 +321,6 @@ const AdminSettings = () => {
                 aria-label="Security Tab"
               >
                 Security
-              </button>
-              <button
-                onClick={() => setActiveTab('maintenance')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${
-                  activeTab === 'maintenance'
-                    ? 'bg-[#1E5780] text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-                aria-label="Maintenance Tab"
-              >
-                Maintenance
               </button>
               <button
                 onClick={() => setActiveTab('audit')}
@@ -624,16 +621,7 @@ const AdminSettings = () => {
               </div>
             )}
 
-            {activeTab === 'maintenance' && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold mb-2">Maintenance Tools</h3>
-                <div className="flex flex-wrap gap-3">
-                  <button className="px-4 py-2 rounded bg-amber-600 text-white opacity-70 cursor-not-allowed" title="Coming soon">Purge Expired Sessions</button>
-                  <button className="px-4 py-2 rounded bg-emerald-600 text-white opacity-70 cursor-not-allowed" title="Coming soon">Reindex Search</button>
-                  <button className="px-4 py-2 rounded bg-sky-600 text-white opacity-70 cursor-not-allowed" title="Coming soon">Run DB Backup Now</button>
-                </div>
-              </div>
-            )}
+            {/* Maintenance tab removed as requested */}
 
             {activeTab === 'audit' && (
               <div className="space-y-4">

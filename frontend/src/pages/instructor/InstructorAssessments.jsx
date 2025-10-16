@@ -263,7 +263,7 @@ export default function InstructorAssessments() {
               <div className="flex items-center gap-1 text-sm text-gray-500 ml-auto">
                 <span>Sort:</span>
                 {['due','student','module','status'].map(f => (
-                  <button key={f} onClick={() => toggleAssignSort(f)} className={`px-2 py-1 rounded border text-xs ${assignSort===f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}>{f}{assignSort===f ? (assignSortDir==='asc' ? ' ↑' : ' ↓') : ''}</button>
+                  <button key={f} onClick={() => toggleAssignSort(f)} className={`px-2 py-1 rounded border text-xs ${assignSort===f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}>{f.charAt(0).toUpperCase() + f.slice(1)}{assignSort===f ? (assignSortDir==='asc' ? ' ↑' : ' ↓') : ''}</button>
                 ))}
               </div>
               <button onClick={loadAssignments} className="px-3 py-2 border rounded hover:bg-gray-50">Refresh</button>
@@ -333,7 +333,7 @@ export default function InstructorAssessments() {
               <div className="flex items-center gap-1 text-sm text-gray-500 ml-auto">
                 <span>Sort:</span>
                 {['when','student','module','type'].map(f => (
-                  <button key={f} onClick={() => toggleSubsSort(f)} className={`px-2 py-1 rounded border text-xs ${subsSort===f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}>{f}{subsSort===f ? (subsSortDir==='asc' ? ' ↑' : ' ↓') : ''}</button>
+                  <button key={f} onClick={() => toggleSubsSort(f)} className={`px-2 py-1 rounded border text-xs ${subsSort===f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}>{f.charAt(0).toUpperCase() + f.slice(1)}{subsSort===f ? (subsSortDir==='asc' ? ' ↑' : ' ↓') : ''}</button>
                 ))}
               </div>
               <button onClick={loadSubmissions} className="px-3 py-2 border rounded hover:bg-gray-50">Refresh</button>

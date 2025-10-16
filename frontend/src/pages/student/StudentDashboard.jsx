@@ -743,14 +743,14 @@ const StudentDashboard = () => {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 w-full max-w-[240px]">
+                      <div className="flex items-center gap-3 w-full max-w-[280px]">
                         <div className="relative flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
                           <div
                             className="absolute inset-y-0 left-0 bg-[#1E5780] transition-all"
                             style={{ width: `${module.comprehensiveProgress}%` }}
                           />
                         </div>
-                        <span className="text-base font-semibold text-gray-900 w-[6ch] text-right whitespace-nowrap shrink-0">
+                        <span className="text-base font-semibold text-gray-900 min-w-[10ch] text-right flex-none whitespace-nowrap">
                           {module.comprehensiveProgress > 0 ? `${module.comprehensiveProgress}%` : 'Not Started'}
                         </span>
                       </div>

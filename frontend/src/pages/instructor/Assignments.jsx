@@ -109,13 +109,14 @@ export default function Assignments() {
           <h1 className="text-2xl font-bold">Assignments</h1>
           <div className="flex gap-2">
             <input className="border rounded px-3 py-2" placeholder="Search student/module" value={filters.q} onChange={e => setFilters({ ...filters, q: e.target.value })} />
-            <select className="border rounded px-3 py-2" value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })}>
+              <select className="border rounded px-3 py-2" value={filters.status} onChange={e => setFilters({ ...filters, status: e.target.value })}>
               <option value="all">All</option>
               <option value="assigned">Assigned</option>
               <option value="in-progress">In Progress</option>
               <option value="completed">Completed</option>
               <option value="overdue">Overdue</option>
             </select>
+              <button onClick={load} className="px-3 py-2 border rounded hover:bg-gray-50">Refresh</button>
           </div>
         </div>
         {error && <div className="mb-4 p-3 bg-red-50 text-red-700 border border-red-200 rounded">{error}</div>}

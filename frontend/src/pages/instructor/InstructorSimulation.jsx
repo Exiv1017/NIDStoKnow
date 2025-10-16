@@ -34,7 +34,7 @@ const InstructorSimulation = () => {
   const [chat, setChat] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
-  const [difficulty, setDifficulty] = useState('Beginner');
+  // difficulty removed from instructor simulation header
   const wsRef = useRef(null);
   
   // Helpers and actions
@@ -128,22 +128,7 @@ const InstructorSimulation = () => {
     
   // Connect to instructor simulation WebSocket using current origin
   wsRef.current = new WebSocket(buildWsUrl(`/instructor/simulation/${lobbyCode}`, user?.token));
-    // Apply saved difficulty from lobby settings on connect
-    wsRef.current.onopen = () => {
-      try {
-        const raw = sessionStorage.getItem('simConfig');
-        if (raw) {
-          const cfg = JSON.parse(raw);
-          if (!cfg || (cfg.lobbyCode && cfg.lobbyCode !== lobbyCode)) {
-            return;
-          }
-          if (cfg.difficulty) {
-            setDifficulty(cfg.difficulty);
-            wsRef.current?.send(JSON.stringify({ type: MessageTypes.INSTRUCTOR_CONTROL, action: 'set_difficulty', payload: { difficulty: cfg.difficulty } }));
-          }
-        }
-      } catch {}
-    };
+    // Difficulty handling removed - instructor config not shown in lobby
     
     wsRef.current.onmessage = (event) => {
       const data = JSON.parse(event.data);

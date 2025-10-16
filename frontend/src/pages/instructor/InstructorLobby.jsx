@@ -11,14 +11,12 @@ const InstructorLobby = () => {
   const [lobbyCode, setLobbyCode] = useState('');
   const [generated, setGenerated] = useState(false);
   const [participants, setParticipants] = useState([]);
-  const [currentDifficulty, setCurrentDifficulty] = useState('Beginner');
+  // difficulty/configuration removed from instructor lobby UI
   const [chat, setChat] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const chatEndRef = useRef(null);
   const wsRef = useRef(null);
-  // Config modal state
-  const [configOpen, setConfigOpen] = useState(false);
-  const [difficulty, setDifficulty] = useState('Beginner');
+  // Config modal/state removed
 
   const handleGenerateLobby = async () => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -45,12 +43,8 @@ const InstructorLobby = () => {
         
         switch (data.type) {
           case 'join_success':
-            setParticipants(data.participants);
-            if (data.difficulty) setCurrentDifficulty(data.difficulty);
-            break;
-          case 'difficulty_updated':
-            if (data.difficulty) setCurrentDifficulty(data.difficulty);
-            break;
+              setParticipants(data.participants);
+              break;
           case 'participant_update':
             setParticipants(data.participants);
             break;
@@ -286,7 +280,7 @@ const InstructorLobby = () => {
                 <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mt-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
                   <div className="space-y-3">
-                    <div className="text-sm text-gray-600">Current Difficulty: <span className="font-semibold">{currentDifficulty}</span></div>
+                    {/* difficulty removed from instructor quick actions */}
                     {(() => {
                       const readiness = checkSimulationReadiness();
                       return (
@@ -326,12 +320,7 @@ const InstructorLobby = () => {
                       );
                     })()}
                     
-                    <button
-                      className="w-full bg-yellow-50 hover:bg-yellow-100 text-yellow-700 py-2 px-4 rounded-lg font-medium transition-colors duration-200 text-left"
-                      onClick={() => setConfigOpen(true)}
-                    >
-                      Configure Settings
-                    </button>
+                    {/* Configure Settings removed */}
                     <button className="w-full bg-red-50 hover:bg-red-100 text-red-700 py-2 px-4 rounded-lg font-medium transition-colors duration-200 text-left" onClick={handleCloseLobby}>
                       Close Lobby
                     </button>
