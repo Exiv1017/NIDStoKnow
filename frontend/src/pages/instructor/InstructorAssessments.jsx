@@ -214,6 +214,15 @@ export default function InstructorAssessments() {
     </tbody>
   );
 
+  // Deduplicate by id to ensure each event only has one row
+  const uniqueById = (arr) => {
+    const seen = new Map();
+    for (const it of arr) {
+      if (!seen.has(it.id)) seen.set(it.id, it);
+    }
+    return Array.from(seen.values());
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <InstructorSidebar />
@@ -324,54 +333,137 @@ export default function InstructorAssessments() {
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2 items-center">
               <input value={subsSearchRaw} onChange={e=>setSubsSearchRaw(e.target.value)} placeholder="Search student/module" className="px-3 py-2 border rounded w-64" />
-              <select value={subsType} onChange={e=>setSubsType(e.target.value)} className="px-3 py-2 border rounded">
-                <option value="all">All Types</option>
-                <option value="practical">Practical</option>
-                <option value="assessment">Assessment</option>
-                <option value="simulation">Simulation</option>
-              </select>
               <div className="flex items-center gap-1 text-sm text-gray-500 ml-auto">
                 <span>Sort:</span>
-                {['when','student','module','type'].map(f => (
-                  <button key={f} onClick={() => toggleSubsSort(f)} className={`px-2 py-1 rounded border text-xs ${subsSort===f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}>{f.charAt(0).toUpperCase() + f.slice(1)}{subsSort===f ? (subsSortDir==='asc' ? ' ↑' : ' ↓') : ''}</button>
+                {['date','student','module','type'].map(f => (
+                  <button key={f} onClick={() => toggleSubsSort(f === 'date' ? 'when' : f)} className={`px-2 py-1 rounded border text-xs ${subsSort=== (f === 'date' ? 'when' : f) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}>{f.charAt(0).toUpperCase() + f.slice(1)}{subsSort=== (f === 'date' ? 'when' : f) ? (subsSortDir==='asc' ? ' ↑' : ' ↓') : ''}</button>
                 ))}
               </div>
               <button onClick={loadSubmissions} className="px-3 py-2 border rounded hover:bg-gray-50">Refresh</button>
             </div>
-            <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50/60">
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4">When</th>
-                    <th className="text-left py-3 px-4">Student</th>
-                    <th className="text-left py-3 px-4">Module</th>
-                    <th className="text-left py-3 px-4">Type</th>
-                    <th className="text-left py-3 px-4">Rules</th>
-                    <th className="text-left py-3 px-4">Matches</th>
-                    <th className="text-left py-3 px-4">Attacker Pts</th>
-                    <th className="text-left py-3 px-4">Defender Pts</th>
-                  </tr>
-                </thead>
-                {subsLoading ? <SkeletonRows cols={8} rows={6} /> : (
-                  <tbody>
-                    {filteredSubs.map(s => (
-                      <tr key={s.id} className="border-b last:border-b-0 hover:bg-gray-50/50 transition-colors">
-                        <td className="py-3 px-4 whitespace-nowrap text-xs text-gray-600">{new Date(s.createdAt).toLocaleString()}</td>
-                        <td className="py-3 px-4 font-medium whitespace-nowrap">{s.studentName}</td>
-                        <td className="py-3 px-4 whitespace-nowrap">{s.moduleTitle}</td>
-                        <td className="py-3 px-4 whitespace-nowrap"><TypeBadge type={s.submissionType} /></td>
-                        <td className="py-3 px-4">{s.ruleCount ?? '-'}</td>
-                        <td className="py-3 px-4">{s.totalMatches ?? '-'}</td>
-                        <td className="py-3 px-4 whitespace-nowrap">{s.attackerScore ?? '-'}</td>
-                        <td className="py-3 px-4 whitespace-nowrap">{s.defenderScore ?? '-'}</td>
-                      </tr>
-                    ))}
-                    {(!subsLoading && filteredSubs.length === 0) && (
-                      <tr><td colSpan={8} className="py-10 text-center text-gray-400 text-sm">No submissions match your filters.</td></tr>
-                    )}
-                  </tbody>
+
+            <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-x-auto">
+              <div className="p-4">
+                <h2 className="text-lg font-semibold mb-3">Practical Submissions</h2>
+                {subsLoading ? (
+                  <div className="py-6 text-center text-gray-400">Loading…</div>
+                ) : (
+                  (() => {
+                    const base = subs.filter(s => {
+                      const matchesQ = subsSearchRaw.trim() === '' || `${s.studentName} ${s.moduleTitle} ${s.moduleSlug}`.toLowerCase().includes(subsSearchRaw.toLowerCase());
+                      return matchesQ && s.submissionType === 'practical';
+                    });
+                    const practicalSubs = uniqueById(base);
+                    if (practicalSubs.length === 0) return <div className="py-6 text-center text-gray-400">No practical submissions.</div>;
+                    return (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-3 px-4">Date</th>
+                            <th className="text-left py-3 px-4">Student</th>
+                            <th className="text-left py-3 px-4">Module</th>
+                            <th className="text-left py-3 px-4">Type</th>
+                            <th className="text-left py-3 px-4">Rule</th>
+                            <th className="text-left py-3 px-4">Matches</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {practicalSubs.map(s => (
+                            <tr key={s.id} className="border-b hover:bg-gray-50">
+                              <td className="py-3 px-4 text-xs text-gray-600">{new Date(s.createdAt).toLocaleString()}</td>
+                              <td className="py-3 px-4 font-medium">{s.studentName}</td>
+                              <td className="py-3 px-4">{s.moduleTitle}</td>
+                              <td className="py-3 px-4 whitespace-nowrap"><TypeBadge type={s.submissionType} /></td>
+                              <td className="py-3 px-4">{s.ruleCount ?? '-'}</td>
+                              <td className="py-3 px-4">{s.totalMatches ?? '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    );
+                  })()
                 )}
-              </table>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Attacker */}
+              <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-x-auto">
+                <div className="p-4">
+                  <h3 className="text-lg font-semibold mb-3">Attacker Submissions</h3>
+                  {subsLoading ? (
+                    <div className="py-6 text-center text-gray-400">Loading…</div>
+                  ) : (
+                    (() => {
+                      const base = subs.filter(s => {
+                        const matchesQ = subsSearchRaw.trim() === '' || `${s.studentName} ${s.moduleTitle} ${s.moduleSlug}`.toLowerCase().includes(subsSearchRaw.toLowerCase());
+                        return matchesQ && s.submissionType === 'simulation';
+                      });
+                      const attackerSubs = uniqueById(base);
+                      if (attackerSubs.length === 0) return <div className="py-6 text-center text-gray-400">No attacker submissions.</div>;
+                      return (
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left py-3 px-4">Date</th>
+                              <th className="text-left py-3 px-4">Student</th>
+                              <th className="text-left py-3 px-4">Points</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {attackerSubs.map(s => (
+                              <tr key={s.id} className="border-b hover:bg-gray-50">
+                                <td className="py-3 px-4 text-xs text-gray-600">{new Date(s.createdAt).toLocaleString()}</td>
+                                <td className="py-3 px-4 font-medium">{s.studentName}</td>
+                                <td className="py-3 px-4 whitespace-nowrap">{s.attackerScore ?? '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      );
+                    })()
+                  )}
+                </div>
+              </div>
+
+              {/* Defender */}
+              <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-x-auto">
+                <div className="p-4">
+                  <h3 className="text-lg font-semibold mb-3">Defender Submissions</h3>
+                  {subsLoading ? (
+                    <div className="py-6 text-center text-gray-400">Loading…</div>
+                  ) : (
+                    (() => {
+                      const base = subs.filter(s => {
+                        const matchesQ = subsSearchRaw.trim() === '' || `${s.studentName} ${s.moduleTitle} ${s.moduleSlug}`.toLowerCase().includes(subsSearchRaw.toLowerCase());
+                        return matchesQ && s.submissionType === 'simulation';
+                      });
+                      const defenderSubs = uniqueById(base);
+                      if (defenderSubs.length === 0) return <div className="py-6 text-center text-gray-400">No defender submissions.</div>;
+                      return (
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left py-3 px-4">Date</th>
+                              <th className="text-left py-3 px-4">Student</th>
+                              <th className="text-left py-3 px-4">Points</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {defenderSubs.map(s => (
+                              <tr key={s.id} className="border-b hover:bg-gray-50">
+                                <td className="py-3 px-4 text-xs text-gray-600">{new Date(s.createdAt).toLocaleString()}</td>
+                                <td className="py-3 px-4 font-medium">{s.studentName}</td>
+                                <td className="py-3 px-4 whitespace-nowrap">{s.defenderScore ?? '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      );
+                    })()
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
