@@ -60,9 +60,18 @@ const StudentProgress = () => {
       return true;
     });
     const dir = sortDir === 'asc' ? 1 : -1;
-    return [...base].sort((a,b) => {
+    // Compute fallback progress when server progress is zero or missing
+    const withComputed = base.map(s => {
+      const rawProg = Number(s.progress) || 0;
+      const completed = Number(s.completedModules) || 0;
+      const total = Number(s.totalModules) || 0;
+      const fallback = total > 0 ? Math.round((completed / total) * 100) : 0;
+      return { ...s, computedProgress: rawProg || fallback };
+    });
+
+    return [...withComputed].sort((a,b) => {
       let av, bv;
-      if (sortField === 'progress') { av = Number(a.progress)||0; bv = Number(b.progress)||0; }
+      if (sortField === 'progress') { av = Number(a.computedProgress)||0; bv = Number(b.computedProgress)||0; }
       else if (sortField === 'lastActive') { av = Date.parse(a.lastActive || '') || 0; bv = Date.parse(b.lastActive || '') || 0; }
       else if (sortField === 'lastSubmission') { av = Date.parse(a.lastSubmission || '') || 0; bv = Date.parse(b.lastSubmission || '') || 0; }
       else { av = (a.name || '').toLowerCase(); bv = (b.name || '').toLowerCase(); }
@@ -78,7 +87,14 @@ const StudentProgress = () => {
     const sevenDays = 7 * 24 * 3600 * 1000;
     let sum=0, completed=0, active7=0;
     students.forEach(s => {
-      const p = Number(s.progress)||0; sum+=p; if (p===100) completed++; const last = Date.parse(s.lastActive || '') || 0; if (last && (now-last) <= sevenDays) active7++; });
+      const rawProg = Number(s.progress) || 0;
+      const completedModules = Number(s.completedModules) || 0;
+      const totalModules = Number(s.totalModules) || 0;
+      const p = rawProg || (totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0);
+      sum += p;
+      if (p === 100) completed++;
+      const last = Date.parse(s.lastActive || '') || 0; if (last && (now-last) <= sevenDays) active7++;
+    });
     return { total: students.length, avg: Math.round(sum/students.length), completed, active7 };
   }, [students]);
 
