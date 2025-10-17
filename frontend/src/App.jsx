@@ -29,7 +29,7 @@ import InstructorDashboard from './pages/instructor/InstructorDashboard';
 import ManageModules from './pages/instructor/ManageModules';
 import InstructorAssessments from './pages/instructor/InstructorAssessments';
 import StudentProgress from './pages/instructor/StudentProgress';
-import CreateContent from './pages/instructor/CreatweContent';
+import CreateContent from './pages/instructor/CreateContent';
 import Settings from './pages/instructor/Settings';
 import InstructorLobby from './pages/instructor/InstructorLobby';
 import InstructorSimulation from './pages/instructor/InstructorSimulation';
