@@ -36,6 +36,7 @@ const InstructorSimulation = () => {
   const [broadcastMessage, setBroadcastMessage] = useState('');
   const [toast, setToast] = useState(null);
   const [endedConfirmed, setEndedConfirmed] = useState(false);
+  const [difficulty, setDifficulty] = useState('Beginner');
   // difficulty removed from instructor simulation header
   const wsRef = useRef(null);
   

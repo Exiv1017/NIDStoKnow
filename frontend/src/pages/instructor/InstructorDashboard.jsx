@@ -34,17 +34,14 @@ const InstructorDashboard = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   // --- Student progress state ---
-  const [studentProgress, setStudentProgress] = useState([]);
-  const [loadingProgress, setLoadingProgress] = useState(true);
-  const [progressError, setProgressError] = useState(null);
+  // student progress feature removed
 
   // --- State for dynamic dashboard data ---
   const [modules, setModules] = useState([]);
-  const [stats, setStats] = useState({ totalStudents: 0, activeModules: 0, avgCompletion: 0, feedbackCount: 0 });
+  const [stats, setStats] = useState({ totalStudents: 0, activeModules: 0, avgCompletion: 0, feedbackCount: 0, atRisk: 0 });
   const [notifications, setNotifications] = useState([]);
   const [assessmentTrend, setAssessmentTrend] = useState([]); // Array of numbers (avg scores per week)
   const [recentActivity, setRecentActivity] = useState([]);
-  const [atRiskCount, setAtRiskCount] = useState(0);
   const [moduleRequestCounts, setModuleRequestCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
 
   // Helper: build Authorization header if token present
@@ -90,7 +87,7 @@ const InstructorDashboard = () => {
       .then(data => Array.isArray(data) ? setModules(data) : setModules([]))
       .catch((err) => { setModules([]); console.error('Modules fetch error:', err); });
     // Fetch stats
-    fetchStats();
+  fetchStats();
   // Fetch notifications initially
   fetchNotifications();
   fetchNotificationsCount();
@@ -109,7 +106,7 @@ const InstructorDashboard = () => {
       })
       .catch(()=> setModuleRequestCounts({ pending:0, approved:0, rejected:0 }));
     // Fetch assessment performance trend (quiz scores). Fallback to feedback-trend if needed.
-    fetch('/api/instructor/assessment-trend', { headers: authHeader() })
+  fetch('/api/instructor/assessment-trend', { headers: authHeader() })
       .then(res => res.ok ? res.json() : [])
       .then(data => {
         if(Array.isArray(data) && data.length){
@@ -172,12 +169,7 @@ const InstructorDashboard = () => {
     return name || '';
   };
 
-  // Robust student display name resolution (handles different backend shapes)
-  const getStudentDisplayName = (row) => {
-    if (!row) return '';
-    // Common possibilities from APIs
-    return row.studentName || row.student_name || row.name || (row.student && (row.student.name || row.student.displayName)) || '';
-  };
+  // student display helper removed with progress feature
 
   const studentEnrollmentData = {
     // Show full names in the legend
@@ -218,43 +210,7 @@ const InstructorDashboard = () => {
     ],
   };
 
-  // --- Fetch student progress from backend ---
-  useEffect(() => {
-    setLoadingProgress(true);
-    fetch('/api/instructor/progress', {
-      headers: authHeader()
-    })
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch progress');
-        return res.json();
-      })
-      .then(data => {
-        setStudentProgress(data);
-        setLoadingProgress(false);
-      })
-      .catch(err => {
-        setProgressError(err.message);
-        setLoadingProgress(false);
-      });
-  }, []);
-
-  // Derive At-Risk Students count from studentProgress
-  useEffect(() => {
-    if (!Array.isArray(studentProgress)) {
-      setAtRiskCount(0);
-      return;
-    }
-    const count = studentProgress.reduce((acc, row) => {
-      const total = Number(row.totalLessons) || 0;
-      const completed = Number(row.lessonsCompleted) || 0;
-      const engagement = Number(row.engagementScore) || 0;
-      const timeSpent = Number(row.timeSpent) || 0; // seconds
-      const progressPct = total > 0 ? (completed / total) * 100 : 0;
-      const isAtRisk = total > 0 && (progressPct < 20) && (engagement <= 1 || timeSpent < 120);
-      return acc + (isAtRisk ? 1 : 0);
-    }, 0);
-    setAtRiskCount(count);
-  }, [studentProgress]);
+  // student progress data and at-risk computation removed
 
   // Helper function to format notification time
   const formatNotificationTime = (timeString) => {
@@ -307,14 +263,7 @@ const InstructorDashboard = () => {
     }
   };
 
-  // Format seconds into h m s
-  const formatDuration = (seconds) => {
-    const total = Math.max(0, Math.round(Number(seconds) || 0));
-    const h = Math.floor(total / 3600);
-    const m = Math.floor((total % 3600) / 60);
-    const s = total % 60;
-    return `${h}h ${m}m ${s}s`;
-  };
+  // formatDuration removed with progress feature
 
   // Function to mark a specific notification as read (without deletion)
   const markNotificationRead = async (notificationId) => {
@@ -415,7 +364,7 @@ const InstructorDashboard = () => {
             </div>
             <div className="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-shadow border border-gray-100 flex flex-col items-center">
               <h3 className="text-lg font-medium text-gray-600 mb-1">At‑Risk Students</h3>
-              <p className="text-4xl font-extrabold text-[#1E5780] mt-2">{atRiskCount}</p>
+              <p className="text-4xl font-extrabold text-[#1E5780] mt-2">{stats.atRisk}</p>
               <span className="text-xs text-gray-400 mt-1">Progress &lt; 20% &amp; low engagement</span>
             </div>
             <div className="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-shadow border border-gray-100 flex flex-col items-center">
@@ -495,46 +444,7 @@ const InstructorDashboard = () => {
           </div>
 
           {/* Learning Progress Table */}
-          <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow border border-gray-100 mb-12">
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-bold text-[#1E5780]">Learning Progress</h2>
-            </div>
-            <div className="p-6 overflow-x-auto">
-              {loadingProgress ? (
-                <div className="text-gray-500">Loading student progress...</div>
-              ) : progressError ? (
-                <div className="text-red-500">{progressError}</div>
-              ) : (
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead>
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Student</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Module</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Completed</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words max-w-xs">Last Route</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider break-words">Time Spent</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-100">
-                    {studentProgress.length === 0 ? (
-                      <tr><td colSpan={5} className="text-center text-gray-400 py-4">No student progress data available.</td></tr>
-                    ) : (
-                      studentProgress.map((row, idx) => (
-                        <tr key={idx}>
-                          <td className="px-4 py-2 break-words font-medium text-gray-800">{getStudentDisplayName(row)}</td>
-                          <td className="px-4 py-2 break-words">{row.moduleLabel || row.moduleName}</td>
-                          <td className="px-4 py-2 break-words">{typeof row.completionPct === 'number' ? row.completionPct : (row.totalLessons ? Math.round((row.lessonsCompleted / row.totalLessons) * 100) : 0)}%</td>
-                          <td className="px-4 py-2 break-words max-w-xs">{row.lastRoute || row.lastLesson}</td>
-                          <td className="px-4 py-2 break-words">{formatDuration(row.timeSpent)}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              )}
-              <div className="text-xs text-gray-400 mt-2">* This data is live from backend. Add more columns as needed.</div>
-            </div>
-          </div>
+          {/* Learning Progress feature removed per request */}
         </div>
       </main>
     </div>
