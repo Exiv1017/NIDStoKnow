@@ -1288,15 +1288,35 @@ def get_students_summary():
                 u.name,
                 u.email,
                 COALESCE(
-                    ROUND(AVG(CASE WHEN sp.total_lessons > 0 THEN sp.lessons_completed / sp.total_lessons * 100 ELSE 0 END)), 0
+                    ROUND(AVG(
+                        CASE
+                            WHEN COALESCE(sp.total_lessons,0) > 0 THEN (sp.lessons_completed / sp.total_lessons * 100)
+                            ELSE ((COALESCE(sp.overview_completed,0) + COALESCE(sp.practical_completed,0) + COALESCE(sp.assessment_completed,0)) / 3.0 * 100)
+                        END
+                    )), 0
                 ) as progress,
-                COUNT(CASE WHEN sp.lessons_completed = sp.total_lessons AND sp.total_lessons > 0 THEN 1 END) as completedModules,
-                COUNT(sp.module_name) as totalModules,
-                MAX(sp.updated_at) as lastActive,
-                MAX(s.created_at) as lastSubmission
+                SUM(
+                    CASE WHEN (
+                        (COALESCE(sp.total_lessons,0) > 0 AND COALESCE(sp.lessons_completed,0) >= COALESCE(sp.total_lessons,0))
+                        OR (COALESCE(sp.overview_completed,0)=1 AND COALESCE(sp.practical_completed,0)=1 AND COALESCE(sp.assessment_completed,0)=1)
+                    ) THEN 1 ELSE 0 END
+                ) as completedModules,
+                COUNT(DISTINCT sp.module_name) as totalModules,
+                                MAX(sp.updated_at) as lastActive,
+                                -- Use the most recent created_at from submissions or simulation_sessions
+                                CASE WHEN MAX(s.created_at) IS NULL AND MAX(ss.created_at) IS NULL THEN NULL
+                                         ELSE GREATEST(COALESCE(MAX(s.created_at),'1970-01-01'), COALESCE(MAX(ss.created_at),'1970-01-01'))
+                                END AS lastSubmission,
+                                -- Indicate whether the latest submission was a practical/assessment (submissions) or a simulation
+                                CASE
+                                    WHEN (COALESCE(MAX(s.created_at),'1970-01-01') >= COALESCE(MAX(ss.created_at),'1970-01-01') AND MAX(s.created_at) IS NOT NULL) THEN 'practical'
+                                    WHEN (MAX(ss.created_at) IS NOT NULL) THEN 'simulation'
+                                    ELSE NULL
+                                END AS lastSubmissionType
             FROM users u
-            LEFT JOIN student_progress sp ON u.id = sp.student_id
-            LEFT JOIN submissions s ON u.id = s.student_id
+                        LEFT JOIN student_progress sp ON u.id = sp.student_id
+                        LEFT JOIN submissions s ON u.id = s.student_id
+                        LEFT JOIN simulation_sessions ss ON u.id = ss.student_id
             WHERE u.userType = 'student' AND u.status = 'approved'
             GROUP BY u.id, u.name, u.email
             ORDER BY u.name ASC

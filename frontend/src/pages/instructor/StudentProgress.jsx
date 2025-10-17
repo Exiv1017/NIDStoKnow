@@ -223,7 +223,14 @@ const StudentProgress = () => {
                           </span>
                         </td>
                         <td className="py-4 px-4 text-gray-700">{student.lastActive}</td>
-                        <td className="py-4 px-4 text-gray-700">{student.lastSubmission ? new Date(student.lastSubmission).toLocaleDateString() : '—'}</td>
+                        <td className="py-4 px-4 text-gray-700">
+                          {student.lastSubmission ? (
+                            <>
+                              <span className="text-sm text-gray-600 mr-2">{(student.lastSubmissionType || 'Submission').replace(/^[a-z]/, s => s.toUpperCase())}</span>
+                              <span className="text-sm">{new Date(student.lastSubmission).toLocaleDateString()}</span>
+                            </>
+                          ) : '—'}
+                        </td>
                         <td className="py-4 px-4">
                           <div className="flex space-x-2">
                             <button
