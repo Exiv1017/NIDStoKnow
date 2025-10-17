@@ -172,6 +172,13 @@ const InstructorDashboard = () => {
     return name || '';
   };
 
+  // Robust student display name resolution (handles different backend shapes)
+  const getStudentDisplayName = (row) => {
+    if (!row) return '';
+    // Common possibilities from APIs
+    return row.studentName || row.student_name || row.name || (row.student && (row.student.name || row.student.displayName)) || '';
+  };
+
   const studentEnrollmentData = {
     // Show full names in the legend
     labels: Array.isArray(modules) ? modules.map((m) => m.name) : [],
@@ -514,7 +521,7 @@ const InstructorDashboard = () => {
                     ) : (
                       studentProgress.map((row, idx) => (
                         <tr key={idx}>
-                          <td className="px-4 py-2 break-words font-medium text-gray-800">{row.studentName}</td>
+                          <td className="px-4 py-2 break-words font-medium text-gray-800">{getStudentDisplayName(row)}</td>
                           <td className="px-4 py-2 break-words">{row.moduleLabel || row.moduleName}</td>
                           <td className="px-4 py-2 break-words">{typeof row.completionPct === 'number' ? row.completionPct : (row.totalLessons ? Math.round((row.lessonsCompleted / row.totalLessons) * 100) : 0)}%</td>
                           <td className="px-4 py-2 break-words max-w-xs">{row.lastRoute || row.lastLesson}</td>
