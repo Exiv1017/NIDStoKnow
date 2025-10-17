@@ -890,10 +890,15 @@ def instructor_modules():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute('''
-        SELECT 
+        SELECT
             module_name AS name,
-            COUNT(DISTINCT student_id) AS students,
-            ROUND(AVG(lessons_completed / total_lessons * 100)) AS completion
+            COUNT(*) AS students,
+            -- percent of students who have completed all lessons for the module
+            ROUND(
+              SUM(CASE WHEN COALESCE(total_lessons,0) > 0 AND COALESCE(lessons_completed,0) >= total_lessons THEN 1 ELSE 0 END)
+              / GREATEST(COUNT(*),1)
+              * 100
+            ) AS completion
         FROM student_progress
         GROUP BY module_name
     ''')
