@@ -9,25 +9,23 @@ export default function Submissions() {
   const [type, setType] = useState('all');
 
   useEffect(() => {
+    const fetchSubs = async () => {
+      setLoading(true);
+      try {
+  const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+  const res = await fetch(`${API_BASE}/api/instructor/submissions`.replace(/([^:]?)\/\/+/g,'$1/'));
+        if (!res.ok) throw new Error('Failed to fetch submissions');
+        const data = await res.json();
+        setSubs(Array.isArray(data) ? data : []);
+        setError(null);
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchSubs();
   }, []);
-
-  // Lifted fetch so Refresh button can call it
-  async function fetchSubs() {
-    setLoading(true);
-    try {
-      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
-      const res = await fetch(`${API_BASE}/api/instructor/submissions`.replace(/([^:]?)\/\/+/g,'$1/'));
-      if (!res.ok) throw new Error('Failed to fetch submissions');
-      const data = await res.json();
-      setSubs(Array.isArray(data) ? data : []);
-      setError(null);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const filtered = subs.filter(s => {
     const matchesQ = q.trim() === '' || `${s.studentName} ${s.moduleTitle} ${s.moduleSlug}`.toLowerCase().includes(q.toLowerCase());
@@ -57,7 +55,7 @@ export default function Submissions() {
         <div className="p-4 sm:p-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <h1 className="text-3xl font-bold">Submissions</h1>
-            <div className="flex gap-2 w-full sm:w-auto items-center">
+            <div className="flex gap-2 w-full sm:w-auto">
               <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search by student or module" className="px-3 py-2 border rounded w-full sm:w-72" />
               <select value={type} onChange={e=>setType(e.target.value)} className="px-3 py-2 border rounded">
                 <option value="all">All types</option>
@@ -65,7 +63,6 @@ export default function Submissions() {
                 <option value="assessment">Assessment</option>
                 <option value="simulation">Simulation</option>
               </select>
-              <button onClick={() => fetchSubs()} className="px-3 py-2 bg-white border rounded ml-2 hover:bg-gray-50">Refresh</button>
             </div>
           </div>
           <div className="space-y-6">
