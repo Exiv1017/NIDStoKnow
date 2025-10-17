@@ -34,6 +34,8 @@ const InstructorSimulation = () => {
   const [chat, setChat] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [toast, setToast] = useState(null);
+  const [endedConfirmed, setEndedConfirmed] = useState(false);
   // difficulty removed from instructor simulation header
   const wsRef = useRef(null);
   
@@ -107,6 +109,15 @@ const InstructorSimulation = () => {
     addLogEvent('warning', 'Simulation ended by instructor');
   };
 
+  const handleLeave = () => {
+    if (!confirm('Leave the simulation? Progress in this session may be lost.')) return;
+    try { wsRef.current?.close(); } catch (e) {}
+    setToast({ message: 'You left the simulation', type: 'info' });
+    setTimeout(() => {
+      try { setToast(null); } catch {}
+      navigate('/instructor/lobby');
+    }, 800);
+  };
   // Broadcast removed per spec
 
   const sendChatMessage = () => {
@@ -255,7 +266,21 @@ const InstructorSimulation = () => {
                   {simulationStatus === 'paused' && (
                     <button onClick={resumeSimulation} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition-colors">Resume</button>
                   )}
-                  <button onClick={endSimulation} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-semibold transition-colors">End</button>
+                  {/* Show End button until instructor confirms end; after confirming it becomes Leave */}
+                  {!endedConfirmed ? (
+                    <button onClick={() => {
+                      // confirmation wrapper: ask then send end and mark confirmed
+                      if (!confirm('End the simulation for all participants? This will force participants back to the lobby.')) return;
+                      try { wsRef.current?.send(JSON.stringify({ type: MessageTypes.INSTRUCTOR_CONTROL, action: 'end' })); } catch {}
+                      endSimulation();
+                      setEndedConfirmed(true);
+                      // also show a toast informing instructor
+                      setToast({ message: 'Simulation ended for participants', type: 'info' });
+                      setTimeout(() => setToast(null), 1500);
+                    }} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-semibold transition-colors">End</button>
+                  ) : (
+                    <button onClick={handleLeave} className="ml-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm border border-gray-500">Leave</button>
+                  )}
                 </div>
               </div>
             </div>
@@ -403,6 +428,11 @@ const InstructorSimulation = () => {
           </div>
         </div>
       </main>
+        {toast && (
+          <div className="fixed top-4 right-4 z-[60]">
+            <div className={`px-4 py-2 rounded shadow border ${toast.type === 'warning' ? 'bg-yellow-900 border-yellow-600 text-yellow-100' : 'bg-gray-800 border-gray-600 text-gray-100'}`}>{toast.message}</div>
+          </div>
+        )}
     </div>
   );
 };

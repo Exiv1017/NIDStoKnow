@@ -940,19 +940,26 @@ def instructor_stats():
     cursor.execute('SELECT COUNT(DISTINCT module_name) AS activeModules FROM student_progress')
     active_modules = cursor.fetchone()['activeModules']
 
-    # Recalculate average completion as: (total fully-completed module instances) / (total_students * active_modules) * 100
-    # This expresses how many student-module pairs are fully completed out of all possible student-module pairs.
-    completed_instances = 0
+    # Recalculate average completion as the average per-student-per-module completion fraction (0..1)
+    # For each student-module pair present in student_progress we compute:
+    # - If total_lessons > 0: lessons_completed / total_lessons
+    # - Else: average of overview/practical/assessment flags (0..1)
+    # We sum those fractions and divide by total_students * active_modules so missing rows count as 0.
+    avg_completion = 0
     if active_modules and total_students:
         cursor.execute('''
-            SELECT SUM(CASE WHEN COALESCE(total_lessons,0) > 0 AND COALESCE(lessons_completed,0) >= total_lessons THEN 1 ELSE 0 END) AS completed_instances
+            SELECT SUM(
+              CASE
+                WHEN COALESCE(total_lessons,0) > 0 THEN LEAST(1.0, COALESCE(lessons_completed,0) / NULLIF(total_lessons,0))
+                ELSE ((COALESCE(overview_completed,0) + COALESCE(practical_completed,0) + COALESCE(assessment_completed,0)) / 3.0)
+              END
+            ) AS sum_frac
             FROM student_progress
         ''')
-        completed_instances = int(cursor.fetchone().get('completed_instances') or 0)
+        row = cursor.fetchone() or {}
+        sum_frac = float(row.get('sum_frac') or 0.0)
         total_possible = total_students * active_modules
-        avg_completion = round((completed_instances / max(total_possible, 1)) * 100)
-    else:
-        avg_completion = 0
+        avg_completion = round((sum_frac / max(total_possible, 1)) * 100)
 
     feedback_count = 0  # No feedback table
 
@@ -1295,12 +1302,10 @@ def get_students_summary():
                         END
                     )), 0
                 ) as progress,
-                SUM(
-                    CASE WHEN (
+                COUNT(DISTINCT CASE WHEN (
                         (COALESCE(sp.total_lessons,0) > 0 AND COALESCE(sp.lessons_completed,0) >= COALESCE(sp.total_lessons,0))
                         OR (COALESCE(sp.overview_completed,0)=1 AND COALESCE(sp.practical_completed,0)=1 AND COALESCE(sp.assessment_completed,0)=1)
-                    ) THEN 1 ELSE 0 END
-                ) as completedModules,
+                    ) THEN sp.module_name ELSE NULL END) as completedModules,
                 COUNT(DISTINCT sp.module_name) as totalModules,
                                 MAX(sp.updated_at) as lastActive,
                                 -- Use the most recent created_at from submissions or simulation_sessions

@@ -116,7 +116,10 @@ const AttackSimulation = () => {
         case MessageTypes.SESSION_STATE:
           if ((data.status || '').toLowerCase() === 'paused') setPaused(true);
           if ((data.status || '').toLowerCase() === 'running') { setPaused(false); setShowGuide(true); }
-          if ((data.status || '').toLowerCase() === 'ended') { showToast('Simulation ended', 'warning'); setTimeout(() => navigate('/student/lobby'), 1200); }
+          if ((data.status || '').toLowerCase() === 'ended') {
+            showToast('Simulation ended by instructor — leaving in 3s', 'warning', 3000);
+            setTimeout(() => navigate('/student/lobby'), 3000);
+          }
           break;
         case MessageTypes.SIMULATION_PAUSED: setPaused(true); break;
         case MessageTypes.SIMULATION_RESUMED: setPaused(false); break;
@@ -143,7 +146,9 @@ const AttackSimulation = () => {
               }).catch(() => {});
             }
           } catch {}
-          showToast('Simulation ended', 'warning'); setTimeout(() => navigate('/student/lobby'), 1200); break;
+          showToast('Simulation ended by instructor — leaving in 3s', 'warning', 3000);
+          setTimeout(() => navigate('/student/lobby'), 3000);
+          break;
         case MessageTypes.BROADCAST:
           setChat((prev) => [...prev, { id: Date.now(), sender: 'Broadcast', message: data.message, timestamp: new Date() }]);
           break;

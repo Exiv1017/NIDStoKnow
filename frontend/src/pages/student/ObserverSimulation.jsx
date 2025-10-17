@@ -106,10 +106,10 @@ const ObserverSimulation = () => {
           if (s === 'ended') {
             setPaused(false);
             // Non-blocking end notice
-            setToastMsg('Simulation ended by instructor');
+            setToastMsg('Simulation ended by instructor — leaving in 3s');
             setShowToast(true);
             generateFinalReport();
-            setTimeout(() => navigate('/student/lobby'), 2500);
+            setTimeout(() => navigate('/student/lobby'), 3000);
           }
           break;
         }
@@ -121,10 +121,10 @@ const ObserverSimulation = () => {
           break;
         case MessageTypes.SIMULATION_ENDED:
           setPaused(false);
-          setToastMsg('Simulation ended by instructor');
+          setToastMsg('Simulation ended by instructor — leaving in 3s');
           setShowToast(true);
           generateFinalReport();
-          setTimeout(() => navigate('/student/lobby'), 2500);
+          setTimeout(() => navigate('/student/lobby'), 3000);
           break;
         case MessageTypes.SCORE_UPDATE: {
           const pname = data.name;

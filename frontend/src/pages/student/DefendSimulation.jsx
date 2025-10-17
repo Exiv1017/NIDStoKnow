@@ -76,8 +76,8 @@ const DefendSimulation = () => {
           if (data.status === 'paused') setPaused(true);
           if (data.status === 'running') setPaused(false);
           if (data.status === 'ended') {
-            showToast('Simulation ended', 'warning');
-            setTimeout(() => navigate('/student/lobby'), 1200);
+            showToast('Simulation ended by instructor — leaving in 3s', 'warning', 3000);
+            setTimeout(() => navigate('/student/lobby'), 3000);
           }
           break;
         case MessageTypes.JOIN_ACK:
@@ -112,8 +112,8 @@ const DefendSimulation = () => {
               }).catch(() => {});
             }
           } catch {}
-          showToast('Simulation ended', 'warning');
-          setTimeout(() => navigate('/student/lobby'), 1200);
+          showToast('Simulation ended by instructor — leaving in 3s', 'warning', 3000);
+          setTimeout(() => navigate('/student/lobby'), 3000);
           break;
         case MessageTypes.ATTACK_EVENT:
           handleNewAttackEvent(data.event);
