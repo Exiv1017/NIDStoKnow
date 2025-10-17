@@ -24,8 +24,10 @@ const SignatureAssessment = ({ modules, setModules }) => {
     try {
       const userId = user?.id || getActiveStudentId();
       if (userId) {
+        const headers = { 'Content-Type': 'application/json' };
+        if (user?.token) headers['Authorization'] = `Bearer ${user.token}`;
         fetch(`/api/student/${userId}/module/${slug}/unit`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers,
           body: JSON.stringify({ unit_type: 'quiz', unit_code: 'summary', completed: true })
         }).then(()=>{
           try { window.dispatchEvent(new CustomEvent('moduleUnitUpdated', { detail: { module: slug, unit: 'quiz', code: 'summary' } })); } catch {}
@@ -43,8 +45,10 @@ const SignatureAssessment = ({ modules, setModules }) => {
     // Server assessment unit only
     const userId = user?.id || getActiveStudentId();
     if (userId) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (user?.token) headers['Authorization'] = `Bearer ${user.token}`;
       fetch(`/api/student/${userId}/module/${slug}/unit`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers,
         body: JSON.stringify({ unit_type: 'assessment', completed: true })
       }).then(()=>{
         try { window.dispatchEvent(new CustomEvent('moduleUnitUpdated', { detail: { module: slug, unit: 'assessment' } })); } catch {}

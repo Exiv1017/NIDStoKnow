@@ -889,20 +889,40 @@ def get_all_student_progress():
 def instructor_modules():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+
+    # Get total approved students (use same logic as stats)
+    cursor.execute("SELECT COUNT(*) AS totalStudents FROM users WHERE userType = 'student' AND status = 'approved'")
+    total_row = cursor.fetchone() or {'totalStudents': 0}
+    total_students = int(total_row.get('totalStudents', 0) or 0)
+
+    # For each module, return the raw counts: number of students with progress rows and how many finished
     cursor.execute('''
         SELECT
             module_name AS name,
-            COUNT(*) AS students,
-            -- percent of students who have completed all lessons for the module
-            ROUND(
-              SUM(CASE WHEN COALESCE(total_lessons,0) > 0 AND COALESCE(lessons_completed,0) >= total_lessons THEN 1 ELSE 0 END)
-              / GREATEST(COUNT(*),1)
-              * 100
-            ) AS completion
+            COUNT(DISTINCT student_id) AS students_with_progress,
+            SUM(CASE WHEN COALESCE(total_lessons,0) > 0 AND COALESCE(lessons_completed,0) >= total_lessons THEN 1 ELSE 0 END) AS finished_count
         FROM student_progress
         GROUP BY module_name
     ''')
-    modules = cursor.fetchall()
+    rows = cursor.fetchall() or []
+
+    # Map rows to desired output shape, using total_students as the denominator
+    modules = []
+    for r in rows:
+        name = r.get('name')
+        students_with_progress = int(r.get('students_with_progress') or 0)
+        finished_count = int(r.get('finished_count') or 0)
+        completion = 0
+        if total_students > 0:
+            completion = round((finished_count / total_students) * 100)
+        modules.append({
+            'name': name,
+            'students': total_students,
+            'completion': completion,
+            'finishedCount': finished_count,
+            'studentsWithProgress': students_with_progress
+        })
+
     cursor.close()
     conn.close()
     return modules
@@ -916,11 +936,23 @@ def instructor_stats():
     cursor.execute("SELECT COUNT(*) AS totalStudents FROM users WHERE userType = 'student' AND status = 'approved'")
     total_students = cursor.fetchone()['totalStudents']
 
+    # Active modules (distinct modules present in progress table)
     cursor.execute('SELECT COUNT(DISTINCT module_name) AS activeModules FROM student_progress')
     active_modules = cursor.fetchone()['activeModules']
 
-    cursor.execute('SELECT AVG(lessons_completed / total_lessons) * 100 AS avgCompletion FROM student_progress')
-    avg_completion = round(cursor.fetchone()['avgCompletion'] or 0)
+    # Recalculate average completion as: (total fully-completed module instances) / (total_students * active_modules) * 100
+    # This expresses how many student-module pairs are fully completed out of all possible student-module pairs.
+    completed_instances = 0
+    if active_modules and total_students:
+        cursor.execute('''
+            SELECT SUM(CASE WHEN COALESCE(total_lessons,0) > 0 AND COALESCE(lessons_completed,0) >= total_lessons THEN 1 ELSE 0 END) AS completed_instances
+            FROM student_progress
+        ''')
+        completed_instances = int(cursor.fetchone().get('completed_instances') or 0)
+        total_possible = total_students * active_modules
+        avg_completion = round((completed_instances / max(total_possible, 1)) * 100)
+    else:
+        avg_completion = 0
 
     feedback_count = 0  # No feedback table
 
