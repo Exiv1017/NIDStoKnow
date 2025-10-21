@@ -39,11 +39,10 @@ def get_admin_system_settings_cached() -> Dict[str, Any]:
       return {
         'enableUserRegistration': True,
         'autoApproveInstructors': False,
-        'maintenanceMode': False,
-        'backupFrequency': 'daily',
+        
         'sessionTimeoutMinutes': 60,
         'requireStrongPasswords': True,
-        'allowInstructorBulkActions': True,
+        
       }
     # Normalize booleans
     def b(v, d=False):
@@ -54,22 +53,19 @@ def get_admin_system_settings_cached() -> Dict[str, Any]:
     return {
       'enableUserRegistration': b(row.get('enableUserRegistration'), True),
       'autoApproveInstructors': b(row.get('autoApproveInstructors'), False),
-      'maintenanceMode': b(row.get('maintenanceMode'), False),
-      'backupFrequency': row.get('backupFrequency') or 'daily',
+    
       'sessionTimeoutMinutes': int(row.get('sessionTimeoutMinutes') or 60),
       'requireStrongPasswords': b(row.get('requireStrongPasswords'), True),
-      'allowInstructorBulkActions': b(row.get('allowInstructorBulkActions'), True),
+    
     }
   except Exception:
     # On failure, fall back to defaults
     return {
       'enableUserRegistration': True,
       'autoApproveInstructors': False,
-      'maintenanceMode': False,
-      'backupFrequency': 'daily',
       'sessionTimeoutMinutes': 60,
       'requireStrongPasswords': True,
-      'allowInstructorBulkActions': True,
+      
     }
 
 def invalidate_admin_system_settings_cache():

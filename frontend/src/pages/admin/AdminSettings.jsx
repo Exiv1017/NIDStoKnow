@@ -8,11 +8,8 @@ const AdminSettings = () => {
   const defaultSystem = {
     enableUserRegistration: true,
     autoApproveInstructors: false,
-    maintenanceMode: false,
-    backupFrequency: 'daily',
     sessionTimeoutMinutes: 60,
     requireStrongPasswords: true,
-    allowInstructorBulkActions: true,
   };
   const [formData, setFormData] = useState({
     systemSettings: defaultSystem,
@@ -482,21 +479,6 @@ const AdminSettings = () => {
                     </label>
                   </div>
                   
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <h4 className="font-medium">Maintenance Mode</h4>
-                      <p className="text-sm text-gray-600">Put the site in maintenance mode (only admins can access)</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        className="sr-only peer" 
-                        checked={formData.systemSettings.maintenanceMode}
-                        onChange={() => handleSystemSettingChange('maintenanceMode')}
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1E5780]"></div>
-                    </label>
-                  </div>
 
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
@@ -530,40 +512,7 @@ const AdminSettings = () => {
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1E5780]"></div>
                     </label>
                   </div>
-
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <h4 className="font-medium">Allow Instructor Bulk Actions</h4>
-                      <p className="text-sm text-gray-600">Permit instructors to perform limited bulk operations</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        className="sr-only peer" 
-                        checked={formData.systemSettings.allowInstructorBulkActions}
-                        onChange={() => handleSystemSettingChange('allowInstructorBulkActions')}
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1E5780]"></div>
-                    </label>
-                  </div>
                   
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <div className="mb-2">
-                      <h4 className="font-medium">Database Backup Frequency</h4>
-                      <p className="text-sm text-gray-600">How often the database should be backed up</p>
-                    </div>
-                    <select
-                      name="backupFrequency"
-                      value={formData.systemSettings.backupFrequency}
-                      onChange={handleSelectChange}
-                      className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#1E5780] focus:border-transparent"
-                    >
-                      <option value="hourly">Hourly</option>
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="monthly">Monthly</option>
-                    </select>
-                  </div>
                 </div>
                 
                 {systemMsg && (

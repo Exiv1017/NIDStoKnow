@@ -20,8 +20,7 @@ import StudentDashboard from './pages/student/StudentDashboard';
 import LearningModules from './pages/student/LearningModules';
 import AccountSettings from './pages/student/AccountSettings';
 import SimulationLobby from './pages/student/SimulationLobby';
-import SimulationDashboard from './pages/Simulation/SimulationDashboard';
-import ConfigureHoneypot from './pages/Simulation/ConfigureHoneypot';
+// SimulationDashboard and ConfigureHoneypot removed
 import SignatureBased from './pages/Simulation/SignatureBased';
 import AnomalyBased from './pages/Simulation/AnomalyBased';
 import Hybrid from './pages/Simulation/Hybrid';
@@ -416,23 +415,7 @@ function App() {
               }
             />
 
-            {/* Simulation Lab routes */}
-            <Route
-              path="/simulation/dashboard"
-              element={
-                isAuthenticated ? (
-                  <ModuleLayout title="Simulation Dashboard"><SimulationDashboard /></ModuleLayout>
-                ) : <Navigate to="/login" />
-              }
-            />
-            <Route
-              path="/simulation/configure-honeypot"
-              element={
-                isAuthenticated ? (
-                  <ModuleLayout title="Configure Honeypot"><ConfigureHoneypot /></ModuleLayout>
-                ) : <Navigate to="/login" />
-              }
-            />
+            {/* SimulationLab: SimulationDashboard and ConfigureHoneypot removed. Use SimulationLobby for starting simulations */}
             <Route
               path="/simulation/signature"
               element={

@@ -567,10 +567,10 @@ const SignatureBased = () => {
 
         <div className="flex justify-between mt-8">
           <Link 
-            to="/simulation/dashboard"
+            to="/learning-modules"
             className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
           >
-            Back to Dashboard
+            Back to Learning Modules
           </Link>
           <Link 
             to="/simulation/anomaly"

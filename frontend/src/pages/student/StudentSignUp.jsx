@@ -13,6 +13,7 @@ const StudentSignUp = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [requireStrong, setRequireStrong] = useState(true);
 
   const buildEmail = (first, last) => {
     const sanitize = (s) => (s || '')
@@ -43,6 +44,18 @@ const StudentSignUp = () => {
     return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/.test(password);
   };
 
+  // Read the current system setting so we can respect requireStrongPasswords on the client
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/admin/system-settings')
+      .then(r => r.json())
+      .then(j => {
+        if (!mounted) return;
+        try { if (typeof j === 'object' && j.hasOwnProperty('requireStrongPasswords')) setRequireStrong(Boolean(j.requireStrongPasswords)); } catch (e) {}
+      }).catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -51,7 +64,7 @@ const StudentSignUp = () => {
       setError('Passwords do not match');
       return;
     }
-    if (!isStrongPassword(formData.password)) {
+    if (requireStrong && !isStrongPassword(formData.password)) {
       setError('Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.');
       return;
     }
@@ -91,6 +104,7 @@ const StudentSignUp = () => {
         } else if (response.status === 400 && errorMsg.includes('invalid')) {
           setError('Invalid input. Please check your details and try again.');
         } else {
+          // Surface server-provided detail when present (e.g., registration disabled)
           setError(data.error || data.detail || 'Signup failed');
           console.error('Signup backend error:', data);
         }

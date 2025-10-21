@@ -90,11 +90,8 @@ class AdminProfileUpdateRequest(BaseModel):
 class AdminSystemSettings(BaseModel):
     enableUserRegistration: bool
     autoApproveInstructors: bool
-    maintenanceMode: bool
-    backupFrequency: str
     sessionTimeoutMinutes: int | None = 60
     requireStrongPasswords: bool | None = True
-    allowInstructorBulkActions: bool | None = True
 
 class AdminNotificationSettings(BaseModel):
     email: bool
@@ -402,11 +399,10 @@ def get_system_settings():
                 id INT NOT NULL PRIMARY KEY,
                 enableUserRegistration TINYINT(1) DEFAULT 1,
                 autoApproveInstructors TINYINT(1) DEFAULT 0,
-                maintenanceMode TINYINT(1) DEFAULT 0,
-                backupFrequency VARCHAR(16) DEFAULT 'daily',
+                
                 sessionTimeoutMinutes INT DEFAULT 60,
                 requireStrongPasswords TINYINT(1) DEFAULT 1,
-                allowInstructorBulkActions TINYINT(1) DEFAULT 1
+                
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """
         )
@@ -414,7 +410,6 @@ def get_system_settings():
         for col_def in [
             ("sessionTimeoutMinutes", "INT DEFAULT 60"),
             ("requireStrongPasswords", "TINYINT(1) DEFAULT 1"),
-            ("allowInstructorBulkActions", "TINYINT(1) DEFAULT 1"),
         ]:
             try:
                 cursor.execute(f"ALTER TABLE admin_system_settings ADD COLUMN {col_def[0]} {col_def[1]}")
@@ -431,24 +426,18 @@ def get_system_settings():
         return {
             "enableUserRegistration": True,
             "autoApproveInstructors": False,
-            "maintenanceMode": False,
-            "backupFrequency": "daily",
             "sessionTimeoutMinutes": 60,
             "requireStrongPasswords": True,
-            "allowInstructorBulkActions": True,
         }
     # Normalize types from MySQL (0/1 to bool)
     def as_bool(v):
         return bool(int(v)) if isinstance(v, (int,)) else bool(v)
     settings["enableUserRegistration"] = as_bool(settings.get("enableUserRegistration", 1))
     settings["autoApproveInstructors"] = as_bool(settings.get("autoApproveInstructors", 0))
-    settings["maintenanceMode"] = as_bool(settings.get("maintenanceMode", 0))
     settings["requireStrongPasswords"] = as_bool(settings.get("requireStrongPasswords", 1))
-    settings["allowInstructorBulkActions"] = as_bool(settings.get("allowInstructorBulkActions", 1))
     if settings.get("sessionTimeoutMinutes") is None:
         settings["sessionTimeoutMinutes"] = 60
-    if not settings.get("backupFrequency"):
-        settings["backupFrequency"] = "daily"
+    # backupFrequency and maintenanceMode removed from runtime settings
     # Also refresh cache consumers
     try:
         invalidate_admin_system_settings_cache()
@@ -469,11 +458,8 @@ def update_system_settings(settings: AdminSystemSettings):
                 id INT NOT NULL PRIMARY KEY,
                 enableUserRegistration TINYINT(1) DEFAULT 1,
                 autoApproveInstructors TINYINT(1) DEFAULT 0,
-                maintenanceMode TINYINT(1) DEFAULT 0,
-                backupFrequency VARCHAR(16) DEFAULT 'daily',
                 sessionTimeoutMinutes INT DEFAULT 60,
-                requireStrongPasswords TINYINT(1) DEFAULT 1,
-                allowInstructorBulkActions TINYINT(1) DEFAULT 1
+                requireStrongPasswords TINYINT(1) DEFAULT 1
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """
         )
@@ -481,22 +467,18 @@ def update_system_settings(settings: AdminSystemSettings):
         for col_def in [
             ("sessionTimeoutMinutes", "INT DEFAULT 60"),
             ("requireStrongPasswords", "TINYINT(1) DEFAULT 1"),
-            ("allowInstructorBulkActions", "TINYINT(1) DEFAULT 1"),
         ]:
             try:
                 cursor.execute(f"ALTER TABLE admin_system_settings ADD COLUMN {col_def[0]} {col_def[1]}")
             except Exception:
                 pass
         cursor.execute(
-            "REPLACE INTO admin_system_settings (id, enableUserRegistration, autoApproveInstructors, maintenanceMode, backupFrequency, sessionTimeoutMinutes, requireStrongPasswords, allowInstructorBulkActions) VALUES (1, %s, %s, %s, %s, %s, %s, %s)",
+            "REPLACE INTO admin_system_settings (id, enableUserRegistration, autoApproveInstructors, sessionTimeoutMinutes, requireStrongPasswords) VALUES (1, %s, %s, %s, %s)",
             (
                 int(bool(settings.enableUserRegistration)),
                 int(bool(settings.autoApproveInstructors)),
-                int(bool(settings.maintenanceMode)),
-                settings.backupFrequency,
                 int(settings.sessionTimeoutMinutes or 60),
                 int(bool(settings.requireStrongPasswords if settings.requireStrongPasswords is not None else True)),
-                int(bool(settings.allowInstructorBulkActions if settings.allowInstructorBulkActions is not None else True)),
             )
         )
         conn.commit()
@@ -584,27 +566,55 @@ def change_admin_password(req: AdminPasswordChangeRequest):
 
 @router.get("/admin/audit-logs/{admin_id}", response_model=List[AuditLogEntry])
 def get_audit_logs(admin_id: int):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    # Ensure audit table exists to avoid insert/select failures on fresh DBs
     try:
-        cursor.execute(
-            '''
-            CREATE TABLE IF NOT EXISTS admin_audit_logs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                admin_id INT NOT NULL,
-                action VARCHAR(512) NOT NULL,
-                timestamp DATETIME NOT NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-            '''
-        )
-    except Exception:
-        pass
-    cursor.execute("SELECT * FROM admin_audit_logs WHERE admin_id=%s ORDER BY timestamp DESC LIMIT 50", (admin_id,))
-    logs = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return logs
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        # Ensure audit table exists to avoid insert/select failures on fresh DBs
+        try:
+            cursor.execute(
+                '''
+                CREATE TABLE IF NOT EXISTS admin_audit_logs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    admin_id INT NOT NULL,
+                    action VARCHAR(512) NOT NULL,
+                    timestamp DATETIME NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                '''
+            )
+        except Exception:
+            pass
+        cursor.execute("SELECT id, admin_id, action, timestamp FROM admin_audit_logs WHERE admin_id=%s ORDER BY timestamp DESC LIMIT 50", (admin_id,))
+        rows = cursor.fetchall() or []
+        # Normalize timestamp to ISO string
+        out = []
+        for r in rows:
+            try:
+                ts = r.get('timestamp') if isinstance(r, dict) else (r[3] if len(r) > 3 else None)
+                if hasattr(ts, 'isoformat'):
+                    ts_s = ts.isoformat()
+                else:
+                    ts_s = str(ts)
+            except Exception:
+                ts_s = ''
+            out.append({
+                'id': int(r.get('id') if isinstance(r, dict) else r[0]),
+                'admin_id': int(r.get('admin_id') if isinstance(r, dict) else r[1]),
+                'action': r.get('action') if isinstance(r, dict) else r[2],
+                'timestamp': ts_s
+            })
+        cursor.close(); conn.close()
+        return out
+    except Exception as e:
+        print(f"[WARN] get_audit_logs failed: {e}")
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return []
 
 # Helper to log admin actions
 def log_admin_action(admin_id: int, action: str):
@@ -624,7 +634,9 @@ def log_admin_action(admin_id: int, action: str):
             )
         except Exception:
             pass
-        cursor.execute("INSERT INTO admin_audit_logs (admin_id, action, timestamp) VALUES (%s, %s, %s)", (admin_id, action, datetime.now().isoformat()))
+        # Use MySQL DATETIME-friendly format (no T, no timezone)
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        cursor.execute("INSERT INTO admin_audit_logs (admin_id, action, timestamp) VALUES (%s, %s, %s)", (admin_id, action, ts))
         conn.commit()
     except Exception as e:
         # Do not raise from audit failures; just log to stdout for operators

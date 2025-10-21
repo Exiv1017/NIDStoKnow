@@ -502,7 +502,13 @@ def instructor_signup(req: InstructorSignupRequest):
         print(f"[WARN] admin notify (instructor signup) failed: {ne}")
     cursor.close()
     conn.close()
-    return {'message': 'Signup successful. Please wait for admin approval.', 'user': {'email': req.email, 'userType': 'instructor', 'status': 'pending'}}
+    # Return the actual status to the client so UI can show accurate messaging
+    msg = 'Signup successful.'
+    if initial_status == 'approved':
+        msg = 'Signup successful and account auto-approved.'
+    elif initial_status == 'pending':
+        msg = 'Signup successful. Please wait for admin approval.'
+    return {'message': msg, 'user': {'email': req.email, 'userType': 'instructor', 'status': initial_status}}
 
 @router.post('/instructor/login')
 def instructor_login(req: InstructorLoginRequest):
@@ -1671,15 +1677,7 @@ def create_assignments(request: Request, req: AssignmentCreate):
     except HTTPException as e:
         if e.status_code not in (401, 403):
             raise
-    # Gate bulk actions by system settings
-    try:
-        settings = get_admin_system_settings_cached()
-        if not bool(settings.get('allowInstructorBulkActions', True)):
-            raise HTTPException(status_code=403, detail='Bulk actions are disabled by admin policy.')
-    except HTTPException:
-        raise
-    except Exception:
-        pass
+    # Note: allowInstructorBulkActions has been removed from system settings; no gating here.
     if not req.student_ids:
         raise HTTPException(status_code=400, detail='student_ids is required')
     conn = get_db_connection()

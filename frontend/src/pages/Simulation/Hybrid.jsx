@@ -1941,10 +1941,10 @@ const Hybrid = () => {
               Previous: Anomaly-Based Detection
             </Link>
             <Link 
-              to="/simulation/overview"
+              to="/student/lobby"
               className="px-6 py-2 bg-[#1E5780] text-white rounded-lg hover:bg-[#164666] transition-colors"
             >
-              Next: Simulation Overview
+              Next: Simulation Lobby
             </Link>
           </div>
         </div>
