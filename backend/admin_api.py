@@ -586,6 +586,20 @@ def change_admin_password(req: AdminPasswordChangeRequest):
 def get_audit_logs(admin_id: int):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Ensure audit table exists to avoid insert/select failures on fresh DBs
+    try:
+        cursor.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS admin_audit_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                admin_id INT NOT NULL,
+                action VARCHAR(512) NOT NULL,
+                timestamp DATETIME NOT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            '''
+        )
+    except Exception:
+        pass
     cursor.execute("SELECT * FROM admin_audit_logs WHERE admin_id=%s ORDER BY timestamp DESC LIMIT 50", (admin_id,))
     logs = cursor.fetchall()
     cursor.close()
@@ -594,12 +608,36 @@ def get_audit_logs(admin_id: int):
 
 # Helper to log admin actions
 def log_admin_action(admin_id: int, action: str):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO admin_audit_logs (admin_id, action, timestamp) VALUES (%s, %s, %s)", (admin_id, action, datetime.now().isoformat()))
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                '''
+                CREATE TABLE IF NOT EXISTS admin_audit_logs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    admin_id INT NOT NULL,
+                    action VARCHAR(512) NOT NULL,
+                    timestamp DATETIME NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                '''
+            )
+        except Exception:
+            pass
+        cursor.execute("INSERT INTO admin_audit_logs (admin_id, action, timestamp) VALUES (%s, %s, %s)", (admin_id, action, datetime.now().isoformat()))
+        conn.commit()
+    except Exception as e:
+        # Do not raise from audit failures; just log to stdout for operators
+        print(f"[WARN] log_admin_action failed: {e}")
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 # ---------------- Lobbies visibility (Admin) -----------------
 

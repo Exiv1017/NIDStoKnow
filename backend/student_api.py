@@ -1047,6 +1047,18 @@ def student_signup(req: StudentSignupRequest):
         cursor.close()
         conn.close()
         raise HTTPException(status_code=400, detail='Email already registered')
+    # Respect admin system setting: enableUserRegistration
+    try:
+        from config import get_admin_system_settings_cached
+        settings = get_admin_system_settings_cached()
+        if not bool(settings.get('enableUserRegistration', True)):
+            cursor.close(); conn.close()
+            raise HTTPException(status_code=403, detail='User registration is currently disabled by admin.')
+    except HTTPException:
+        raise
+    except Exception:
+        # If we can't read settings, continue using defaults
+        pass
     # Enforce strong password at signup if enabled by admin policy
     try:
         from config import get_admin_system_settings_cached

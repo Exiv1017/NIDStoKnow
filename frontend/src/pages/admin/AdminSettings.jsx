@@ -29,8 +29,7 @@ const AdminSettings = () => {
   });
   const [securityMsg, setSecurityMsg] = useState('');
   const [securityError, setSecurityError] = useState('');
-  const [notifSettings, setNotifSettings] = useState({ email: true, browser: true, systemAlerts: true });
-  const [notifMsg, setNotifMsg] = useState('');
+  const [auditError, setAuditError] = useState('');
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditLoading, setAuditLoading] = useState(false);
 
@@ -44,7 +43,7 @@ const AdminSettings = () => {
   };
 
   useEffect(() => {
-    // Fetch persisted system settings, notifications, and audit logs
+  // Fetch persisted system settings and audit logs
     const headers = authHeaders();
     fetch('/api/admin/system-settings', { headers })
       .then(res => res.json())
@@ -56,18 +55,27 @@ const AdminSettings = () => {
       })
       .catch(() => {});
     if (user?.id) {
-      fetch(`/api/admin/notifications/${user.id}`, { headers })
-        .then(res => res.json())
-        .then(data => { if (data && typeof data === 'object') setNotifSettings(s => ({ ...s, ...data })); })
-        .catch(() => {});
+      // fetch audit logs with better error handling
       setAuditLoading(true);
-      const fetchAudit = () => {
+      const fetchAudit = async () => {
         setAuditLoading(true);
-        fetch(`/api/admin/audit-logs/${user.id}`, { headers })
-          .then(res => res.json())
-          .then(data => setAuditLogs(Array.isArray(data) ? data : []))
-          .catch(() => setAuditLogs([]))
-          .finally(() => setAuditLoading(false));
+        setAuditError('');
+        try {
+          const res = await fetch(`/api/admin/audit-logs/${user.id}`, { headers });
+          if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            setAuditError(`Failed to load audit logs: ${res.status} ${res.statusText} ${text}`);
+            setAuditLogs([]);
+            return;
+          }
+          const data = await res.json();
+          setAuditLogs(Array.isArray(data) ? data : []);
+        } catch (err) {
+          setAuditError('Error fetching audit logs.');
+          setAuditLogs([]);
+        } finally {
+          setAuditLoading(false);
+        }
       };
       fetchAudit();
       // listen for external triggers to refresh audit logs (e.g., after user deletion)
@@ -99,7 +107,7 @@ const AdminSettings = () => {
       ...prev,
       systemSettings: {
         ...prev.systemSettings,
-        [name]: value
+        [name]: name === 'sessionTimeoutMinutes' ? Number(value) : value
       }
     }));
     setSystemMsg('');
@@ -110,7 +118,11 @@ const AdminSettings = () => {
       const res = await fetch('/api/admin/system-settings', {
         method: 'PUT',
         headers: authHeaders(),
-        body: JSON.stringify(formData.systemSettings)
+        // normalize values before sending
+        body: JSON.stringify({
+          ...formData.systemSettings,
+          sessionTimeoutMinutes: Number(formData.systemSettings.sessionTimeoutMinutes),
+        })
       });
       let data;
       try {
@@ -122,7 +134,7 @@ const AdminSettings = () => {
         setSystemMsg('System settings updated!');
         setOriginalFormData(prev => ({ ...prev, systemSettings: { ...formData.systemSettings } }));
       } else if (!res.ok && data.detail) {
-        setSystemMsg(data.detail);
+        setSystemMsg(data.detail || `Failed to update system settings: ${res.status} ${res.statusText}`);
       } else {
         setSystemMsg(data.message || 'Failed to update system settings.');
       }
@@ -131,31 +143,7 @@ const AdminSettings = () => {
     }
   };
 
-  const handleNotifSave = async () => {
-    if (!user?.id) return;
-    try {
-      const res = await fetch(`/api/admin/notifications/${user.id}`, {
-        method: 'PUT',
-        headers: authHeaders(),
-        body: JSON.stringify(notifSettings)
-      });
-      let data;
-      try {
-        data = await res.json();
-      } catch (err) {
-        data = {};
-      }
-      if (res.ok && data.status === 'success') {
-        setNotifMsg('Notification preferences updated!');
-      } else if (!res.ok && data.detail) {
-        setNotifMsg(data.detail);
-      } else {
-        setNotifMsg(data.message || 'Failed to update notification preferences.');
-      }
-    } catch (err) {
-      setNotifMsg('Error updating notification preferences.');
-    }
-  };
+  // notifications removed - no-op
 
   const handlePasswordUpdate = async (e) => {
     e.preventDefault();
@@ -333,17 +321,7 @@ const AdminSettings = () => {
               >
                 Audit & Logs
               </button>
-              <button
-                onClick={() => setActiveTab('notifications')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${
-                  activeTab === 'notifications'
-                    ? 'bg-[#1E5780] text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-                aria-label="Notifications Tab"
-              >
-                Notifications
-              </button>
+              {/* Notifications tab removed */}
             </div>
           </div>
           <div className="p-6">
@@ -625,7 +603,21 @@ const AdminSettings = () => {
 
             {activeTab === 'audit' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold mb-2">Recent Admin Actions</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold mb-2">Recent Admin Actions</h3>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => window.dispatchEvent(new Event('auditRefresh'))}
+                      className="px-3 py-1 rounded bg-[#1E5780] text-white hover:bg-[#164666] text-sm"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+                {auditError && (
+                  <div className="p-3 bg-red-50 text-red-800 rounded-lg">{auditError}</div>
+                )}
                 {auditLoading ? (
                   <div>Loading logs...</div>
                 ) : (
@@ -645,29 +637,7 @@ const AdminSettings = () => {
               </div>
             )}
 
-            {activeTab === 'notifications' && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold mb-2">Notifications</h3>
-                <label className="flex items-center gap-3">
-                  <input type="checkbox" checked={notifSettings.email} onChange={()=> setNotifSettings(s => ({ ...s, email: !s.email }))} />
-                  <span>Email Notifications</span>
-                </label>
-                <label className="flex items-center gap-3">
-                  <input type="checkbox" checked={notifSettings.browser} onChange={()=> setNotifSettings(s => ({ ...s, browser: !s.browser }))} />
-                  <span>Browser Notifications</span>
-                </label>
-                <label className="flex items-center gap-3">
-                  <input type="checkbox" checked={notifSettings.systemAlerts} onChange={()=> setNotifSettings(s => ({ ...s, systemAlerts: !s.systemAlerts }))} />
-                  <span>System Alerts</span>
-                </label>
-                {notifMsg && (
-                  <div className="p-3 bg-green-50 text-green-800 rounded-lg">{notifMsg}</div>
-                )}
-                <div className="flex justify-end">
-                  <button type="button" onClick={handleNotifSave} className="px-4 py-2 rounded bg-[#1E5780] text-white hover:bg-[#164666]">Save Preferences</button>
-                </div>
-              </div>
-            )}
+            {/* Notifications tab removed */}
           </div>
         </div>
       </main>

@@ -450,6 +450,16 @@ def instructor_signup(req: InstructorSignupRequest):
         cursor.close()
         conn.close()
         raise HTTPException(status_code=400, detail='Email already registered')
+    # Respect admin system setting: enableUserRegistration
+    try:
+        settings = get_admin_system_settings_cached()
+        if not bool(settings.get('enableUserRegistration', True)):
+            cursor.close(); conn.close()
+            raise HTTPException(status_code=403, detail='User registration is currently disabled by admin.')
+    except HTTPException:
+        raise
+    except Exception:
+        pass
     # Enforce strong password at signup if enabled by admin policy
     try:
         settings = get_admin_system_settings_cached()
@@ -465,16 +475,28 @@ def instructor_signup(req: InstructorSignupRequest):
     except Exception:
         pass
     password_hash = generate_password_hash(req.password)
+    # Determine initial status based on admin settings (auto-approve)
+    initial_status = 'pending'
+    try:
+        settings = get_admin_system_settings_cached()
+        if bool(settings.get('autoApproveInstructors', False)):
+            initial_status = 'approved'
+    except Exception:
+        pass
     cursor.execute(
         'INSERT INTO users (name, email, password_hash, userType, status) VALUES (%s, %s, %s, %s, %s)',
-        (req.name, req.email, password_hash, 'instructor', 'pending')
+        (req.name, req.email, password_hash, 'instructor', initial_status)
     )
     conn.commit()
     # Notify admins of pending instructor approval
     try:
         c2 = conn.cursor()
         ensure_notifications_table(c2)
-        c2.execute('INSERT INTO notifications (recipient_role, message, type) VALUES (%s,%s,%s)', ('admin', f"Instructor signup pending approval: {req.name} ({req.email})", 'warning'))
+        # Notify admins: if auto-approved, send success; otherwise, pending warning
+        if initial_status == 'approved':
+            c2.execute('INSERT INTO notifications (recipient_role, message, type) VALUES (%s,%s,%s)', ('admin', f"Instructor signup auto-approved: {req.name} ({req.email})", 'success'))
+        else:
+            c2.execute('INSERT INTO notifications (recipient_role, message, type) VALUES (%s,%s,%s)', ('admin', f"Instructor signup pending approval: {req.name} ({req.email})", 'warning'))
         conn.commit(); c2.close()
     except Exception as ne:
         print(f"[WARN] admin notify (instructor signup) failed: {ne}")
