@@ -409,35 +409,7 @@ const UserManagement = () => {
               >
                 Pending
               </button>
-              {/* Bulk actions for instructors pending */}
-              <button
-                onClick={async()=>{
-                  const pend = filteredUsers.filter(u=>u.userType==='instructor' && u.status==='pending');
-                  for(const u of pend){
-                    try{ await fetch(`/api/admin/approve/${u.id}`, { method:'POST', headers: authHeaders() }); } catch {}
-                  }
-                  await fetchUsers();
-                  showToast('Approved all pending instructors in current filter');
-                }}
-                className="ml-2 px-3 py-1 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
-                title="Approve all pending instructors in current view"
-              >
-                Bulk Approve
-              </button>
-              <button
-                onClick={async()=>{
-                  const pend = filteredUsers.filter(u=>u.userType==='instructor' && u.status==='pending');
-                  for(const u of pend){
-                    try{ await fetch(`/api/admin/reject/${u.id}`, { method:'POST', headers: authHeaders() }); } catch {}
-                  }
-                  await fetchUsers();
-                  showToast('Rejected all pending instructors in current filter');
-                }}
-                className="px-3 py-1 text-sm rounded-md bg-red-600 text-white hover:bg-red-700"
-                title="Reject all pending instructors in current view"
-              >
-                Bulk Reject
-              </button>
+              {/* Bulk instructor actions removed */}
             </div>
           </div>
 
