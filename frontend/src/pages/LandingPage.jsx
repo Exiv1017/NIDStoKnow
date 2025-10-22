@@ -53,7 +53,7 @@ const LandingPage = () => {
                 >
                   <div className="absolute -inset-px pointer-events-none rounded-2xl bg-gradient-to-br from-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   <div className="relative flex items-start space-x-5">
-                    <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-gradient-to-br from-[#1E5780]/10 to-[#15425d]/8 ring-1 ring-[#1E5780]/20 group-hover:scale-105 transition-transform">
+                    <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-gradient-to-br from-[#1E5780] to-[#15425d] text-white ring-1 ring-[#1E5780]/20 group-hover:scale-105 transition-transform">
                       <img src={f.icon} alt="" className="w-8 h-8" loading="lazy" />
                     </div>
                     <div className="flex-1">
@@ -62,7 +62,7 @@ const LandingPage = () => {
                     </div>
                   </div>
                   <div className="mt-5">
-                    <Link to="/signup" className="inline-flex items-center text-xs font-semibold tracking-wide uppercase text-[#1E5780] group-hover:text-[#0b4362] transition-colors">Try this feature</Link>
+                    <Link to="/signup" className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-[#1E5780] text-white hover:bg-[#184867] transition">Try this feature</Link>
                   </div>
                 </div>
               ))}
@@ -72,17 +72,7 @@ const LandingPage = () => {
 
         {/* Learning Path Timeline */}
         {/* Decorative SVG accent (parallax) */}
-        <div className="pointer-events-none absolute inset-x-0 top-[46vh] -z-10 flex justify-center" aria-hidden="true">
-          <svg data-parallax data-parallax-speed="0.14" width="640" height="420" viewBox="0 0 640 420" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-20">
-            <defs>
-              <radialGradient id="g1" cx="0.3" cy="0.3">
-                <stop stopColor="#1E5780" stopOpacity="0.6" />
-                <stop offset="1" stopColor="#15425d" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-            <circle cx="320" cy="210" r="180" fill="url(#g1)" />
-          </svg>
-        </div>
+        
         <section className="relative bg-white py-24 sm:py-28">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-14">
@@ -95,8 +85,8 @@ const LandingPage = () => {
                 {[
                   {step:'01', title:'Foundations', text:'Core detection types & terminology via lessons.'},
                   {step:'02', title:'Theory Modules', text:'Signature / anomaly / hybrid markdown content.'},
-                  {step:'03', title:'Simulation Practice', text:'Use current simulation modes (attack / defend / observer).'},
-                  {step:'04', title:'Assess & Iterate', text:'Quizzes & basic tracking (expanded analytics planned).'}
+                  {step:'03', title:'Detection Practice', text:'Practice 3 core detections using terminal.'},
+                  {step:'04', title:'Simulation Roles', text:'Use current simulation modes (attack / defend / observer).'}
                 ].map((s,i)=>(
                   <li key={i} className="reveal transform opacity-0 translate-y-6 relative flex flex-col items-center text-center px-4" style={{ transitionDelay: `${i * 90}ms` }}>
                     <div className="relative mb-5">
@@ -114,12 +104,12 @@ const LandingPage = () => {
         {/* Modules Preview */}
         <section className="relative bg-[#f6f9fb] py-24 sm:py-28">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-12 gap-6">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-12 gap-6">
               <div>
                 <h2 className="text-3xl sm:text-4xl font-extrabold text-[#1E5780] tracking-tight">Core Detection Tracks</h2>
                 <p className="mt-4 text-gray-600 max-w-xl text-sm sm:text-base">Tracks provide overview, markdown theory, and related assessment pages. Hands-on depth will expand.</p>
               </div>
-              <Link to="/signup" className="inline-flex items-center px-5 py-2.5 bg-[#1E5780] text-white text-sm font-medium rounded-md shadow hover:bg-[#184867] transition">Start Free</Link>
+              <Link to="/signup" className="inline-flex items-center px-5 py-2.5 bg-[#1E5780] text-white text-sm font-medium rounded-md shadow hover:bg-[#184867] transition">Get Started</Link>
             </div>
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
               {[
@@ -138,7 +128,7 @@ const LandingPage = () => {
                         </li>
                       ))}
                     </ul>
-                    <Link to="/signup" className="inline-flex items-center text-xs font-semibold tracking-wide uppercase text-[#1E5780] group-hover:text-white">Explore &rarr;</Link>
+                    <Link to="/signup" className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md bg-[#1E5780] text-white hover:bg-[#184867] transition">Explore &rarr;</Link>
                   </div>
                 </div>
               ))}
@@ -160,44 +150,9 @@ const LandingPage = () => {
           </div>
         </section>
 
-        {/* Roadmap (truthful replacement for testimonials) */}
-        <section className="relative bg-[#f6f9fb] py-24 sm:py-28">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-14">
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-[#1E5780] tracking-tight">Roadmap</h2>
-              <p className="mt-4 text-gray-600 max-w-2xl mx-auto text-sm sm:text-base">Planned and in-progress enhancements (subject to change).</p>
-            </div>
-            <ul className="space-y-4">
-              {ROADMAP.map((r,i)=>(
-                <li key={i} className="reveal transform opacity-0 translate-y-4 flex items-start justify-between bg-white rounded-lg px-5 py-4 shadow-sm border border-[#1E5780]/10" style={{ transitionDelay: `${i * 60}ms` }}>
-                  <div>
-                    <span className="text-sm text-gray-700 font-medium">{r.label}</span>
-                    {r.detail && <div className="text-xs text-gray-500 mt-1">{r.detail}</div>}
-                  </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full uppercase tracking-wide font-medium ${r.status==='in-progress' ? 'bg-[#1E5780]/10 text-[#1E5780]' : 'bg-gray-200 text-gray-700'}`}>{r.status.replace('-', ' ')}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
+        {/* Roadmap removed per design request */}
 
-        {/* FAQ */}
-        <section className="relative bg-white py-24 sm:py-28">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-[#1E5780] tracking-tight text-center mb-12">FAQ</h2>
-            <div className="space-y-4">
-              {FAQ.map((f,i)=>(
-                <details key={i} className="reveal group bg-[#f6f9fb] rounded-lg border border-[#1E5780]/10 open:shadow-sm" style={{ transitionDelay: `${i * 60}ms` }}>
-                  <summary className="cursor-pointer list-none px-5 py-4 flex items-center justify-between">
-                    <span className="font-medium text-[#1E5780] text-sm sm:text-base">{f.q}</span>
-                    <span className="ml-4 text-[#1E5780] transition-transform group-open:rotate-45 text-lg leading-none">+</span>
-                  </summary>
-                  <div className="px-5 pb-5 pt-0 text-gray-600 text-sm leading-relaxed">{f.a}</div>
-                </details>
-              ))}
-            </div>
-          </div>
-        </section>
+        {/* FAQ removed per design request */}
 
         {/* Final CTA */}
         <section className="relative bg-gradient-to-br from-[#1E5780] to-[#184867] py-20 sm:py-24 text-center text-white overflow-hidden">
@@ -206,7 +161,7 @@ const LandingPage = () => {
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-4">Ready to Start Detecting?</h2>
               <p className="text-white/80 mb-8 text-sm sm:text-base max-w-2xl mx-auto">Build practical network defense intuition through layered practice — no setup, instant feedback.</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to="/signup" className="inline-flex justify-center px-6 py-3 rounded-md bg-white text-[#1E5780] font-semibold text-sm shadow hover:shadow-md hover:bg-[#f1f5f8] transition">Create Free Account</Link>
+                <Link to="/signup" className="inline-flex justify-center px-6 py-3 rounded-md bg-white text-[#1E5780] font-semibold text-sm shadow hover:shadow-md hover:bg-[#f1f5f8] transition">Create Account</Link>
                 <a href="#features" className="inline-flex justify-center px-6 py-3 rounded-md border border-white/40 text-white font-medium text-sm hover:bg-white/10 transition">View Features</a>
               </div>
           </div>
