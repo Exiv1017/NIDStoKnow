@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 // Reveal-on-scroll hook using IntersectionObserver
 export const useRevealOnScroll = (selector = '.reveal', options = { root: null, rootMargin: '0px', threshold: 0.12 }) => {
@@ -36,7 +36,7 @@ export const AnimatedNumber = ({ value, duration = 900, className = '' }) => {
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [value, duration]);
-  return <span ref={ref} className={className}>{0}</span>;
+  return React.createElement('span', { ref, className }, 0);
 };
 
 // Simple parallax hook: elements with data-parallax will be moved based on scroll
