@@ -1,9 +1,19 @@
 import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
 import { FEATURES, STATS, FAQ, ROADMAP } from '../content/landingConfig';
+import { useRevealOnScroll, AnimatedNumber, useParallax } from '../hooks/useUIHooks';
 
 const LandingPage = () => {
+  // Enable reveal animations and parallax accents
+  useRevealOnScroll('.reveal');
+  useParallax({ selector: '[data-parallax]', maxTranslate: 42 });
+
   return (
     <>
+      <style>{`
+        .reveal{opacity:0; transform:translateY(16px); transition:opacity 520ms ease, transform 520ms cubic-bezier(.2,.9,.2,1);}
+        .reveal--visible{opacity:1; transform:translateY(0);}
+      `}</style>
       <div className="min-h-screen bg-[#E3E3E3] relative overflow-hidden">
         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-24 lg:pt-32 pb-20 sm:pb-24 text-center">
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-4 sm:mb-6 animate-fade-in">
@@ -37,16 +47,22 @@ const LandingPage = () => {
             </header>
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3" id="features">
               {FEATURES.map((f,i)=>(
-                <div key={i} className="group relative bg-white/90 backdrop-blur rounded-2xl p-7 shadow-sm hover:shadow-xl border border-[#1E5780]/10 hover:border-[#1E5780]/30 transition-all overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-br from-[#1E5780]/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div key={i}
+                  className={`reveal transform opacity-0 translate-y-6 group relative bg-white/90 backdrop-blur rounded-2xl p-7 shadow-sm hover:shadow-xl border border-[#1E5780]/10 hover:border-[#1E5780]/30 transition-all overflow-hidden`}
+                  style={{ transitionDelay: `${i * 80}ms` }}
+                >
+                  <div className="absolute -inset-px pointer-events-none rounded-2xl bg-gradient-to-br from-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   <div className="relative flex items-start space-x-5">
-                    <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-[#1E5780]/10 ring-1 ring-[#1E5780]/20 group-hover:scale-105 transition-transform">
+                    <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-gradient-to-br from-[#1E5780]/10 to-[#15425d]/8 ring-1 ring-[#1E5780]/20 group-hover:scale-105 transition-transform">
                       <img src={f.icon} alt="" className="w-8 h-8" loading="lazy" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-[#1E5780] tracking-tight mb-1">{f.title}</h3>
+                      <h3 className="font-semibold text-[#1E5780] tracking-tight mb-1 text-lg group-hover:text-[#0b4362] transition-colors">{f.title}</h3>
                       <p className="text-gray-600 text-sm leading-relaxed">{f.desc}</p>
                     </div>
+                  </div>
+                  <div className="mt-5">
+                    <Link to="/signup" className="inline-flex items-center text-xs font-semibold tracking-wide uppercase text-[#1E5780] group-hover:text-[#0b4362] transition-colors">Try this feature</Link>
                   </div>
                 </div>
               ))}
@@ -55,6 +71,18 @@ const LandingPage = () => {
         </section>
 
         {/* Learning Path Timeline */}
+        {/* Decorative SVG accent (parallax) */}
+        <div className="pointer-events-none absolute inset-x-0 top-[46vh] -z-10 flex justify-center" aria-hidden="true">
+          <svg data-parallax data-parallax-speed="0.14" width="640" height="420" viewBox="0 0 640 420" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-20">
+            <defs>
+              <radialGradient id="g1" cx="0.3" cy="0.3">
+                <stop stopColor="#1E5780" stopOpacity="0.6" />
+                <stop offset="1" stopColor="#15425d" stopOpacity="0" />
+              </radialGradient>
+            </defs>
+            <circle cx="320" cy="210" r="180" fill="url(#g1)" />
+          </svg>
+        </div>
         <section className="relative bg-white py-24 sm:py-28">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-14">
@@ -70,9 +98,9 @@ const LandingPage = () => {
                   {step:'03', title:'Simulation Practice', text:'Use current simulation modes (attack / defend / observer).'},
                   {step:'04', title:'Assess & Iterate', text:'Quizzes & basic tracking (expanded analytics planned).'}
                 ].map((s,i)=>(
-                  <li key={i} className="relative flex flex-col items-center text-center px-4">
+                  <li key={i} className="reveal transform opacity-0 translate-y-6 relative flex flex-col items-center text-center px-4" style={{ transitionDelay: `${i * 90}ms` }}>
                     <div className="relative mb-5">
-                      <span className="flex items-center justify-center w-20 h-20 rounded-full bg-[#1E5780] text-white text-2xl font-bold shadow ring-4 ring-white">{s.step}</span>
+                      <span className="flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-[#1E5780] to-[#15425d] text-white text-2xl font-bold shadow-lg ring-4 ring-white">{s.step}</span>
                     </div>
                     <h3 className="font-semibold text-[#1E5780] mb-2 tracking-tight">{s.title}</h3>
                     <p className="text-gray-600 text-sm leading-relaxed max-w-[220px]">{s.text}</p>
@@ -99,7 +127,7 @@ const LandingPage = () => {
                 {name:'Anomaly-Based', color:'from-[#1E5780] to-[#1c668f]', points:['Traffic baselining','Feature extraction','ML concept demos','Outlier investigation']},
                 {name:'Hybrid Detection', color:'from-[#1E5780] to-[#2c6fa0]', points:['Correlation strategies','Multi-engine workflow','Signal fusion','Response prioritization']}
               ].map((m,i)=>(
-                <div key={i} className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl border border-[#1E5780]/10 hover:border-[#1E5780]/30 transition overflow-hidden">
+                <div key={i} className={`reveal transform opacity-0 translate-y-6 group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl border border-[#1E5780]/10 hover:border-[#1E5780]/30 transition overflow-hidden`} style={{ transitionDelay: `${i * 90}ms` }}>
                   <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br ${m.color} mix-blend-multiply rounded-2xl`} />
                   <div className="relative">
                     <h3 className="font-semibold text-lg mb-4 text-[#1E5780] group-hover:text-white transition-colors">{m.name}</h3>
@@ -123,8 +151,8 @@ const LandingPage = () => {
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
               {STATS.map((s,i)=>(
-                <div key={i} className="flex flex-col items-center">
-                  <span className="text-3xl sm:text-4xl font-extrabold text-[#1E5780] tracking-tight">{s.n}</span>
+                <div key={i} className="reveal transform opacity-0 translate-y-4 flex flex-col items-center" style={{ transitionDelay: `${i * 70}ms` }}>
+                  <span className="text-3xl sm:text-4xl font-extrabold text-[#1E5780] tracking-tight"><AnimatedNumber value={s.n} className="inline-block" /></span>
                   <span className="mt-2 text-xs sm:text-sm font-medium tracking-wide text-gray-600 uppercase">{s.l}</span>
                 </div>
               ))}
@@ -141,8 +169,11 @@ const LandingPage = () => {
             </div>
             <ul className="space-y-4">
               {ROADMAP.map((r,i)=>(
-                <li key={i} className="flex items-start justify-between bg-white rounded-lg px-5 py-4 shadow-sm border border-[#1E5780]/10">
-                  <span className="text-sm text-gray-700">{r.label}</span>
+                <li key={i} className="reveal transform opacity-0 translate-y-4 flex items-start justify-between bg-white rounded-lg px-5 py-4 shadow-sm border border-[#1E5780]/10" style={{ transitionDelay: `${i * 60}ms` }}>
+                  <div>
+                    <span className="text-sm text-gray-700 font-medium">{r.label}</span>
+                    {r.detail && <div className="text-xs text-gray-500 mt-1">{r.detail}</div>}
+                  </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full uppercase tracking-wide font-medium ${r.status==='in-progress' ? 'bg-[#1E5780]/10 text-[#1E5780]' : 'bg-gray-200 text-gray-700'}`}>{r.status.replace('-', ' ')}</span>
                 </li>
               ))}
@@ -156,7 +187,7 @@ const LandingPage = () => {
             <h2 className="text-3xl sm:text-4xl font-extrabold text-[#1E5780] tracking-tight text-center mb-12">FAQ</h2>
             <div className="space-y-4">
               {FAQ.map((f,i)=>(
-                <details key={i} className="group bg-[#f6f9fb] rounded-lg border border-[#1E5780]/10 open:shadow-sm">
+                <details key={i} className="reveal group bg-[#f6f9fb] rounded-lg border border-[#1E5780]/10 open:shadow-sm" style={{ transitionDelay: `${i * 60}ms` }}>
                   <summary className="cursor-pointer list-none px-5 py-4 flex items-center justify-between">
                     <span className="font-medium text-[#1E5780] text-sm sm:text-base">{f.q}</span>
                     <span className="ml-4 text-[#1E5780] transition-transform group-open:rotate-45 text-lg leading-none">+</span>

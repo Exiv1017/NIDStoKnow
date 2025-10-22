@@ -1,4 +1,5 @@
 import { useState, useContext } from 'react';
+import { useLocation } from 'react-router-dom';
 import { FiClipboard } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthContext from '../context/AuthContext';
@@ -8,6 +9,17 @@ const Sidebar = () => {
   const [isSimulationOpen, setIsSimulationOpen] = useState(false);
   const navigate = useNavigate();
   const { logout, user } = useContext(AuthContext);
+  const location = useLocation();
+
+  const isActive = (path) => {
+    try {
+      const p = location.pathname || '';
+      if (path === '/') return p === '/';
+      return p === path || p.startsWith(path + '/') || p === path.replace(/\/$/, '');
+    } catch (e) {
+      return false;
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -27,7 +39,7 @@ const Sidebar = () => {
           <li>
             <Link
               to="/dashboard"
-              className="flex items-center p-3 rounded-lg hover:bg-white/10 transition-all duration-200"
+              className={`flex items-center p-3 rounded-lg hover:bg-white/10 transition-all duration-200 ${isActive('/dashboard') ? 'bg-white/10 text-white font-medium' : ''}`}
             >
               <img src="/dashboardicon.svg" alt="" className="w-6 h-6 mr-3" />
               <span className="font-medium">Dashboard</span>
@@ -36,7 +48,7 @@ const Sidebar = () => {
           <li>
             <Link
               to="/learning-modules"
-              className="flex items-center p-3 rounded-lg hover:bg-white/10 transition-all duration-200"
+              className={`flex items-center p-3 rounded-lg hover:bg-white/10 transition-all duration-200 ${isActive('/learning-modules') ? 'bg-white/10 text-white font-medium' : ''}`}
             >
               <img src="/module.svg" alt="" className="w-6 h-6 mr-3" />
               <span className="font-medium">Learning Modules</span>
@@ -45,7 +57,7 @@ const Sidebar = () => {
           <li>
             <Link
               to="/student/assignments"
-              className="flex items-center p-3 rounded-lg hover:bg-white/10 transition-all duration-200"
+              className={`flex items-center p-3 rounded-lg hover:bg-white/10 transition-all duration-200 ${isActive('/student/assignments') ? 'bg-white/10 text-white font-medium' : ''}`}
             >
               <FiClipboard className="w-6 h-6 mr-3" />
               <span className="font-medium">My Assignments</span>
@@ -55,7 +67,7 @@ const Sidebar = () => {
             <div className="relative">
               <button
                 onClick={() => setIsSimulationOpen(!isSimulationOpen)}
-                className="flex items-center justify-between w-full p-3 rounded-lg hover:bg-white/10 transition-all duration-200"
+                className={`flex items-center justify-between w-full p-3 rounded-lg hover:bg-white/10 transition-all duration-200 ${isActive('/simulation') || isActive('/student/lobby') ? 'bg-white/10 text-white font-medium' : ''}`}
                 aria-expanded={isSimulationOpen}
                 aria-controls="simulation-submenu"
               >
@@ -73,25 +85,25 @@ const Sidebar = () => {
                 <div id="simulation-submenu" className="w-full bg-[#0C2A40] rounded-lg overflow-hidden shadow-lg mt-1">
                   <Link
                     to="/simulation/signature"
-                    className="flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200"
+                    className={`flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200 ${isActive('/simulation/signature') ? 'bg-white/10 text-white font-medium' : ''}`}
                   >
                     <span className="text-sm">Signature-Based</span>
                   </Link>
                   <Link
                     to="/simulation/anomaly"
-                    className="flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200"
+                    className={`flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200 ${isActive('/simulation/anomaly') ? 'bg-white/10 text-white font-medium' : ''}`}
                   >
                     <span className="text-sm">Anomaly-Based</span>
                   </Link>
                   <Link
                     to="/simulation/hybrid"
-                    className="flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200"
+                    className={`flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200 ${isActive('/simulation/hybrid') ? 'bg-white/10 text-white font-medium' : ''}`}
                   >
                     <span className="text-sm">Hybrid</span>
                   </Link>
                   <Link
                     to="/student/lobby"
-                    className="flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200"
+                    className={`flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200 ${isActive('/student/lobby') ? 'bg-white/10 text-white font-medium' : ''}`}
                   >
                     <span className="text-sm">Simulation Lobby</span>
                   </Link>

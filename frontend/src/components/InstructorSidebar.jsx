@@ -1,5 +1,5 @@
 import { useState, useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import AuthContext from '../context/AuthContext';
 
 const InstructorSidebar = () => {
@@ -8,6 +8,16 @@ const InstructorSidebar = () => {
   const [openManageGroup, setOpenManageGroup] = useState(false);      // Modules + Assessment + Propose Module
   const navigate = useNavigate();
   const { logout, user } = useContext(AuthContext);
+  const location = useLocation();
+
+  const isActive = (path) => {
+    try {
+      const p = location.pathname || '';
+      return p === path || p.startsWith(path + '/') || p === path.replace(/\/$/, '');
+    } catch (e) {
+      return false;
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -24,11 +34,11 @@ const InstructorSidebar = () => {
       
       <nav className="flex-1 px-4 py-4 overflow-y-auto">
         <ul className="space-y-2">
-          <li>
-          <Link
-              to="/instructor-dashboard"
-              className="flex items-center p-3 rounded-lg hover:bg-white/10 transition-all duration-200"
-          >
+      <li>
+      <Link
+        to="/instructor-dashboard"
+        className={`flex items-center p-3 rounded-lg hover:bg-white/10 transition-all duration-200 ${isActive('/instructor-dashboard') ? 'bg-white/10 text-white font-medium' : ''}`}
+      >
               <img src="/dashboardicon.svg" alt="" className="w-6 h-6 mr-3" />
               <span className="font-medium">Dashboard</span>
           </Link>
@@ -38,7 +48,7 @@ const InstructorSidebar = () => {
             <div className="relative">
               <button
                 onClick={() => setOpenManageGroup(v => !v)}
-                className="flex items-center justify-between w-full p-3 rounded-lg hover:bg-white/10 transition-all duration-200"
+                className={`flex items-center justify-between w-full p-3 rounded-lg hover:bg-white/10 transition-all duration-200 ${(isActive('/manage-modules') || isActive('/instructor/assessments') || isActive('/create-content')) ? 'bg-white/10 text-white font-medium' : ''}`}
                 aria-expanded={openManageGroup}
                 aria-controls="manage-submenu"
               >
@@ -59,19 +69,19 @@ const InstructorSidebar = () => {
                 <div id="manage-submenu" className="w-full bg-[#0C2A40] rounded-lg overflow-hidden shadow-lg mt-1">
                   <Link
                     to="/manage-modules"
-                    className="flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200"
+                    className={`flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200 ${isActive('/manage-modules') ? 'bg-white/10 text-white font-medium' : ''}`}
                   >
                     <span className="text-sm">Modules</span>
                   </Link>
                   <Link
                     to="/instructor/assessments"
-                    className="flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200"
+                    className={`flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200 ${isActive('/instructor/assessments') ? 'bg-white/10 text-white font-medium' : ''}`}
                   >
                     <span className="text-sm">Assessment</span>
                   </Link>
                   <Link
                     to="/create-content"
-                    className="flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200"
+                    className={`flex items-center gap-2 p-3 hover:bg-white/10 transition-all duration-200 ${isActive('/create-content') ? 'bg-white/10 text-white font-medium' : ''}`}
                   >
                     <span className="text-sm">Propose Module</span>
                   </Link>
