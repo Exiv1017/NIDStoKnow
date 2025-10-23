@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useContext } from 'react';
 import Sidebar from '../../components/Sidebar';
 import AuthContext from '../../context/AuthContext';
+import useModuleSummaries from '../../hooks/useModuleSummaries.js';
 
 export default function StudentAssignments() {
   const { user } = useContext(AuthContext);
@@ -11,6 +12,9 @@ export default function StudentAssignments() {
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedback, setFeedback] = useState([]);
   const [loadingFb, setLoadingFb] = useState(false);
+
+  // Get authoritative per-module summaries (used to derive progress when assignments API doesn't include it)
+  const { summaries } = useModuleSummaries(user);
 
   // UI helpers
   const formatDue = (val) => {
@@ -140,6 +144,20 @@ export default function StudentAssignments() {
         const n = Number(String(c).replace('%', '').trim());
         if (!Number.isNaN(n)) return n;
       }
+      // If assignments don't return a progress number, try to find a summary from the authoritative summaries
+      try {
+        if (summaries) {
+          // Try by moduleSlug first
+          if (it.moduleSlug && summaries[it.moduleSlug]) {
+            const s = summaries[it.moduleSlug];
+            if (typeof s.percent === 'number') return s.percent;
+          }
+          // Try to match by display name or module_name
+          const vals = Object.values(summaries || {});
+          const nameMatch = vals.find(s => (s.display_name === it.moduleName) || (s.module_name === it.moduleName));
+          if (nameMatch && typeof nameMatch.percent === 'number') return nameMatch.percent;
+        }
+      } catch (e) {}
       return 0;
     };
 
@@ -169,6 +187,9 @@ export default function StudentAssignments() {
       return { ...a, _derivedStatus: derived, _displayStatus: display };
     });
 
+    // Debug sample mapping so we can see if progress was resolved from summaries
+    try { console.debug('[StudentAssignments] mapped', mapped.map(m => ({ id: m.id, module: m.moduleName || m.moduleSlug, progress: m._derivedStatus, display: m._displayStatus }))); } catch {}
+
     const byStatus = statusFilter === 'all' ? mapped : mapped.filter(a => a._displayStatus === statusFilter);
 
     // Sort by due date ascending (nulls last)
@@ -179,7 +200,7 @@ export default function StudentAssignments() {
       if (db === null) return -1;
       return da - db;
     });
-  }, [items, statusFilter]);
+  }, [items, statusFilter, summaries]);
 
   return (
     <div className="min-h-screen bg-white">
