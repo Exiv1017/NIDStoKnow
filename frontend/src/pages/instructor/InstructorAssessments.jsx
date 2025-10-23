@@ -136,15 +136,62 @@ export default function InstructorAssessments() {
 
   // Filters
   const filteredAssignments = useMemo(() => {
-    const base = assignments.filter(it => {
+    const normalize = (val) => {
+      if (val == null) return '';
+      const s = String(val).trim().toLowerCase().replace(/[ _]+/g, '-');
+      if (s === 'in-progress' || s === 'inprogress') return 'in-progress';
+      if (s === 'complete') return 'completed';
+      if (s === 'past-due' || s === 'past_due') return 'overdue';
+      return s;
+    };
+
+    const getProgress = (it) => {
+      if (!it) return 0;
+      const candidates = [it.comprehensiveProgress, it.progressPercent, it.progress, it.percent, it.percentage, it.percentComplete];
+      for (const c of candidates) {
+        if (c == null) continue;
+        const n = Number(String(c).replace('%','').trim());
+        if (!Number.isNaN(n)) return n;
+      }
+      return 0;
+    };
+
+    const computeDerived = (it) => {
+      const p = getProgress(it) || 0;
+      if (p >= 100) return 'completed';
+      if (p > 0) return 'in-progress';
+      return 'assigned';
+    };
+
+    const toDate = (d) => {
+      if (!d) return null;
+      const s = String(d).replace(' ', 'T');
+      const t = Date.parse(s);
+      return isNaN(t) ? null : t;
+    };
+
+    const now = Date.now();
+
+    const mapped = assignments.map(a => {
+      const norm = normalize(a.status);
+      const derived = computeDerived(a);
+      const dueTs = toDate(a.dueDate);
+      let display = derived;
+      if (norm === 'overdue') display = 'overdue';
+      else if (derived !== 'completed' && dueTs != null && dueTs < now) display = 'overdue';
+      return { ...a, _derivedStatus: derived, _displayStatus: display };
+    });
+
+    const base = mapped.filter(it => {
       const matchesQ = !assignFilters.q || (it.moduleName?.toLowerCase().includes(assignFilters.q.toLowerCase()) || it.studentName?.toLowerCase().includes(assignFilters.q.toLowerCase()));
-      const matchesStatus = assignFilters.status === 'all' || it.status === assignFilters.status;
+      const matchesStatus = assignFilters.status === 'all' || it._displayStatus === assignFilters.status;
       return matchesQ && matchesStatus;
     });
+
     const dir = assignSortDir === 'asc' ? 1 : -1;
     return [...base].sort((a,b) => {
-      const av = assignSort === 'due' ? (a.dueDate || '') : assignSort === 'student' ? (a.studentName || a.studentId || '') : assignSort === 'module' ? (a.moduleName || '') : (a.status || '');
-      const bv = assignSort === 'due' ? (b.dueDate || '') : assignSort === 'student' ? (b.studentName || b.studentId || '') : assignSort === 'module' ? (b.moduleName || '') : (b.status || '');
+      const av = assignSort === 'due' ? (a.dueDate || '') : assignSort === 'student' ? (a.studentName || a.studentId || '') : assignSort === 'module' ? (a.moduleName || '') : (a._displayStatus || a.status || '');
+      const bv = assignSort === 'due' ? (b.dueDate || '') : assignSort === 'student' ? (b.studentName || b.studentId || '') : assignSort === 'module' ? (b.moduleName || '') : (b._displayStatus || b.status || '');
       if (av < bv) return -1 * dir;
       if (av > bv) return 1 * dir;
       return 0;
@@ -153,7 +200,11 @@ export default function InstructorAssessments() {
 
   const assignmentCounts = useMemo(() => {
     const counts = { total: assignments.length, assigned:0, 'in-progress':0, completed:0, overdue:0 };
-    assignments.forEach(a => { if (counts[a.status] !== undefined) counts[a.status]++; });
+    // use derived/display status when available
+    assignments.forEach(a => {
+      const s = a._displayStatus || a._derivedStatus || a.status || '';
+      if (counts[s] !== undefined) counts[s]++;
+    });
     return counts;
   }, [assignments]);
 
@@ -318,7 +369,7 @@ export default function InstructorAssessments() {
                         <td className="py-3 px-4 whitespace-nowrap text-xs text-gray-600">{a.dueDate ? String(a.dueDate).replace('T',' ').slice(0,16) : '-'}</td>
                         <td className="py-3 px-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
-                            <Badge status={a.status} />
+                            <Badge status={a._displayStatus || a.status} />
                             <select aria-label="Update status" className="border rounded px-2 py-1 text-xs" value={a.status} onChange={e => updateStatus(a.id, e.target.value)}>
                               <option value="assigned">Assigned</option>
                               <option value="in-progress">In Progress</option>

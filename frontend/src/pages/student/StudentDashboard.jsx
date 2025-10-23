@@ -458,11 +458,25 @@ const StudentDashboard = () => {
     const realModule = enhancedModules.find(m => m.name === assignedModule.name);
     const legacyModule = modules.find(m => m.name === assignedModule.name);
     const comprehensiveProgress = realModule ? realModule.comprehensiveProgress : (legacyModule?.progress || assignedModule.progress || 0);
-    let derivedStatus = 'Not Started';
+    // Derive status according to rules:
+    //  - 0% => Assigned
+    //  - >0% and <100% => In Progress
+    //  - 100% => Completed
+    //  - if due date in the past and not completed => Overdue
+    const now = new Date();
+    let derivedStatus = 'Assigned';
     if (comprehensiveProgress >= 100) derivedStatus = 'Completed';
     else if (comprehensiveProgress > 0) derivedStatus = 'In Progress';
-    // Preserve explicit status from backend if provided (e.g., 'Assigned', 'Overdue').
-    const finalStatus = assignedModule.status || derivedStatus;
+    // If due date passed and not completed, mark Overdue
+    try {
+      const d = assignedModule.dueDate ? new Date(assignedModule.dueDate) : null;
+      if (d && !isNaN(d.getTime()) && d < now && derivedStatus !== 'Completed') {
+        derivedStatus = 'Overdue';
+      }
+    } catch {}
+    // Backend might provide a status; prefer derivedStatus unless backend explicitly set overdue
+    const backendStatusNorm = String(assignedModule.status || '').trim().toLowerCase();
+    const finalStatus = (backendStatusNorm === 'overdue' || backendStatusNorm === 'past-due' || backendStatusNorm === 'past_due') ? 'Overdue' : derivedStatus;
     return {
       ...assignedModule,
       progress: comprehensiveProgress,

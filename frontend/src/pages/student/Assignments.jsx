@@ -123,14 +123,55 @@ export default function StudentAssignments() {
       if (s === 'past-due' || s === 'past_due') return 'overdue';
       return s;
     };
-    const byStatus = statusFilter === 'all' ? base : base.filter(a => normalize(a.status) === statusFilter);
-    // Sort by due date ascending (nulls last)
+
+    // derive progress number from multiple possible fields
+    const getProgress = (it) => {
+      if (!it) return 0;
+      const candidates = [
+        it.comprehensiveProgress,
+        it.progressPercent,
+        it.progress,
+        it.percent,
+        it.percentage,
+        it.percentComplete,
+      ];
+      for (const c of candidates) {
+        if (c == null) continue;
+        const n = Number(String(c).replace('%', '').trim());
+        if (!Number.isNaN(n)) return n;
+      }
+      return 0;
+    };
+
+    const computeDerived = (it) => {
+      const p = getProgress(it) || 0;
+      if (p >= 100) return 'completed';
+      if (p > 0) return 'in-progress';
+      return 'assigned';
+    };
+
+    const now = Date.now();
     const toDate = (d) => {
       if (!d) return null;
       const s = String(d).replace(' ', 'T');
       const t = Date.parse(s);
       return isNaN(t) ? null : t;
     };
+
+    // Map items to include derived statuses and a final display status (backend overdue wins)
+    const mapped = base.map(a => {
+      const norm = normalize(a.status);
+      const derived = computeDerived(a);
+      const dueTs = toDate(a.dueDate);
+      let display = derived;
+      if (norm === 'overdue') display = 'overdue';
+      else if (derived !== 'completed' && dueTs != null && dueTs < now) display = 'overdue';
+      return { ...a, _derivedStatus: derived, _displayStatus: display };
+    });
+
+    const byStatus = statusFilter === 'all' ? mapped : mapped.filter(a => a._displayStatus === statusFilter);
+
+    // Sort by due date ascending (nulls last)
     return [...byStatus].sort((a, b) => {
       const da = toDate(a.dueDate); const db = toDate(b.dueDate);
       if (da === null && db === null) return 0;
@@ -217,7 +258,7 @@ export default function StudentAssignments() {
                     <tr key={a.id} className="border-b hover:bg-gray-50">
                       <td className="py-3 px-4 font-medium">{a.moduleName}</td>
                       <td className="py-3 px-4">{formatDue(a.dueDate)}</td>
-                      <td className="py-3 px-4"><StatusBadge value={a.status} /></td>
+                      <td className="py-3 px-4"><StatusBadge value={a._displayStatus || a.status} /></td>
                       <td className="py-3 px-4 text-gray-600">{a.notes || ''}</td>
                     </tr>
                   ))}
@@ -237,12 +278,12 @@ export default function StudentAssignments() {
               ) : (
                 filtered.map(a => (
                   <div key={a.id} className="border rounded p-4 bg-white shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="text-sm text-gray-500">Module</div>
                         <div className="font-medium">{a.moduleName}</div>
                       </div>
-                      <StatusBadge value={a.status} />
+                      <StatusBadge value={a._displayStatus || a.status} />
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                       <div>
