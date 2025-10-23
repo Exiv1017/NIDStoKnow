@@ -1,6 +1,7 @@
-import { useEffect, useState, useContext } from 'react';
+import { useEffect, useState, useContext, useMemo } from 'react';
 import InstructorSidebar from '../../components/InstructorSidebar';
 import AuthContext from '../../context/AuthContext';
+import useModuleSummaries from '../../hooks/useModuleSummaries.js';
 
 export default function Assignments() {
   const { user } = useContext(AuthContext);
@@ -12,6 +13,8 @@ export default function Assignments() {
   const [feedbackMsg, setFeedbackMsg] = useState('');
   const [feedbackTarget, setFeedbackTarget] = useState(null); // {id, studentId, studentName}
   const [toast, setToast] = useState('');
+
+  const { summaries } = useModuleSummaries(user);
 
   const load = async () => {
     try {
@@ -95,11 +98,70 @@ export default function Assignments() {
     }
   };
 
-  const filtered = items.filter(it => {
-    const matchesQ = !filters.q || (it.moduleName?.toLowerCase().includes(filters.q.toLowerCase()) || it.studentName?.toLowerCase().includes(filters.q.toLowerCase()));
-    const matchesStatus = filters.status === 'all' || it.status === filters.status;
-    return matchesQ && matchesStatus;
-  });
+  const filtered = useMemo(() => {
+    const normalize = (val) => {
+      if (val == null) return '';
+      const s = String(val).trim().toLowerCase().replace(/[ _]+/g, '-');
+      if (s === 'in-progress' || s === 'inprogress') return 'in-progress';
+      if (s === 'complete') return 'completed';
+      if (s === 'past-due' || s === 'past_due') return 'overdue';
+      return s;
+    };
+
+    const getProgress = (it) => {
+      if (!it) return 0;
+      const candidates = [it.comprehensiveProgress, it.progressPercent, it.progress, it.percent, it.percentage, it.percentComplete];
+      for (const c of candidates) {
+        if (c == null) continue;
+        const n = Number(String(c).replace('%','').trim());
+        if (!Number.isNaN(n)) return n;
+      }
+      // fall back to summaries when available
+      try {
+        if (summaries) {
+          if (it.moduleSlug && summaries[it.moduleSlug] && typeof summaries[it.moduleSlug].percent === 'number') return summaries[it.moduleSlug].percent;
+          const vals = Object.values(summaries || {});
+          const nameMatch = vals.find(s => (s.display_name === it.moduleName) || (s.module_name === it.moduleName));
+          if (nameMatch && typeof nameMatch.percent === 'number') return nameMatch.percent;
+        }
+      } catch {}
+      return 0;
+    };
+
+    const computeDerived = (it) => {
+      const p = getProgress(it) || 0;
+      if (p >= 100) return 'completed';
+      if (p > 0) return 'in-progress';
+      return 'assigned';
+    };
+
+    const toDate = (d) => {
+      if (!d) return null;
+      const s = String(d).replace(' ', 'T');
+      const t = Date.parse(s);
+      return isNaN(t) ? null : t;
+    };
+
+    const now = Date.now();
+
+    const mapped = items.map(a => {
+      const norm = normalize(a.status);
+      const derived = computeDerived(a);
+      const dueTs = toDate(a.dueDate);
+      let display = derived;
+      if (norm === 'overdue') display = 'overdue';
+      else if (derived !== 'completed' && dueTs != null && dueTs < now) display = 'overdue';
+      return { ...a, _derivedStatus: derived, _displayStatus: display };
+    });
+
+    const base = mapped.filter(it => {
+      const matchesQ = !filters.q || (it.moduleName?.toLowerCase().includes(filters.q.toLowerCase()) || it.studentName?.toLowerCase().includes(filters.q.toLowerCase()));
+      const matchesStatus = filters.status === 'all' || it._displayStatus === filters.status;
+      return matchesQ && matchesStatus;
+    });
+
+    return base;
+  }, [items, filters, summaries]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -142,12 +204,20 @@ export default function Assignments() {
                     <td className="py-3 px-4">{a.moduleName}</td>
                     <td className="py-3 px-4">{a.dueDate ? String(a.dueDate).replace('T',' ').slice(0,16) : '-'}</td>
                     <td className="py-3 px-4">
-                      <select className="border rounded px-2 py-1" value={a.status} onChange={e => updateStatus(a.id, e.target.value)}>
-                        <option value="assigned">Assigned</option>
-                        <option value="in-progress">In Progress</option>
-                        <option value="completed">Completed</option>
-                        <option value="overdue">Overdue</option>
-                      </select>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                          (a._displayStatus === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                          a._displayStatus === 'in-progress' ? 'bg-amber-100 text-amber-700' :
+                          a._displayStatus === 'overdue' ? 'bg-rose-100 text-rose-700' :
+                          'bg-slate-100 text-slate-700')
+                        }`}>{a._displayStatus || a.status}</span>
+                        <select className="border rounded px-2 py-1" value={a.status} onChange={e => updateStatus(a.id, e.target.value)}>
+                          <option value="assigned">Assigned</option>
+                          <option value="in-progress">In Progress</option>
+                          <option value="completed">Completed</option>
+                          <option value="overdue">Overdue</option>
+                        </select>
+                      </div>
                     </td>
                     <td className="py-3 px-4">{a.notes || ''}</td>
                     <td className="py-3 px-4 space-x-2">

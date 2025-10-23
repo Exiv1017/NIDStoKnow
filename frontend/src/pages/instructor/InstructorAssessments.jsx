@@ -45,7 +45,57 @@ export default function InstructorAssessments() {
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.error || 'Failed to load assignments');
-      setAssignments(Array.isArray(data) ? data : []);
+      const arr = Array.isArray(data) ? data : [];
+      // Try to augment assignments with per-student progress by calling each student's dashboard
+      try {
+        const uniqueStudentIds = Array.from(new Set(arr.map(a => a.studentId).filter(Boolean)));
+        const studentDashPromises = uniqueStudentIds.map(async (sid) => {
+          try {
+            const r = await fetch(`${API_BASE}/api/student/dashboard/${sid}`.replace(/([^:]?)\/\/+/g,'$1/'), { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
+            if (!r.ok) return null;
+            const jd = await r.json();
+            return { sid, jd };
+          } catch (e) { return null; }
+        });
+        const studentDashResults = await Promise.all(studentDashPromises);
+        const dashByStudent = Object.fromEntries(studentDashResults.filter(Boolean).map(x => [String(x.sid), x.jd]));
+
+        const toDate = (d) => { if (!d) return null; const s = String(d).replace(' ', 'T'); const t = Date.parse(s); return isNaN(t) ? null : t; };
+        const now = Date.now();
+
+        const mapped = arr.map(a => {
+          // attempt to derive progress percent from dashboard modules or assignedModules
+          let progress = 0;
+          try {
+            const sd = dashByStudent[String(a.studentId)];
+            if (sd) {
+              // sd.modules may contain comprehensiveProgress or percent
+              const bySlug = (sd.modules || []).find(m => (m.slug && a.moduleSlug && m.slug === a.moduleSlug));
+              const byName = (sd.modules || []).find(m => ((m.name || m.display_name || m.module_name) === a.moduleName));
+              const found = bySlug || byName || (sd.assignedModules || []).find(am => (am.moduleName === a.moduleName || am.moduleSlug === a.moduleSlug));
+              if (found) {
+                progress = Number(found.comprehensiveProgress ?? found.progress ?? found.percent ?? 0) || 0;
+              }
+            }
+          } catch (e) {}
+          // merge progress into assignment object so downstream derive logic picks it up
+          const merged = { ...a, progress };
+          // determine derived/display status (reuse existing logic in filteredAssignments via memo, but put a quick best-effort here too)
+          const derived = (progress >= 100) ? 'completed' : (progress > 0 ? 'in-progress' : 'assigned');
+          const dueTs = toDate(a.dueDate);
+          let display = derived;
+          if (String(a.status || '').toLowerCase().startsWith('overdue')) display = 'overdue';
+          else if (derived !== 'completed' && dueTs != null && dueTs < now) display = 'overdue';
+          merged._derivedStatus = derived;
+          merged._displayStatus = display;
+          return merged;
+        });
+        setAssignments(mapped);
+      } catch (e) {
+        // fallback: set raw assignments
+        setAssignments(arr);
+      }
+      
       setAssignError('');
     } catch (e) {
       setAssignError(String(e.message || e));
