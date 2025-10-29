@@ -107,6 +107,7 @@ const Sidebar = () => {
                   >
                     <span className="text-sm">Simulation Lobby</span>
                   </Link>
+                  {/* Rooms link removed from sidebar — Rooms access enforced via guards and direct routes */}
                 </div>
               )}
             </div>

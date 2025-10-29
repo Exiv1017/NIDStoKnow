@@ -109,6 +109,7 @@ const InstructorSidebar = () => {
               <span className="font-medium">Simulation Lobby</span>
             </Link>
           </li>
+          {/* Rooms link intentionally removed: Rooms shown via forced-redirects/guards instead */}
           <li>
             <Link
               to="/settings"

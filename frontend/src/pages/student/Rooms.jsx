@@ -11,7 +11,7 @@ const StudentRooms = () => {
   const fetchRooms = async () => {
     try {
       const headers = user?.token ? { Authorization: `Bearer ${user.token}` } : {};
-      const res = await fetch('/api/student/rooms', { headers });
+      const res = await fetch('/api/student/rooms/all', { headers });
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
       setRooms(data);
@@ -45,6 +45,44 @@ const StudentRooms = () => {
     }
   };
 
+  const handleLeave = async (roomId) => {
+    if (!window.confirm('Leave this room?')) return;
+    try {
+      const headers = {};
+      if (user?.token) headers.Authorization = `Bearer ${user.token}`;
+      const res = await fetch(`/api/student/rooms/${roomId}`, { method: 'DELETE', headers });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || 'Failed to leave');
+      }
+      await fetchRooms();
+    } catch (err) {
+      console.error('leave', err);
+      alert('Failed to leave room: ' + (err.message || ''));
+    }
+  };
+
+  const handleQuickJoin = async (room) => {
+    // room.code expected
+    if (!room || !room.code) return;
+    setLoading(true);
+    try {
+      const headers = {'Content-Type':'application/json'};
+      if (user?.token) headers.Authorization = `Bearer ${user.token}`;
+      const res = await fetch('/api/student/rooms/join', { method: 'POST', headers, body: JSON.stringify({ code: room.code }) });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || 'Join failed');
+      }
+      await fetchRooms();
+    } catch (err) {
+      console.error('quick join', err);
+      alert('Failed to join room: ' + (err.message || ''));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ModuleLayout title="Rooms">
       <div className="max-w-4xl mx-auto">
@@ -58,9 +96,9 @@ const StudentRooms = () => {
         </div>
 
         <div className="bg-white rounded p-6">
-          <h3 className="font-semibold text-lg mb-3">Rooms you joined</h3>
+          <h3 className="font-semibold text-lg mb-3">All Rooms</h3>
           {rooms.length === 0 ? (
-            <div className="text-sm text-gray-500">You haven't joined any rooms yet.</div>
+            <div className="text-sm text-gray-500">No rooms available yet.</div>
           ) : (
             <div className="space-y-3">
               {rooms.map(r => (
@@ -69,7 +107,16 @@ const StudentRooms = () => {
                     <div className="font-medium">{r.name}</div>
                     <div className="text-xs text-gray-500">Code: <span className="font-mono">{r.code}</span></div>
                   </div>
-                  <div className="text-xs text-gray-400">Joined: {r.joined_at}</div>
+                  <div className="flex items-center gap-3">
+                    {r.joined ? (
+                      <>
+                        <div className="text-xs text-gray-400">Joined: {r.joined_at || ''}</div>
+                        <button onClick={() => handleLeave(r.id)} className="px-3 py-1 bg-red-50 text-red-700 rounded">Leave</button>
+                      </>
+                    ) : (
+                      <button disabled={loading} onClick={() => handleQuickJoin(r)} className="px-3 py-1 bg-blue-50 text-blue-700 rounded">Join</button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

@@ -377,6 +377,56 @@ def get_profile(request: Request):
         cursor.close(); conn.close()
 
 
+@router.delete('/student/rooms/{room_id}')
+def student_leave_room(request: Request, room_id: int):
+    """Leave a Room the authenticated student previously joined."""
+    try:
+        p = require_role(request, 'student')
+        student_id = int(p.get('sub')) if p and p.get('sub') else None
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    if not student_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    conn = get_db_connection(); cursor = conn.cursor()
+    try:
+        ensure_simulation_tables(cursor)
+        # Delete membership if exists
+        cursor.execute('DELETE FROM simulation_room_members WHERE room_id=%s AND student_id=%s', (room_id, student_id))
+        conn.commit()
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail='Membership not found')
+        return {'status': 'success', 'deleted': cursor.rowcount}
+    finally:
+        cursor.close(); conn.close()
+
+
+@router.get('/student/rooms/all')
+def list_all_rooms_for_student(request: Request):
+    """List all Rooms with a flag indicating whether the authenticated student has joined each one."""
+    try:
+        p = require_role(request, 'student')
+        student_id = int(p.get('sub')) if p and p.get('sub') else None
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    if not student_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    try:
+        ensure_simulation_tables(cursor)
+        # Left join to mark joined rooms
+        cursor.execute('''
+            SELECT r.id, r.name, r.code, r.instructor_id, r.created_at,
+                   CASE WHEN m.id IS NULL THEN 0 ELSE 1 END AS joined
+            FROM simulation_rooms r
+            LEFT JOIN simulation_room_members m ON m.room_id = r.id AND m.student_id = %s
+            ORDER BY r.created_at DESC
+        ''', (student_id,))
+        rows = cursor.fetchall() or []
+        return [{'id': int(r['id']), 'name': r.get('name'), 'code': r.get('code'), 'instructor_id': int(r.get('instructor_id')), 'created_at': str(r.get('created_at')), 'joined': bool(r.get('joined'))} for r in rows]
+    finally:
+        cursor.close(); conn.close()
+
+
 def ensure_simulation_tables(cursor):
     """Ensure simulation room tables exist (kept local to student_api for safety)."""
     cursor.execute(
@@ -416,7 +466,7 @@ def student_join_room(request: Request, payload: Dict[str, str] = Body(...)):
         raise HTTPException(status_code=401, detail='Unauthorized')
     if not student_id:
         raise HTTPException(status_code=401, detail='Unauthorized')
-    code = (payload.get('code') or '').strip()
+    code = (payload.get('code') or '').strip().upper()
     if not code:
         raise HTTPException(status_code=400, detail='code is required')
     conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
@@ -427,14 +477,19 @@ def student_join_room(request: Request, payload: Dict[str, str] = Body(...)):
         if not room:
             raise HTTPException(status_code=404, detail='Room not found')
         room_id = int(room['id'])
-        # Insert membership if not exists
+        # Check if already member
+        cursor.execute('SELECT id FROM simulation_room_members WHERE room_id=%s AND student_id=%s LIMIT 1', (room_id, student_id))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail='Student already joined this room')
+        # Insert membership
         try:
             cursor2 = conn.cursor()
             cursor2.execute('INSERT INTO simulation_room_members (room_id, student_id) VALUES (%s, %s)', (room_id, student_id))
             conn.commit(); cursor2.close()
-        except Exception:
-            # Ignore duplicate or other insert issues and continue
+        except Exception as e:
+            # Surface a clear error when insertion fails
             conn.rollback()
+            raise HTTPException(status_code=500, detail=f'Failed to join room: {str(e)}')
         return {'room': {'id': int(room['id']), 'name': room.get('name'), 'code': room.get('code'), 'instructor_id': int(room.get('instructor_id'))}}
     finally:
         cursor.close(); conn.close()

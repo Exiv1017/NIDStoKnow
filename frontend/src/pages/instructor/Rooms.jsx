@@ -44,6 +44,21 @@ const Rooms = () => {
     }
   };
 
+  const handleDelete = async (roomId) => {
+    if (!window.confirm('Delete this room? This will remove all memberships.')) return;
+    try {
+      const headers = {};
+      if (user?.token) headers.Authorization = `Bearer ${user.token}`;
+      const res = await fetch(`/api/instructor/rooms/${roomId}`, { method: 'DELETE', headers });
+      if (!res.ok) throw new Error('delete failed');
+      // refresh list
+      await fetchRooms();
+    } catch (err) {
+      console.error('delete room', err);
+      alert('Failed to delete room');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <InstructorSidebar />
@@ -76,8 +91,9 @@ const Rooms = () => {
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="text-right text-xs text-gray-400">{r.created_at || ''}</div>
-                          <button onClick={() => window.history.pushState({}, '', `/instructor/rooms/${r.code}`) || window.location.reload()} className="px-3 py-1 bg-gray-100 rounded">Details</button>
-                          <button onClick={() => window.location.href = `/instructor/lobby?code=${encodeURIComponent(r.code)}`} className="px-3 py-1 bg-blue-50 text-blue-700 rounded">Open Lobby</button>
+                                <button onClick={() => window.history.pushState({}, '', `/instructor/rooms/${r.code}`) || window.location.reload()} className="px-3 py-1 bg-gray-100 rounded">Details</button>
+                                <button onClick={() => window.location.href = `/instructor/lobby?code=${encodeURIComponent(r.code)}`} className="px-3 py-1 bg-blue-50 text-blue-700 rounded">Open Lobby</button>
+                                <button onClick={() => handleDelete(r.id)} className="px-3 py-1 bg-red-50 text-red-700 rounded">Delete</button>
                         </div>
                       </div>
                     ))

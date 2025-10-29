@@ -1034,6 +1034,76 @@ def list_instructor_rooms(request: Request):
     finally:
         cursor.close(); conn.close()
 
+
+@router.delete('/instructor/rooms/{room_id}')
+def delete_instructor_room(request: Request, room_id: int):
+    """Delete a Room owned by the authenticated instructor. Also removes any memberships."""
+    payload = require_role(request, 'instructor')
+    instr_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+    if not instr_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    try:
+        ensure_simulation_rooms_table(cursor)
+        # Verify ownership and fetch code for live-room cleanup
+        cursor.execute('SELECT id, code FROM simulation_rooms WHERE id=%s AND instructor_id=%s LIMIT 1', (room_id, instr_id))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail='Room not found')
+        room_code = row.get('code')
+        # Delete memberships first
+        try:
+            cursor.execute('DELETE FROM simulation_room_members WHERE room_id=%s', (room_id,))
+        except Exception:
+            pass
+        cursor.execute('DELETE FROM simulation_rooms WHERE id=%s', (room_id,))
+        conn.commit()
+        deleted = cursor.rowcount
+    finally:
+        try:
+            cursor.close(); conn.close()
+        except Exception:
+            pass
+
+    # Best-effort: notify/cleanup in-memory live room and connected websockets
+    try:
+        # Import main module dynamically to avoid circular imports at module import time
+        import importlib
+        main_mod = importlib.import_module('backend.main')
+        code = room_code
+        # Close and remove in-memory room if present
+        room = main_mod.simulation_rooms.pop(code, None)
+        import asyncio
+        loop = None
+        try:
+            loop = asyncio.get_event_loop()
+        except Exception:
+            loop = None
+        if room:
+            # Close participant websockets
+            for pname, p in (room.get('participants') or {}).items():
+                ws = p.get('ws') if isinstance(p, dict) else None
+                if ws is not None and loop is not None:
+                    try:
+                        loop.create_task(ws.close())
+                    except Exception:
+                        pass
+        # Close instructor dashboard connections if any
+        conns = getattr(main_mod, 'instructor_simulation_connections', {})
+        if code in conns:
+            conns_list = conns.pop(code, [])
+            if loop is not None:
+                for ws in conns_list:
+                    try:
+                        loop.create_task(ws.close())
+                    except Exception:
+                        pass
+    except Exception:
+        # Non-fatal; live cleanup is best-effort
+        pass
+
+    return {'status': 'success', 'deleted': int(deleted)}
+
 @router.get('/instructor/stats')
 def instructor_stats():
     conn = get_db_connection()

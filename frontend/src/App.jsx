@@ -53,6 +53,7 @@ import ModuleLayout from './components/ModuleLayout';
 import AuthContext, { AuthProvider } from './context/AuthContext';
 import Navigation from './components/Navigation';
 import React from 'react';
+import { useMemo } from 'react';
 
 // --- small storage helpers used across the app ---
 const getStorageKey = (key, role) => `${role}_${key}`;
@@ -319,6 +320,67 @@ function App() {
     }
   }, [user]);
 
+  // Guard components: check server for rooms and redirect to Rooms page if none
+  const RequireStudentRoom = ({ children, user }) => {
+    const [checked, setChecked] = React.useState(false);
+    const [allowed, setAllowed] = React.useState(false);
+    React.useEffect(() => {
+      let mounted = true;
+      (async () => {
+        try {
+          const headers = user?.token ? { Authorization: `Bearer ${user.token}` } : {};
+          const res = await fetch('/api/student/rooms', { headers });
+          if (!mounted) return;
+          if (!res.ok) {
+            // If the call fails, be permissive and allow access to avoid locking users out
+            setAllowed(true);
+          } else {
+            const data = await res.json();
+            setAllowed(Array.isArray(data) && data.length > 0);
+          }
+        } catch (e) {
+          setAllowed(true);
+        } finally {
+          if (mounted) setChecked(true);
+        }
+      })();
+      return () => { mounted = false; };
+    }, [user?.token]);
+
+    if (!checked) return <div />; // small blank while checking
+    return allowed ? children : <Navigate to="/student/rooms" replace />;
+  };
+
+  const RequireInstructorRoom = ({ children, user }) => {
+    const [checked, setChecked] = React.useState(false);
+    const [allowed, setAllowed] = React.useState(false);
+    React.useEffect(() => {
+      let mounted = true;
+      (async () => {
+        try {
+          const headers = user?.token ? { Authorization: `Bearer ${user.token}` } : {};
+          const res = await fetch('/api/instructor/rooms', { headers });
+          if (!mounted) return;
+          if (!res.ok) {
+            setAllowed(true);
+          } else {
+            const data = await res.json();
+            // instructor GET returns an array of rooms
+            setAllowed(Array.isArray(data) && data.length > 0);
+          }
+        } catch (e) {
+          setAllowed(true);
+        } finally {
+          if (mounted) setChecked(true);
+        }
+      })();
+      return () => { mounted = false; };
+    }, [user?.token]);
+
+    if (!checked) return <div />;
+    return allowed ? children : <Navigate to="/instructor/rooms" replace />;
+  };
+
   return (
     <AuthContext.Provider value={{ 
       isAuthenticated, 
@@ -373,7 +435,9 @@ function App() {
               path="/dashboard"
               element={
                 isAuthenticated && user?.role === 'student' ? (
-                  <ModuleLayout title="Dashboard"><StudentDashboard /></ModuleLayout>
+                  <RequireStudentRoom user={user}>
+                    <ModuleLayout title="Dashboard"><StudentDashboard /></ModuleLayout>
+                  </RequireStudentRoom>
                 ) : <Navigate to="/login" />
               }
             />
@@ -448,7 +512,11 @@ function App() {
             <Route
               path="/instructor-dashboard"
               element={
-                isAuthenticated && user?.role === 'instructor' ? <InstructorDashboard /> : <Navigate to="/instructor-login" />
+                isAuthenticated && user?.role === 'instructor' ? (
+                  <RequireInstructorRoom user={user}>
+                    <InstructorDashboard />
+                  </RequireInstructorRoom>
+                ) : <Navigate to="/instructor-login" />
               }
             />
             {/* Merged Assignments + Submissions => InstructorAssessments */}
