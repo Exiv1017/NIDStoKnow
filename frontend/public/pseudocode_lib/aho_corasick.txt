@@ -1,71 +1,21 @@
-Aho–Corasick Multi-Pattern Matching
-==================================
+BUILD_AUTOMATON(patterns):
+  - root := new node (next={}, fail=root, output=[])
+  - insert each pattern into trie; append pattern to node.output at pattern end
+  - BFS over root.next: set child.fail := root for root children
+  - For each dequeued node r and edge ch->u:
+      - f := r.fail; walk f via fail links until f.next contains ch or f==root
+      - set u.fail := f.next[ch] if present else root
+      - u.output += u.fail.output  // inherit suffix matches
+  - return root
 
-Algorithm 1: BUILD_AUTOMATON(patterns)
-Input:  patterns : list of non-empty strings
-Output: root node of automaton (with next, fail, output fields)
+AC_SEARCH(root, text):
+  - node := root; matches := []
+  - for i,ch in enumerate(text):
+      - while node != root and ch not in node.next: node := node.fail
+      - node := node.next[ch] if ch in node.next else root
+      - for pat in node.output: append (i-len(pat)+1, i, pat) to matches
+  - return matches
 
-  create root node
-  root.fail <- root
-  root.output <- []
-  for each pattern p in patterns:
-    node <- root
-    for each character ch in p:
-      if ch not in node.next:
-        node.next[ch] <- new node { next: {}, fail: null, output: [] }
-      node <- node.next[ch]
-    append p to node.output
+Complexity: O(sum |patterns|) build, O(|text| + matches) search.
+Notes: outputs can be deduplicated with a set; use hash maps for sparse alphabets.
 
-  queue <- empty FIFO
-  for each (ch, child) in root.next:
-    child.fail <- root
-    enqueue(queue, child)
-
-  while queue not empty:
-    r <- dequeue(queue)
-    for each (ch, u) in r.next:
-      enqueue(queue, u)
-      f <- r.fail
-      while f != root and ch not in f.next:
-        f <- f.fail
-      if ch in f.next and f.next[ch] != u:
-        u.fail <- f.next[ch]
-      else:
-        u.fail <- root
-      // inherit outputs (dictionary suffix matches)
-      for each pat in u.fail.output:
-        append pat to u.output
-
-  return root
-
-Complexity: O(sum |p|) time, O(sum |p|) space over all patterns.
-
-Algorithm 2: AC_SEARCH(root, text)
-Input:  root : automaton root
-        text : input string
-Output: matches : list of (start_index, end_index, pattern)
-
-  matches <- []
-  node <- root
-  for i from 0 to length(text) - 1:
-    ch <- text[i]
-    while node != root and ch not in node.next:
-      node <- node.fail
-    if ch in node.next:
-      node <- node.next[ch]
-    else:
-      node <- root
-    if node.output not empty:
-      for each pat in node.output:
-        start <- i - length(pat) + 1
-        end   <- i
-        append (start, end, pat) to matches
-
-  return matches
-
-Complexity: O(|text| + number_of_matches)
-
-Notes:
-- Duplicate patterns are supported; each insertion adds another output occurrence.
-- To ignore duplicates, store a set instead of a list in output nodes.
-- For large alphabets, consider sparse maps (hash maps) for node.next.

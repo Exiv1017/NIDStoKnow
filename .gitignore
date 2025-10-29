@@ -3,7 +3,9 @@
 backups/
 *.sql.bak
 *.bak
-
+*docs/diagrams/
+*docs/hipo/
+*frontend/public/pseudocode_lib/
 # Keep schema/migrations in version control
 !backend/sql/*.sql
 

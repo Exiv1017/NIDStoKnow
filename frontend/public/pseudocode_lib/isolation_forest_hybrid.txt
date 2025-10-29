@@ -1,101 +1,45 @@
-Isolation Forest + Hybrid Detection Workflow
-===========================================
 
-Algorithm 1: EXTRACT_FEATURES(command)
-Input:  command : string (may be empty)
-Output: ordered feature vector
 
-  cmd <- command or ""
-  L <- |cmd|
-  tokens <- split_on_whitespace(cmd)
-  arg_count <- max(0, |tokens| - 1)
-  special_chars_count <- count(ch in cmd where ch in { |, &, ;, >, < })
-  path_separators_count <- count_occurrences(cmd, '/')
-  digit_ratio <- count_digits(cmd) / max(1, L)
-  entropy <- shannon_entropy(cmd)
-  uppercase_ratio <- count_uppercase(cmd) / max(1, L)
-  suspicious_keyword_flag <- 1 if any(keyword in cmd) else 0
-  return [L, arg_count, special_chars_count, path_separators_count,
-          digit_ratio, entropy, uppercase_ratio, suspicious_keyword_flag]
 
-Algorithm 2: TRAIN_OR_LOAD()
-Output: (model, meta)
 
-  if model_file_exists() AND meta_file_exists():
-    return (load_model(), load_meta())
-  rows <- fetch_training_commands()
-  if rows empty:
-    rows <- [""]     // benign fallback baseline
-  feature_rows <- []
-  feature_names <- null
-  for each r in rows:
-    (names, vec) <- feature_vector(r)  // uses EXTRACT_FEATURES
-    if feature_names is null:
-      feature_names <- names
-    append vec to feature_rows
-  contamination <- config.contamination or 0.10
-  n_trees <- config.n_trees or 100
-  sample_size <- min(config.sample_size or 256, |feature_rows|)
-  model <- IsolationForest(n_estimators=n_trees,
-                           contamination=contamination,
-                           max_samples=sample_size,
-                           random_state=42)
-  fit model on feature_rows
-  df_vals <- decision_function(model, feature_rows) // higher => more normal
-  meta.min_df <- min(df_vals)
-  meta.max_df <- max(df_vals)
-  meta.feature_names <- feature_names
-  meta.version <- hash(config, feature_names, |feature_rows|)
-  persist(model, meta)
-  return (model, meta)
 
-Algorithm 3: NORMALIZE_INVERT(df, min_df, max_df)
-  inverted <- max_df - df            // invert so higher => more anomalous
-  denom <- (max_df - min_df) or 1
-  score <- clamp(inverted / denom, 0, 1)
-  return score
+EXTRACT_FEATURES(cmd):
+  - features := [L=len(cmd), arg_count, special_chars, path_seps, digit_ratio, entropy, uppercase_ratio, suspicious_flag]
+  - return (names, numeric_vector)
 
-Algorithm 4: COMPUTE_SEMANTIC_BOOST(command, patterns)
-  matched <- []
-  total_raw <- 0
-  for each p in patterns:
-    if regex_match(p.regex, command):
-      append p to matched
-      total_raw <- total_raw + p.boost_value
-  boost_component <- min(0.25, 0.02 * total_raw)  // bounded for stability
-  return (boost_component, matched)
+TRAIN_OR_LOAD():
+  - load persisted model+meta if present, else:
+    - rows := fetch_training_commands() or [""]
+    - X := map(EXTRACT_FEATURES, rows)
+    - defaults: contamination=0.10, n_trees=100, max_samples=min(256, |X|)
+    - fit IsolationForest(random_state=42) on X
+    - meta.min_df, meta.max_df := min/max(decision_function(X))
+    - persist(model, meta)
+  - return (model, meta)
 
-Algorithm 5: SCORE_COMMAND(command)
-  (model, meta) <- TRAIN_OR_LOAD() if not cached
-  (_, vec) <- feature_vector(command)
-  df <- decision_function(model, vec)
-  base_score <- NORMALIZE_INVERT(df, meta.min_df, meta.max_df)
-  patterns <- fetch_active_boost_patterns()
-  (boost_component, matched) <- COMPUTE_SEMANTIC_BOOST(command, patterns)
-  boosted_score <- min(1.0, base_score + boost_component)
-  threshold <- meta.config.threshold or 0.70
-  label <- ANOMALY if boosted_score >= threshold else NORMAL
-  features <- EXTRACT_FEATURES(command)
-  explanation <- build_explanation(matched, features, boost_component)
-  return { label, base_score, boosted_score, threshold,
-           model_version: meta.version, matched_patterns: matched,
-           features, explanation }
+NORMALIZE_INVERT(df, min_df, max_df):
+  - score := clamp((max_df - df) / max(1e-12, max_df - min_df), 0, 1)
+  - return score
 
-Algorithm 6: HYBRID_DETECT(command)
-  sig_matches <- match_signatures(command)      // Aho–Corasick + regex
-  anomaly <- SCORE_COMMAND(command)
-  if sig_matches not empty AND anomaly.label = ANOMALY:
-       severity <- HIGH
-  else if sig_matches not empty:
-       severity <- HIGH
-  else if anomaly.label = ANOMALY:
-       severity <- MEDIUM
-  else:
-       severity <- LOW
-  return { command, signatures: sig_matches, anomaly, severity }
+COMPUTE_SEMANTIC_BOOST(cmd, patterns):
+  - total := sum(p.boost_value for p in patterns if regex_match(p.regex, cmd))
+  - return (min(0.25, 0.02 * total), matched_patterns)
 
-Summary:
-- Signature engine supplies deterministic matches.
-- Isolation Forest produces a normalized anomaly score (0..1).
-- Semantic boost modestly elevates score for suspicious pattern context.
-- Fusion maps evidence to severity tiers {LOW, MEDIUM, HIGH}.
+SCORE_COMMAND(cmd):
+  - (model, meta) := TRAIN_OR_LOAD()
+  - vec := EXTRACT_FEATURES(cmd).vector
+  - base := NORMALIZE_INVERT(decision_function(model, vec), meta.min_df, meta.max_df)
+  - boost, matches := COMPUTE_SEMANTIC_BOOST(cmd, fetch_active_boost_patterns())
+  - boosted := min(1.0, base + boost)
+  - label := ANOMALY if boosted >= (meta.config.threshold or 0.70) else NORMAL
+  - return {label, base, boosted, threshold, matches, features: vec, model_version: meta.version}
+
+HYBRID_DETECT(cmd):
+  - sigs := match_signatures(cmd)  // Aho–Corasick + regex
+  - anomaly := SCORE_COMMAND(cmd)
+  - severity := HIGH if sigs not empty or anomaly.label==ANOMALY else LOW/ MEDIUM (ANOMALY->MEDIUM otherwise LOW)
+  - return {cmd, signatures: sigs, anomaly, severity}
+
+Notes: keep boost small (<=0.25), persist meta.min_df/max_df and feature order to ensure stable normalization.
+
+

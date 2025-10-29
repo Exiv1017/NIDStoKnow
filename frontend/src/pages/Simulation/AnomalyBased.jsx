@@ -266,7 +266,7 @@ const AnomalyBased = () => {
   const MAX_LIVE = 5;
   const [anomalySeries, setAnomalySeries] = useState([]); // time series of anomaly scores
   const [selectedAnomaly, setSelectedAnomaly] = useState(null); // currently inspected anomaly
-  const [modelMeta, setModelMeta] = useState(null); // isolation forest model metadata
+  
   const [showRaw, setShowRaw] = useState(true); // toggle raw vs boosted series
   const [showPatternLibrary, setShowPatternLibrary] = useState(false); // collapsible drawer
   const [patterns, setPatterns] = useState([]); // anomaly feature patterns
@@ -634,18 +634,7 @@ const AnomalyBased = () => {
   }, [detectionResults]);
 
   // Fetch model meta once
-  useEffect(() => {
-    const fetchMeta = async () => {
-      try {
-        const res = await fetch('/api/anomaly/model-meta');
-        const data = await res.json();
-        if (data.success) setModelMeta(data.meta);
-      } catch (e) {
-        console.warn('Failed to fetch model meta', e);
-      }
-    };
-    fetchMeta();
-  }, []);
+  // model metadata UI and fetching removed — model internals are not shown in the simulation page
 
   // Fetch patterns (on first open or initial mount for faster UX)
   useEffect(() => {
@@ -1208,38 +1197,7 @@ const AnomalyBased = () => {
                       )}
                     </div>
                   )}
-                  {modelMeta && (
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                      <div className="flex items-center mb-2">
-                        <h3 className="font-semibold text-gray-800 text-sm tracking-wide uppercase">Model Metadata</h3>
-                      </div>
-                      <div className="text-[11px] space-y-1">
-                        <div><span className="text-gray-500">Version:</span> <code className="bg-gray-100 px-1 rounded">{modelMeta.version}</code></div>
-                        <div><span className="text-gray-500">Trained:</span> {new Date(modelMeta.trained_at).toLocaleString()}</div>
-                        {modelMeta.config && (
-                          <div className="mt-2">
-                            <div className="font-semibold text-gray-600 mb-1">Config</div>
-                            <ul className="space-y-0.5">
-                              {Object.entries(modelMeta.config).map(([k,v]) => (
-                                <li key={k} className="flex justify-between"><span className="text-gray-500">{k}</span><span className="text-gray-700 font-mono">{String(v)}</span></li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {modelMeta.feature_names && (
-                          <div className="mt-2">
-                            <div className="font-semibold text-gray-600 mb-1">Features</div>
-                            <div className="flex flex-wrap gap-1">
-                              {modelMeta.feature_names.map(fn => (
-                                <span key={fn} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[10px]">{fn}</span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        <div className="mt-2 text-[10px] text-gray-500">Decision Fn Range: {modelMeta.min_df?.toFixed?.(3)} → {modelMeta.max_df?.toFixed?.(3)}</div>
-                      </div>
-                    </div>
-                  )}
+                  {/* Model metadata card intentionally removed to hide model internals from the simulation UI */}
                 </div>
               </div>
             </div>
