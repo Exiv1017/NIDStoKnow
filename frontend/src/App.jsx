@@ -1,5 +1,5 @@
 import StudentAssignments from './pages/student/Assignments';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useState, createContext, useEffect, useRef } from 'react';
 // Note: Legacy raw markdown imports removed. Theory content now loads via registry-driven TheoryModulePage.
 
@@ -182,6 +182,24 @@ function App() {
   const [user, setUser] = useState(null);
   const [modules, setModules] = useState([]);
 
+  // On initial mount, bootstrap auth state from localStorage so full-page reloads
+  // preserve the logged-in session
+  useEffect(() => {
+    try {
+      const authState = loadAuthState();
+      if (authState.isAuthenticated) {
+        setIsAuthenticated(true);
+        setUser(authState.user);
+      }
+    } catch (err) {
+      // ignore and leave default unauthenticated
+      console.warn('bootstrap auth failed', err);
+    }
+  }, []);
+
+  // useNavigate is available because the Router now wraps App (see main.jsx)
+  const navigate = useNavigate();
+
   // Load modules from localStorage when user changes
   useEffect(() => {
     if (user?.id) {
@@ -292,12 +310,11 @@ function App() {
     // Centralized Rooms-first redirect: always send newly-logged-in users to the Rooms page
     try {
       if (updatedUser?.role === 'student') {
-        // use location.replace so Back doesn't return to the login page
-        window.location.replace('/student/rooms');
+        navigate('/student/rooms', { replace: true });
       } else if (updatedUser?.role === 'instructor') {
-        window.location.replace('/instructor/rooms');
+        navigate('/instructor/rooms', { replace: true });
       } else if (updatedUser?.role === 'admin') {
-        window.location.replace('/admin-dashboard');
+        navigate('/admin-dashboard', { replace: true });
       }
     } catch (err) {
       // If navigation fails for any reason, fall back to no-op (state is set so protected routes will work)
@@ -403,7 +420,6 @@ function App() {
       login, 
       logout 
     }}>
-    <Router>
       <ConditionalNavigation />
       <Routes>
             <Route path="/" element={<LandingPage />} />
@@ -667,7 +683,6 @@ function App() {
             {/* Fallback route */}
             <Route path="*" element={<Navigate to="/" />} />
       </Routes>
-    </Router>
     </AuthContext.Provider>
   );
 }
