@@ -49,14 +49,36 @@ def ensure_users_table(cursor):
           id INT NOT NULL AUTO_INCREMENT,
           name VARCHAR(255) NOT NULL,
           email VARCHAR(255) NOT NULL,
-                    password_hash TEXT NOT NULL,
+          password_hash TEXT NOT NULL,
           userType ENUM('student','instructor','admin') NOT NULL,
           status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'approved',
+          created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+          last_active TIMESTAMP NULL DEFAULT NULL,
           PRIMARY KEY (id),
           UNIQUE KEY email (email)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
         '''
     )
+    # Ensure commonly referenced columns exist for older installs (created_at, last_active)
+    try:
+        cursor.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_schema=%s AND table_name='users'",
+            (MYSQL_CONFIG['database'],)
+        )
+        existing = {row[0] for row in cursor.fetchall()}
+        if 'created_at' not in existing:
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP")
+            except Exception:
+                pass
+        if 'last_active' not in existing:
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN last_active TIMESTAMP NULL DEFAULT NULL")
+            except Exception:
+                pass
+    except Exception:
+        # If information_schema isn't accessible, silently continue; later queries will handle missing columns defensively
+        pass
 
 def ensure_assignments_table(cursor):
     """Create assignments table if it doesn't exist yet."""
