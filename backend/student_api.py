@@ -376,6 +376,95 @@ def get_profile(request: Request):
     finally:
         cursor.close(); conn.close()
 
+
+def ensure_simulation_tables(cursor):
+    """Ensure simulation room tables exist (kept local to student_api for safety)."""
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS simulation_rooms (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            instructor_id INT NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            code VARCHAR(32) NOT NULL UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_instructor (instructor_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        '''
+    )
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS simulation_room_members (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            room_id INT NOT NULL,
+            student_id INT NOT NULL,
+            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_room_member (room_id, student_id),
+            INDEX idx_room (room_id),
+            INDEX idx_student (student_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        '''
+    )
+
+
+@router.post('/student/rooms/join')
+def student_join_room(request: Request, payload: Dict[str, str] = Body(...)):
+    """Join a Room by code. Returns room details if successful."""
+    try:
+        p = require_role(request, 'student')
+        student_id = int(p.get('sub')) if p and p.get('sub') else None
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    if not student_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    code = (payload.get('code') or '').strip()
+    if not code:
+        raise HTTPException(status_code=400, detail='code is required')
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    try:
+        ensure_simulation_tables(cursor)
+        cursor.execute('SELECT id, instructor_id, name, code, created_at FROM simulation_rooms WHERE code=%s LIMIT 1', (code,))
+        room = cursor.fetchone()
+        if not room:
+            raise HTTPException(status_code=404, detail='Room not found')
+        room_id = int(room['id'])
+        # Insert membership if not exists
+        try:
+            cursor2 = conn.cursor()
+            cursor2.execute('INSERT INTO simulation_room_members (room_id, student_id) VALUES (%s, %s)', (room_id, student_id))
+            conn.commit(); cursor2.close()
+        except Exception:
+            # Ignore duplicate or other insert issues and continue
+            conn.rollback()
+        return {'room': {'id': int(room['id']), 'name': room.get('name'), 'code': room.get('code'), 'instructor_id': int(room.get('instructor_id'))}}
+    finally:
+        cursor.close(); conn.close()
+
+
+@router.get('/student/rooms')
+def list_student_rooms(request: Request):
+    """List Rooms the authenticated student has joined."""
+    try:
+        p = require_role(request, 'student')
+        student_id = int(p.get('sub')) if p and p.get('sub') else None
+    except HTTPException:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    if not student_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    try:
+        ensure_simulation_tables(cursor)
+        cursor.execute('''
+            SELECT r.id, r.name, r.code, r.instructor_id, m.joined_at
+            FROM simulation_rooms r
+            JOIN simulation_room_members m ON m.room_id = r.id
+            WHERE m.student_id = %s
+            ORDER BY m.joined_at DESC
+        ''', (student_id,))
+        rows = cursor.fetchall() or []
+        return [{'id': int(r['id']), 'name': r.get('name'), 'code': r.get('code'), 'instructor_id': int(r.get('instructor_id')), 'joined_at': str(r.get('joined_at'))} for r in rows]
+    finally:
+        cursor.close(); conn.close()
+
 @router.put("/student/profile", response_model=StudentProfile)
 def update_profile(request: Request, profile: Dict[str, Any] = Body(...)):
     """Persist name,email into users and joinDate,avatar into student_profiles."""

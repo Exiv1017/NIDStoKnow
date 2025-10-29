@@ -118,6 +118,33 @@ def ensure_submissions_table(cursor):
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
         '''
     )
+def ensure_simulation_rooms_table(cursor):
+    """Create simulation_rooms and simulation_room_members tables to persist instructor-created rooms and members."""
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS simulation_rooms (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            instructor_id INT NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            code VARCHAR(32) NOT NULL UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_instructor (instructor_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        '''
+    )
+    cursor.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS simulation_room_members (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            room_id INT NOT NULL,
+            student_id INT NOT NULL,
+            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_room_member (room_id, student_id),
+            INDEX idx_room (room_id),
+            INDEX idx_student (student_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        '''
+    )
 
 def _notify_once(cursor, recipient_role: str, recipient_id: Optional[int], message: str, ntype: str = 'info') -> None:
     """Insert a notification if an identical unread message doesn't already exist for that recipient."""
@@ -954,6 +981,58 @@ def instructor_modules():
     cursor.close()
     conn.close()
     return modules
+
+
+class CreateRoomRequest(BaseModel):
+    name: str
+
+
+@router.post('/instructor/rooms')
+def create_simulation_room(request: Request, req: CreateRoomRequest):
+    """Create a new simulation Room owned by the authenticated instructor and return a join code."""
+    payload = require_role(request, 'instructor')
+    instr_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+    if not instr_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    conn = get_db_connection(); cursor = conn.cursor()
+    try:
+        ensure_simulation_rooms_table(cursor)
+        # Generate short unique code (alphanumeric, 6 chars)
+        import random, string
+        def _gen():
+            return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        code = _gen()
+        # Avoid race by retrying a few times
+        attempts = 0
+        while attempts < 6:
+            try:
+                cursor.execute('INSERT INTO simulation_rooms (instructor_id, name, code) VALUES (%s, %s, %s)', (instr_id, (req.name or '').strip() or 'Room', code))
+                conn.commit()
+                room_id = cursor.lastrowid
+                return {'id': int(room_id), 'name': req.name, 'code': code}
+            except Exception:
+                conn.rollback()
+                code = _gen(); attempts += 1
+        raise HTTPException(status_code=500, detail='Failed to generate a unique room code')
+    finally:
+        cursor.close(); conn.close()
+
+
+@router.get('/instructor/rooms')
+def list_instructor_rooms(request: Request):
+    """List Rooms the authenticated instructor created."""
+    payload = require_role(request, 'instructor')
+    instr_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+    if not instr_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    try:
+        ensure_simulation_rooms_table(cursor)
+        cursor.execute('SELECT id, name, code, created_at FROM simulation_rooms WHERE instructor_id=%s ORDER BY created_at DESC', (instr_id,))
+        rows = cursor.fetchall() or []
+        return [{'id': int(r['id']), 'name': r.get('name'), 'code': r.get('code'), 'created_at': str(r.get('created_at'))} for r in rows]
+    finally:
+        cursor.close(); conn.close()
 
 @router.get('/instructor/stats')
 def instructor_stats():

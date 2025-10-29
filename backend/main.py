@@ -922,7 +922,92 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
         if not token:
             await websocket.close(code=4401)
             return
-        decode_token(token)
+        # Validate token and enforce room-level access: only the room's instructor or joined students may connect
+        payload = decode_token(token)
+        role = (payload.get('role') or '').lower() if payload else ''
+        user_id = None
+        try:
+            user_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+        except Exception:
+            user_id = None
+        # Ensure simulation room tables exist (defensive: create if missing)
+        try:
+            conn = get_db_connection(); cur = conn.cursor()
+            cur.execute(
+                '''
+                CREATE TABLE IF NOT EXISTS simulation_rooms (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    instructor_id INT NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    code VARCHAR(32) NOT NULL UNIQUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                '''
+            )
+            cur.execute(
+                '''
+                CREATE TABLE IF NOT EXISTS simulation_room_members (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    room_id INT NOT NULL,
+                    student_id INT NOT NULL,
+                    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uniq_room_member (room_id, student_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                '''
+            )
+            # Lookup room by code
+            cur.execute('SELECT id, instructor_id FROM simulation_rooms WHERE code=%s LIMIT 1', (lobby_code,))
+            row = cur.fetchone()
+            if not row:
+                try:
+                    cur.close(); conn.close()
+                except Exception:
+                    pass
+                await websocket.close(code=4404)
+                return
+            room_id = int(row[0] if isinstance(row, tuple) else row[0])
+            instr_id = int(row[1] if isinstance(row, tuple) else row[1])
+            # Enforce role rules
+            if role == 'instructor':
+                if user_id is None or user_id != instr_id:
+                    try:
+                        cur.close(); conn.close()
+                    except Exception:
+                        pass
+                    await websocket.close(code=4403)
+                    return
+            elif role == 'student':
+                if user_id is None:
+                    try:
+                        cur.close(); conn.close()
+                    except Exception:
+                        pass
+                    await websocket.close(code=4403)
+                    return
+                cur.execute('SELECT id FROM simulation_room_members WHERE room_id=%s AND student_id=%s LIMIT 1', (room_id, user_id))
+                mem = cur.fetchone()
+                if not mem:
+                    try:
+                        cur.close(); conn.close()
+                    except Exception:
+                        pass
+                    await websocket.close(code=4403)
+                    return
+            else:
+                # admins and other roles may connect for observation
+                pass
+        except Exception:
+            try:
+                cur.close(); conn.close()
+            except Exception:
+                pass
+            await websocket.close(code=4403)
+            return
+        finally:
+            try:
+                cur.close(); conn.close()
+            except Exception:
+                pass
     except Exception:
         await websocket.close(code=4403)
         return

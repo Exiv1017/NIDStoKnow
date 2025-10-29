@@ -32,6 +32,8 @@ import CreateContent from './pages/instructor/CreateContent';
 import Settings from './pages/instructor/Settings';
 import InstructorLobby from './pages/instructor/InstructorLobby';
 import InstructorSimulation from './pages/instructor/InstructorSimulation';
+import InstructorRooms from './pages/instructor/Rooms';
+import RoomDetail from './pages/instructor/RoomDetail';
 import SignatureBasedOverview from './pages/student/theoretical/SignatureBasedOverview';
 import AnomalyOverviewPage from './pages/student/theoretical/AnomalyOverviewPage';
 import HybridOverviewPage from './pages/student/theoretical/HybridOverviewPage';
@@ -46,6 +48,7 @@ import HybridAssessment from './pages/student/theoretical/assessment/HybridAsses
 import AttackSimulation from './pages/student/AttackSimulation';
 import DefendSimulation from './pages/student/DefendSimulation';
 import ObserverSimulation from './pages/student/ObserverSimulation';
+import StudentRooms from './pages/student/Rooms';
 import ModuleLayout from './components/ModuleLayout';
 import AuthContext, { AuthProvider } from './context/AuthContext';
 import Navigation from './components/Navigation';
@@ -486,6 +489,18 @@ function App() {
               }
             />
             <Route
+              path="/instructor/rooms"
+              element={
+                isAuthenticated && user?.role === 'instructor' ? <InstructorRooms /> : <Navigate to="/instructor-login" />
+              }
+            />
+            <Route
+              path="/instructor/rooms/:code"
+              element={
+                isAuthenticated && user?.role === 'instructor' ? <RoomDetail /> : <Navigate to="/instructor-login" />
+              }
+            />
+            <Route
               path="/instructor/simulation"
               element={
                 isAuthenticated && user?.role === 'instructor' ? <InstructorSimulation /> : <Navigate to="/instructor-login" />
@@ -515,6 +530,12 @@ function App() {
               element={
                 isAuthenticated && user?.role === 'student' ? <AttackSimulation /> : <Navigate to="/login" />
               } 
+            />
+            <Route
+              path="/student/rooms"
+              element={
+                isAuthenticated && user?.role === 'student' ? <StudentRooms /> : <Navigate to="/login" />
+              }
             />
             <Route 
               path="/simulation/defend" 
