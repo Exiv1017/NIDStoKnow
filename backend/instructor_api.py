@@ -873,10 +873,26 @@ def get_all_student_progress(request: Request):
     cursor = conn.cursor(dictionary=True)
     # Ensure table exists
     ensure_student_progress_table(cursor)
-    # Find joined students for this instructor
-    cursor.execute('''
-        SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
-    ''', (instr_id,))
+    # Optionally scope to a specific room if provided (room_id query param)
+    room_id = None
+    try:
+        room_id = int(request.query_params.get('room_id')) if request.query_params.get('room_id') else None
+    except Exception:
+        room_id = None
+
+    if room_id:
+        # Verify ownership of room
+        cursor.execute('SELECT instructor_id FROM simulation_rooms WHERE id=%s LIMIT 1', (room_id,))
+        row = cursor.fetchone()
+        if not row or int(row.get('instructor_id') or 0) != instr_id:
+            cursor.close(); conn.close()
+            raise HTTPException(status_code=403, detail='Forbidden')
+        cursor.execute('SELECT DISTINCT student_id FROM simulation_room_members WHERE room_id=%s', (room_id,))
+    else:
+        # Find joined students for this instructor across all their rooms
+        cursor.execute('''
+            SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
+        ''', (instr_id,))
     member_rows = cursor.fetchall() or []
     student_ids = [int(r['student_id']) for r in member_rows if r and r.get('student_id')]
     if not student_ids:
@@ -998,29 +1014,57 @@ def instructor_modules(request: Request):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        # Count distinct joined students for this instructor
-        cursor.execute('''
-            SELECT COUNT(DISTINCT m.student_id) AS totalStudents
-            FROM simulation_room_members m
-            JOIN simulation_rooms r ON r.id = m.room_id
-            WHERE r.instructor_id = %s
-        ''', (instr_id,))
-        total_row = cursor.fetchone() or {'totalStudents': 0}
-        total_students = int(total_row.get('totalStudents') or 0)
+        # Optionally scope to a specific room
+        room_id = None
+        try:
+            room_id = int(request.query_params.get('room_id')) if request.query_params.get('room_id') else None
+        except Exception:
+            room_id = None
 
-        # Aggregate progress only for these students
-        cursor.execute('''
-            SELECT
-                sp.module_name AS name,
-                COUNT(DISTINCT sp.student_id) AS students_with_progress,
-                SUM(CASE WHEN COALESCE(sp.total_lessons,0) > 0 AND COALESCE(sp.lessons_completed,0) >= sp.total_lessons THEN 1 ELSE 0 END) AS finished_count
-            FROM student_progress sp
-            JOIN (
-                SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
-            ) s ON s.student_id = sp.student_id
-            GROUP BY sp.module_name
-        ''', (instr_id,))
-        rows = cursor.fetchall() or []
+        if room_id:
+            cursor.execute('SELECT instructor_id FROM simulation_rooms WHERE id=%s LIMIT 1', (room_id,))
+            r0 = cursor.fetchone()
+            if not r0 or int(r0.get('instructor_id') or 0) != instr_id:
+                cursor.close(); conn.close(); raise HTTPException(status_code=403, detail='Forbidden')
+            cursor.execute('SELECT COUNT(DISTINCT student_id) AS totalStudents FROM simulation_room_members WHERE room_id=%s', (room_id,))
+            total_row = cursor.fetchone() or {'totalStudents': 0}
+            total_students = int(total_row.get('totalStudents') or 0)
+            cursor.execute('''
+                SELECT
+                    sp.module_name AS name,
+                    COUNT(DISTINCT sp.student_id) AS students_with_progress,
+                    SUM(CASE WHEN COALESCE(sp.total_lessons,0) > 0 AND COALESCE(sp.lessons_completed,0) >= sp.total_lessons THEN 1 ELSE 0 END) AS finished_count
+                FROM student_progress sp
+                JOIN (
+                    SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id=%s
+                ) s ON s.student_id = sp.student_id
+                GROUP BY sp.module_name
+            ''', (room_id,))
+            rows = cursor.fetchall() or []
+        else:
+            # Count distinct joined students for this instructor across all rooms
+            cursor.execute('''
+                SELECT COUNT(DISTINCT m.student_id) AS totalStudents
+                FROM simulation_room_members m
+                JOIN simulation_rooms r ON r.id = m.room_id
+                WHERE r.instructor_id = %s
+            ''', (instr_id,))
+            total_row = cursor.fetchone() or {'totalStudents': 0}
+            total_students = int(total_row.get('totalStudents') or 0)
+
+            # Aggregate progress only for these students
+            cursor.execute('''
+                SELECT
+                    sp.module_name AS name,
+                    COUNT(DISTINCT sp.student_id) AS students_with_progress,
+                    SUM(CASE WHEN COALESCE(sp.total_lessons,0) > 0 AND COALESCE(sp.lessons_completed,0) >= sp.total_lessons THEN 1 ELSE 0 END) AS finished_count
+                FROM student_progress sp
+                JOIN (
+                    SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
+                ) s ON s.student_id = sp.student_id
+                GROUP BY sp.module_name
+            ''', (instr_id,))
+            rows = cursor.fetchall() or []
 
         modules = []
         for r in rows:
@@ -1195,15 +1239,30 @@ def instructor_stats(request: Request):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # Find distinct student ids who joined this instructor's rooms
+    # Optionally scope to a specific room
     try:
         ensure_simulation_rooms_table(cursor)
-        cursor.execute('''
-            SELECT DISTINCT m.student_id AS student_id
-            FROM simulation_room_members m
-            JOIN simulation_rooms r ON r.id = m.room_id
-            WHERE r.instructor_id = %s
-        ''', (instr_id,))
+        room_id = None
+        try:
+            room_id = int(request.query_params.get('room_id')) if request.query_params.get('room_id') else None
+        except Exception:
+            room_id = None
+
+        if room_id:
+            # Verify ownership
+            cursor.execute('SELECT instructor_id FROM simulation_rooms WHERE id=%s LIMIT 1', (room_id,))
+            r0 = cursor.fetchone()
+            if not r0 or int(r0.get('instructor_id') or 0) != instr_id:
+                cursor.close(); conn.close();
+                raise HTTPException(status_code=403, detail='Forbidden')
+            cursor.execute('SELECT DISTINCT student_id AS student_id FROM simulation_room_members WHERE room_id=%s', (room_id,))
+        else:
+            cursor.execute('''
+                SELECT DISTINCT m.student_id AS student_id
+                FROM simulation_room_members m
+                JOIN simulation_rooms r ON r.id = m.room_id
+                WHERE r.instructor_id = %s
+            ''', (instr_id,))
         member_rows = cursor.fetchall() or []
         student_ids = [int(r['student_id']) for r in member_rows if r and r.get('student_id')]
         total_students = len(student_ids)
@@ -1220,31 +1279,55 @@ def instructor_stats(request: Request):
 
         # Active modules among these students
         # Use a JOIN to avoid constructing long IN lists
-        cursor.execute('''
-            SELECT COUNT(DISTINCT sp.module_name) AS activeModules
-            FROM student_progress sp
-            JOIN (
-                SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
-            ) s ON s.student_id = sp.student_id
-        ''', (instr_id,))
+        # Active modules among these students (use JOIN on scoped subquery)
+        if room_id:
+            cursor.execute('''
+                SELECT COUNT(DISTINCT sp.module_name) AS activeModules
+                FROM student_progress sp
+                JOIN (
+                    SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id=%s
+                ) s ON s.student_id = sp.student_id
+            ''', (room_id,))
+        else:
+            cursor.execute('''
+                SELECT COUNT(DISTINCT sp.module_name) AS activeModules
+                FROM student_progress sp
+                JOIN (
+                    SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
+                ) s ON s.student_id = sp.student_id
+            ''', (instr_id,))
         active_modules_row = cursor.fetchone() or {'activeModules': 0}
         active_modules = int(active_modules_row.get('activeModules') or 0)
 
         # Compute average completion fraction only for these students
         avg_completion = 0
         if active_modules > 0 and total_students > 0:
-            cursor.execute('''
-                SELECT SUM(
-                  CASE
-                    WHEN COALESCE(sp.total_lessons,0) > 0 THEN LEAST(1.0, COALESCE(sp.lessons_completed,0) / NULLIF(sp.total_lessons,0))
-                    ELSE ((COALESCE(sp.overview_completed,0) + COALESCE(sp.practical_completed,0) + COALESCE(sp.assessment_completed,0)) / 3.0)
-                  END
-                ) AS sum_frac
-                FROM student_progress sp
-                JOIN (
-                    SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
-                ) s ON s.student_id = sp.student_id
-            ''', (instr_id,))
+                        if room_id:
+                                cursor.execute('''
+                                        SELECT SUM(
+                                            CASE
+                                                WHEN COALESCE(sp.total_lessons,0) > 0 THEN LEAST(1.0, COALESCE(sp.lessons_completed,0) / NULLIF(sp.total_lessons,0))
+                                                ELSE ((COALESCE(sp.overview_completed,0) + COALESCE(sp.practical_completed,0) + COALESCE(sp.assessment_completed,0)) / 3.0)
+                                            END
+                                        ) AS sum_frac
+                                        FROM student_progress sp
+                                        JOIN (
+                                                SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id=%s
+                                        ) s ON s.student_id = sp.student_id
+                                ''', (room_id,))
+                        else:
+                                cursor.execute('''
+                                        SELECT SUM(
+                                            CASE
+                                                WHEN COALESCE(sp.total_lessons,0) > 0 THEN LEAST(1.0, COALESCE(sp.lessons_completed,0) / NULLIF(sp.total_lessons,0))
+                                                ELSE ((COALESCE(sp.overview_completed,0) + COALESCE(sp.practical_completed,0) + COALESCE(sp.assessment_completed,0)) / 3.0)
+                                            END
+                                        ) AS sum_frac
+                                        FROM student_progress sp
+                                        JOIN (
+                                                SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
+                                        ) s ON s.student_id = sp.student_id
+                                ''', (instr_id,))
             row = cursor.fetchone() or {}
             sum_frac = float(row.get('sum_frac') or 0.0)
             total_possible = total_students * active_modules
@@ -1493,8 +1576,20 @@ def instructor_feedback_trend(request: Request):
     try:
         ensure_feedback_table(cursor)
         ensure_simulation_rooms_table(cursor)
-        # Find joined student ids (used to ensure instructor only sees feedback relevant to their students)
-        cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s', (instr_id,))
+        # Optionally scope to a specific room
+        room_id = None
+        try:
+            room_id = int(request.query_params.get('room_id')) if request.query_params.get('room_id') else None
+        except Exception:
+            room_id = None
+        if room_id:
+            cursor.execute('SELECT instructor_id FROM simulation_rooms WHERE id=%s LIMIT 1', (room_id,))
+            r0 = cursor.fetchone()
+            if not r0 or int(r0[0] if isinstance(r0, tuple) else r0.get('instructor_id') or 0) != instr_id:
+                cursor.close(); conn.close(); return _safe_default()
+            cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id=%s', (room_id,))
+        else:
+            cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s', (instr_id,))
         member_rows = cursor.fetchall() or []
         student_ids = [int(r[0]) for r in member_rows if r and r[0]]
         # If instructor has no joined students, still show zeros (no leakage)
@@ -1556,8 +1651,21 @@ def instructor_assessment_trend(request: Request):
     try:
         ensure_submissions_table(cursor)
         ensure_simulation_rooms_table(cursor)
-        # Find joined student ids
-        cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s', (instr_id,))
+        # Optionally scope to a specific room
+        room_id = None
+        try:
+            room_id = int(request.query_params.get('room_id')) if request.query_params.get('room_id') else None
+        except Exception:
+            room_id = None
+
+        if room_id:
+            cursor.execute('SELECT instructor_id FROM simulation_rooms WHERE id=%s LIMIT 1', (room_id,))
+            r0 = cursor.fetchone()
+            if not r0 or int(r0[0] if isinstance(r0, tuple) else r0.get('instructor_id') or 0) != instr_id:
+                cursor.close(); conn.close(); return _safe_default()
+            cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id=%s', (room_id,))
+        else:
+            cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s', (instr_id,))
         member_rows = cursor.fetchall() or []
         student_ids = [int(r[0]) for r in member_rows if r and r[0]]
         if not student_ids:
@@ -1616,8 +1724,22 @@ def instructor_recent_activity(request: Request):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        # Find joined student ids
-        cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s', (instr_id,))
+        # Optionally scope to a specific room
+        room_id = None
+        try:
+            room_id = int(request.query_params.get('room_id')) if request.query_params.get('room_id') else None
+        except Exception:
+            room_id = None
+
+        if room_id:
+            # Verify ownership
+            cursor.execute('SELECT instructor_id FROM simulation_rooms WHERE id=%s LIMIT 1', (room_id,))
+            r0 = cursor.fetchone()
+            if not r0 or int(r0.get('instructor_id') or 0) != instr_id:
+                cursor.close(); conn.close(); raise HTTPException(status_code=403, detail='Forbidden')
+            cursor.execute('SELECT DISTINCT student_id FROM simulation_room_members WHERE room_id=%s', (room_id,))
+        else:
+            cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s', (instr_id,))
         member_rows = cursor.fetchall() or []
         student_ids = [int(r['student_id']) for r in member_rows if r and r.get('student_id')]
         if not student_ids:
@@ -1694,9 +1816,21 @@ def list_submissions(request: Request):
     except Exception:
         pass
     try:
-        # Unified: combine practical/assessment submissions with simulation session rows
-        # Get joined student ids for this instructor
-        cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s', (instr_id,))
+        # Optionally scope to a specific room
+        room_id = None
+        try:
+            room_id = int(request.query_params.get('room_id')) if request.query_params.get('room_id') else None
+        except Exception:
+            room_id = None
+
+        if room_id:
+            cursor.execute('SELECT instructor_id FROM simulation_rooms WHERE id=%s LIMIT 1', (room_id,))
+            r0 = cursor.fetchone()
+            if not r0 or int(r0.get('instructor_id') or 0) != instr_id:
+                cursor.close(); conn.close(); raise HTTPException(status_code=403, detail='Forbidden')
+            cursor.execute('SELECT DISTINCT student_id FROM simulation_room_members WHERE room_id=%s', (room_id,))
+        else:
+            cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s', (instr_id,))
         member_rows = cursor.fetchall() or []
         student_ids = [int(r['student_id']) for r in member_rows if r and r.get('student_id')]
         if not student_ids:
@@ -1772,15 +1906,37 @@ def instructor_students(request: Request):
 
     conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute('''
-            SELECT DISTINCT u.id, u.name, u.email
-            FROM users u
-            JOIN (
-                SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
-            ) s ON s.student_id = u.id
-            WHERE u.userType='student' AND u.status='approved'
-            ORDER BY u.name ASC
-        ''', (instr_id,))
+        # Optionally scope to a specific room
+        room_id = None
+        try:
+            room_id = int(request.query_params.get('room_id')) if request.query_params.get('room_id') else None
+        except Exception:
+            room_id = None
+
+        if room_id:
+            cursor.execute('SELECT instructor_id FROM simulation_rooms WHERE id=%s LIMIT 1', (room_id,))
+            r0 = cursor.fetchone()
+            if not r0 or int(r0.get('instructor_id') or 0) != instr_id:
+                cursor.close(); conn.close(); raise HTTPException(status_code=403, detail='Forbidden')
+            cursor.execute('''
+                SELECT DISTINCT u.id, u.name, u.email
+                FROM users u
+                JOIN (
+                    SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id=%s
+                ) s ON s.student_id = u.id
+                WHERE u.userType='student' AND u.status='approved'
+                ORDER BY u.name ASC
+            ''', (room_id,))
+        else:
+            cursor.execute('''
+                SELECT DISTINCT u.id, u.name, u.email
+                FROM users u
+                JOIN (
+                    SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
+                ) s ON s.student_id = u.id
+                WHERE u.userType='student' AND u.status='approved'
+                ORDER BY u.name ASC
+            ''', (instr_id,))
         rows = cursor.fetchall() or []
         out = [{'id': int(r['id']), 'name': r.get('name') or '', 'email': r.get('email') or ''} for r in rows]
         return out
@@ -1799,14 +1955,36 @@ def get_students_summary(request: Request):
     cursor = conn.cursor(dictionary=True)
     try:
         ensure_users_table(cursor)
-        # Find joined students for this instructor
-        cursor.execute('''
-            SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id = m.room_id WHERE r.instructor_id = %s
-        ''', (instr_id,))
-        member_rows = cursor.fetchall() or []
-        student_ids = [int(r['student_id']) for r in member_rows if r and r.get('student_id')]
-        if not student_ids:
-            return []
+        # Optionally scope to a specific room if provided
+        room_id = None
+        try:
+            room_id = int(request.query_params.get('room_id')) if request.query_params.get('room_id') else None
+        except Exception:
+            room_id = None
+
+        if room_id:
+            # Verify ownership
+            cursor.execute('SELECT instructor_id FROM simulation_rooms WHERE id=%s LIMIT 1', (room_id,))
+            row = cursor.fetchone()
+            if not row or int(row.get('instructor_id') or 0) != instr_id:
+                raise HTTPException(status_code=403, detail='Forbidden')
+            # Get joined students for that room
+            cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id=%s', (room_id,))
+            member_rows = cursor.fetchall() or []
+            student_ids = [int(r['student_id']) for r in member_rows if r and r.get('student_id')]
+            if not student_ids:
+                return []
+            joined_sub = '(SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id = %s)'
+            params = (room_id,)
+        else:
+            # Find joined students for this instructor across all their rooms
+            cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id = m.room_id WHERE r.instructor_id = %s', (instr_id,))
+            member_rows = cursor.fetchall() or []
+            student_ids = [int(r['student_id']) for r in member_rows if r and r.get('student_id')]
+            if not student_ids:
+                return []
+            joined_sub = '(SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id = m.room_id WHERE r.instructor_id = %s)'
+            params = (instr_id,)
 
         # Use JOIN on the joined-students subquery to scope aggregates
         sql = f'''
@@ -1836,9 +2014,7 @@ def get_students_summary(request: Request):
                     WHEN (MAX(ss.created_at) IS NOT NULL) THEN 'simulation'
                     ELSE NULL
                 END AS lastSubmissionType
-            FROM (
-                SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id = m.room_id WHERE r.instructor_id = %s
-            ) joined_students
+            FROM {joined_sub} joined_students
             JOIN users u ON u.id = joined_students.student_id
             LEFT JOIN student_progress sp ON u.id = sp.student_id
             LEFT JOIN submissions s ON u.id = s.student_id
@@ -1847,7 +2023,7 @@ def get_students_summary(request: Request):
             GROUP BY u.id, u.name, u.email
             ORDER BY u.name ASC
         '''
-        cursor.execute(sql, (instr_id,))
+        cursor.execute(sql, params)
         students = cursor.fetchall() or []
 
         # Format the response similar to previous implementation

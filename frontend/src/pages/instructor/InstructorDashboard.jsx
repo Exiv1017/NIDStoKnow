@@ -30,6 +30,8 @@ ChartJS.register(
 
 const InstructorDashboard = () => {
   const { user } = useContext(AuthContext);
+  // Optional room scoping: if the page URL contains ?room_id=<id>, append it to instructor API calls
+  const roomId = (typeof window !== 'undefined') ? new URLSearchParams(window.location.search).get('room_id') : null;
   // Notifications handled by shared bell component
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -70,22 +72,34 @@ const InstructorDashboard = () => {
   // --- Fetch dashboard data from backend ---
   // Helper to fetch stats (for event-driven refresh)
   const fetchStats = () => {
-    fetch('/api/instructor/stats', {
-      headers: authHeader()
-    })
-      .then(res => res.json())
-      .then(data => setStats(data && typeof data === 'object' ? data : { totalStudents: 0, activeModules: 0, avgCompletion: 0, feedbackCount: 0 }))
-      .catch((err) => { setStats({ totalStudents: 0, activeModules: 0, avgCompletion: 0, feedbackCount: 0 }); console.error('Stats fetch error:', err); });
+    try {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      let statsUrl = `${API_BASE}/api/instructor/stats`;
+      if (roomId) statsUrl += `?room_id=${encodeURIComponent(roomId)}`;
+      fetch(statsUrl.replace(/([^:]?)\/\/+/g,'$1/'), { headers: authHeader() })
+        .then(res => res.json())
+        .then(data => setStats(data && typeof data === 'object' ? data : { totalStudents: 0, activeModules: 0, avgCompletion: 0, feedbackCount: 0 }))
+        .catch((err) => { setStats({ totalStudents: 0, activeModules: 0, avgCompletion: 0, feedbackCount: 0 }); console.error('Stats fetch error:', err); });
+    } catch (e) {
+      setStats({ totalStudents: 0, activeModules: 0, avgCompletion: 0, feedbackCount: 0 });
+      console.error('Stats fetch setup error:', e);
+    }
   };
 
   useEffect(() => {
-    // Fetch modules
-    fetch('/api/instructor/modules', {
-      headers: authHeader()
-    })
-      .then(res => res.json())
-      .then(data => Array.isArray(data) ? setModules(data) : setModules([]))
-      .catch((err) => { setModules([]); console.error('Modules fetch error:', err); });
+    // Fetch modules (room-scoped when room_id present)
+    try {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      let modulesUrl = `${API_BASE}/api/instructor/modules`;
+      if (roomId) modulesUrl += `?room_id=${encodeURIComponent(roomId)}`;
+      fetch(modulesUrl.replace(/([^:]?)\/\/+/g,'$1/'), { headers: authHeader() })
+        .then(res => res.json())
+        .then(data => Array.isArray(data) ? setModules(data) : setModules([]))
+        .catch((err) => { setModules([]); console.error('Modules fetch error:', err); });
+    } catch (e) {
+      setModules([]);
+      console.error('Modules fetch setup error:', e);
+    }
     // Fetch stats
   fetchStats();
   // Fetch notifications initially
@@ -106,27 +120,40 @@ const InstructorDashboard = () => {
       })
       .catch(()=> setModuleRequestCounts({ pending:0, approved:0, rejected:0 }));
     // Fetch assessment performance trend (quiz scores). Fallback to feedback-trend if needed.
-  fetch('/api/instructor/assessment-trend', { headers: authHeader() })
+  try {
+    const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+    let assessUrl = `${API_BASE}/api/instructor/assessment-trend`;
+    if (roomId) assessUrl += `?room_id=${encodeURIComponent(roomId)}`;
+    fetch(assessUrl.replace(/([^:]?)\/\/+/g,'$1/'), { headers: authHeader() })
       .then(res => res.ok ? res.json() : [])
       .then(data => {
         if(Array.isArray(data) && data.length){
           setAssessmentTrend(data);
         } else {
           // fallback
-          fetch('/api/instructor/feedback-trend', { headers: authHeader() })
+          let feedbackUrl = `${API_BASE}/api/instructor/feedback-trend`;
+          if (roomId) feedbackUrl += `?room_id=${encodeURIComponent(roomId)}`;
+          fetch(feedbackUrl.replace(/([^:]?)\/\/+/g,'$1/'), { headers: authHeader() })
             .then(r=>r.json())
             .then(d=> setAssessmentTrend(Array.isArray(d)? d: []))
             .catch(()=> setAssessmentTrend([]));
         }
       })
       .catch(()=> setAssessmentTrend([]));
-    // Fetch recent activity
-    fetch('/api/instructor/recent-activity', {
-      headers: authHeader()
-    })
-      .then(res => res.json())
-      .then(data => Array.isArray(data) ? setRecentActivity(data) : setRecentActivity([]))
-      .catch((err) => { setRecentActivity([]); console.error('Recent activity fetch error:', err); });
+  } catch (e) { setAssessmentTrend([]); console.error('Assessment trend fetch setup error:', e); }
+    // Fetch recent activity (room-scoped when room_id present)
+    try {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      let recentUrl = `${API_BASE}/api/instructor/recent-activity`;
+      if (roomId) recentUrl += `?room_id=${encodeURIComponent(roomId)}`;
+      fetch(recentUrl.replace(/([^:]?)\/\/+/g,'$1/'), { headers: authHeader() })
+        .then(res => res.json())
+        .then(data => Array.isArray(data) ? setRecentActivity(data) : setRecentActivity([]))
+        .catch((err) => { setRecentActivity([]); console.error('Recent activity fetch error:', err); });
+    } catch (e) {
+      setRecentActivity([]);
+      console.error('Recent activity fetch setup error:', e);
+    }
 
     // Listen for studentsChanged event to refresh stats
     const handleStudentsChanged = () => {

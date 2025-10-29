@@ -9,6 +9,8 @@ import AuthContext from '../../context/AuthContext';
 */
 export default function InstructorAssessments() {
   const { user } = useContext(AuthContext);
+  // Optional room scoping: if the page URL contains ?room_id=<id>, append it to instructor API calls
+  const roomId = (typeof window !== 'undefined') ? new URLSearchParams(window.location.search).get('room_id') : null;
   // Assignments state
   const [assignments, setAssignments] = useState([]);
   const [assignLoading, setAssignLoading] = useState(true);
@@ -40,9 +42,9 @@ export default function InstructorAssessments() {
     try {
       setAssignLoading(true);
       const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
-      const res = await fetch(`${API_BASE}/api/instructor/assignments?instructor_id=${user?.id || ''}`.replace(/([^:]?)\/\/+/g,'$1/'),
-        { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} }
-      );
+      let assignmentsUrl = `${API_BASE}/api/instructor/assignments?instructor_id=${user?.id || ''}`;
+      if (roomId) assignmentsUrl += `&room_id=${encodeURIComponent(roomId)}`;
+      const res = await fetch(assignmentsUrl.replace(/([^:]?)\/\/+/g,'$1/'), { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.error || 'Failed to load assignments');
       const arr = Array.isArray(data) ? data : [];
@@ -107,7 +109,9 @@ export default function InstructorAssessments() {
     try {
       setSubsLoading(true);
       const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
-  const res = await fetch(`${API_BASE}/api/instructor/submissions`.replace(/([^:]?)\/\/+/g,'$1/'), { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
+  let subsUrl = `${API_BASE}/api/instructor/submissions`;
+  if (roomId) subsUrl += `?room_id=${encodeURIComponent(roomId)}`;
+  const res = await fetch(subsUrl.replace(/([^:]?)\/\/+/g,'$1/'), { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
       if (!res.ok) throw new Error('Failed to fetch submissions');
       const data = await res.json();
       setSubs(Array.isArray(data) ? data : []);

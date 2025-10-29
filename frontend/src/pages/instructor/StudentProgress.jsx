@@ -22,7 +22,12 @@ const StudentProgress = () => {
       try {
         setLoading(true);
         const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
-        const response = await fetch(`${API_BASE}/api/instructor/students-summary`.replace(/([^:]?)\/\/+/g,'$1/'), {
+        // If the page has a room_id query parameter, include it to scope results to that room
+        const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+        const roomId = params.get('room_id') || params.get('roomId') || null;
+        let url = `${API_BASE}/api/instructor/students-summary`.replace(/([^:]?)\/\/+/g,'$1/');
+        if (roomId) url += `?room_id=${encodeURIComponent(roomId)}`;
+        const response = await fetch(url, {
           headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
         });
         if (!response.ok) {

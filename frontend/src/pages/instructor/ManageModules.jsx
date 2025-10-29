@@ -25,6 +25,8 @@ function slugify(name = '') {
 
 const ManageModules = () => {
   const { user } = useContext(AuthContext);
+  // Optional room scoping: if URL contains ?room_id=<id>, append to instructor API calls that return student data
+  const roomId = (typeof window !== 'undefined') ? new URLSearchParams(window.location.search).get('room_id') : null;
   const [modules, setModules] = useState([]);
   const [statsTotalStudents, setStatsTotalStudents] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -126,7 +128,9 @@ const ManageModules = () => {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch(apiUrl('/api/instructor/stats'), {
+      let statsUrl = apiUrl('/api/instructor/stats');
+      if (roomId) statsUrl += `?room_id=${encodeURIComponent(roomId)}`;
+      const res = await fetch(statsUrl, {
         headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
       });
       if (!res.ok) {
@@ -144,7 +148,9 @@ const ManageModules = () => {
   const fetchModules = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(apiUrl('/api/instructor/modules'), {
+      let modulesUrl = apiUrl('/api/instructor/modules');
+      if (roomId) modulesUrl += `?room_id=${encodeURIComponent(roomId)}`;
+      const response = await fetch(modulesUrl, {
         headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
       });
 
@@ -217,7 +223,9 @@ const ManageModules = () => {
   const fetchStudents = async () => {
     try {
       setStudentsLoading(true);
-      const res = await fetch(apiUrl('/api/instructor/students'), {
+      let studentsUrl = apiUrl('/api/instructor/students');
+      if (roomId) studentsUrl += `?room_id=${encodeURIComponent(roomId)}`;
+      const res = await fetch(studentsUrl, {
         headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
       });
       if (!res.ok) throw new Error('Failed to fetch students');
@@ -695,6 +703,7 @@ const ManageModules = () => {
                           module_slug: selectedModule.title.toLowerCase().replace(/\s+/g, '-'),
                           due_date: assignForm.dueDate || null,
                           notes: assignForm.notes || null,
+                          ...(roomId ? { room_id: roomId } : {}),
                         };
                         const res = await fetch(apiUrl('/api/instructor/assignments'), {
                           method: 'POST',
