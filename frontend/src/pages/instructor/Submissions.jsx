@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useContext } from 'react';
 import InstructorSidebar from '../../components/InstructorSidebar';
+import AuthContext from '../../context/AuthContext';
 
 export default function Submissions() {
+  const { user } = useContext(AuthContext);
   const [subs, setSubs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,7 +15,7 @@ export default function Submissions() {
       setLoading(true);
       try {
   const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
-  const res = await fetch(`${API_BASE}/api/instructor/submissions`.replace(/([^:]?)\/\/+/g,'$1/'));
+  const res = await fetch(`${API_BASE}/api/instructor/submissions`.replace(/([^:]?)\/\/+/g,'$1/'), { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
         if (!res.ok) throw new Error('Failed to fetch submissions');
         const data = await res.json();
         setSubs(Array.isArray(data) ? data : []);

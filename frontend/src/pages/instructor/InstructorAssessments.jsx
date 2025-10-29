@@ -107,7 +107,7 @@ export default function InstructorAssessments() {
     try {
       setSubsLoading(true);
       const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
-      const res = await fetch(`${API_BASE}/api/instructor/submissions`.replace(/([^:]?)\/\/+/g,'$1/'));
+  const res = await fetch(`${API_BASE}/api/instructor/submissions`.replace(/([^:]?)\/\/+/g,'$1/'), { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
       if (!res.ok) throw new Error('Failed to fetch submissions');
       const data = await res.json();
       setSubs(Array.isArray(data) ? data : []);

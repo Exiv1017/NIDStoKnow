@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useContext } from 'react';
 import InstructorSidebar from '../../components/InstructorSidebar';
+import AuthContext from '../../context/AuthContext';
 
 const StudentProgress = () => {
   const [students, setStudents] = useState([]);
@@ -13,29 +14,36 @@ const StudentProgress = () => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Fetch students data from backend
+  const { user } = useContext(AuthContext);
+
+  // Fetch students data from backend (scoped to students who joined instructor rooms)
   useEffect(() => {
     const fetchStudents = async () => {
       try {
         setLoading(true);
-  const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
-  const response = await fetch(`${API_BASE}/api/instructor/students-summary`.replace(/([^:]?)\/\/+/g,'$1/'));
+        const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+        const response = await fetch(`${API_BASE}/api/instructor/students-summary`.replace(/([^:]?)\/\/+/g,'$1/'), {
+          headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
+        });
         if (!response.ok) {
-          throw new Error('Failed to fetch student data');
+          const txt = await response.text().catch(()=>null);
+          throw new Error(txt || 'Failed to fetch student data');
         }
         const data = await response.json();
-        setStudents(data);
+        setStudents(Array.isArray(data) ? data : []);
         setError(null);
       } catch (err) {
-        setError(err.message);
+        setError(err.message || String(err));
         console.error('Error fetching students:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchStudents();
-  }, []);
+    // Only attempt to fetch after we know who the user is (helps avoid 401/no-token errors)
+    if (user?.token) fetchStudents();
+    else setLoading(false);
+  }, [user?.token]);
 
   // Debounce search input
   useEffect(() => {

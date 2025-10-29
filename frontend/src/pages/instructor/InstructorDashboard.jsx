@@ -317,6 +317,7 @@ const InstructorDashboard = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}),
         },
         body: JSON.stringify({
           message: `Test notification created at ${new Date().toLocaleTimeString()}`,

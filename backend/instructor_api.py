@@ -1514,7 +1514,12 @@ def instructor_recent_activity(request: Request):
         return []
 
 @router.get('/instructor/submissions')
-def list_submissions():
+def list_submissions(request: Request):
+    payload = require_role(request, 'instructor')
+    instr_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+    if not instr_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     # Best-effort ensure simulation_sessions exists for subqueries
@@ -1538,59 +1543,97 @@ def list_submissions():
         pass
     try:
         # Unified: combine practical/assessment submissions with simulation session rows
-        # Restrict submissions to students who joined instructor rooms
-        # Determine instructor id from request header if possible (best-effort)
-        # We'll attempt to detect token via require_role but keep backwards compatibility
+        # Get joined student ids for this instructor
+        cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s', (instr_id,))
+        member_rows = cursor.fetchall() or []
+        student_ids = [int(r['student_id']) for r in member_rows if r and r.get('student_id')]
+        if not student_ids:
+            cursor.close(); conn.close(); return []
+
+        # Build placeholders
+        placeholders = ','.join(['%s'] * len(student_ids))
+
+        # Fetch practical/assessment submissions for these students
         try:
-            # If running in context of an instructor request, scope by their joined students
-            # Use a quick require_role call; if it fails, fall back to global list
-            # Import Request via closure if available
-            from fastapi import Request
-            # Not having request param here, we can't require role reliably; so do a safe global return of recent submissions
-            cursor.execute('''
-            (
-              SELECT 
-                   s.id AS id,
-                   s.student_id AS studentId,
-                   s.student_name AS studentName,
-                   s.module_slug AS moduleSlug,
-                   s.module_title AS moduleTitle,
-                   s.submission_type AS submissionType,
-                   s.totals_rule_count AS ruleCount,
-                   s.totals_total_matches AS totalMatches,
-                   s.created_at AS createdAt,
-                   NULL AS attackerScore,
-                   NULL AS defenderScore
-              FROM submissions s
-            )
-            UNION ALL
-                        (
-                            SELECT 
-                                     ss.id AS id,
-                                     ss.student_id AS studentId,
-                                     ss.student_name AS studentName,
-                                     NULL AS moduleSlug,
-                                     '-' AS moduleTitle,
-                                     'simulation' AS submissionType,
-                                     NULL AS ruleCount,
-                                     NULL AS totalMatches,
-                                     ss.created_at AS createdAt,
-                                     CASE WHEN ss.role='attacker' THEN ss.score ELSE NULL END AS attackerScore,
-                                     CASE WHEN ss.role='defender' THEN ss.score ELSE NULL END AS defenderScore
-                            FROM simulation_sessions ss
-                        )
-            ORDER BY createdAt DESC
-            LIMIT 300
-        ''')
-            rows = cursor.fetchall() or []
+            cursor.execute(f'''
+                SELECT 
+                    s.id AS id,
+                    s.student_id AS studentId,
+                    s.student_name AS studentName,
+                    s.module_slug AS moduleSlug,
+                    s.module_title AS moduleTitle,
+                    s.submission_type AS submissionType,
+                    s.totals_rule_count AS ruleCount,
+                    s.totals_total_matches AS totalMatches,
+                    s.created_at AS createdAt,
+                    NULL AS attackerScore,
+                    NULL AS defenderScore
+                FROM submissions s
+                WHERE s.student_id IN ({placeholders})
+            '''.format(placeholders=placeholders), tuple(student_ids))
+            submission_rows = cursor.fetchall() or []
+
+            # Fetch simulation session submissions for these students
+            cursor.execute(f'''
+                SELECT 
+                    ss.id AS id,
+                    ss.student_id AS studentId,
+                    ss.student_name AS studentName,
+                    NULL AS moduleSlug,
+                    '-' AS moduleTitle,
+                    'simulation' AS submissionType,
+                    NULL AS ruleCount,
+                    NULL AS totalMatches,
+                    ss.created_at AS createdAt,
+                    CASE WHEN ss.role='attacker' THEN ss.score ELSE NULL END AS attackerScore,
+                    CASE WHEN ss.role='defender' THEN ss.score ELSE NULL END AS defenderScore
+                FROM simulation_sessions ss
+                WHERE ss.student_id IN ({placeholders})
+            '''.format(placeholders=placeholders), tuple(student_ids))
+            session_rows = cursor.fetchall() or []
+
+            # Merge and sort by createdAt desc, limit 300
+            combined = (submission_rows or []) + (session_rows or [])
+            # Normalize createdAt to comparable values (strings/datetimes may already sort)
+            combined_sorted = sorted(combined, key=lambda r: r.get('createdAt') or '', reverse=True)[:300]
             cursor.close(); conn.close()
-            return rows or []
-        except Exception:
+            return combined_sorted
+        except Exception as e:
+            print(f"[ERROR] list_submissions scoping failed: {e}")
             cursor.close(); conn.close(); return []
     except Exception as e:
         print(f"[ERROR] list_submissions: {e}")
         cursor.close(); conn.close()
         raise HTTPException(status_code=500, detail='Failed to fetch submissions')
+
+
+@router.get('/instructor/students')
+def instructor_students(request: Request):
+    """Return list of students who joined any room owned by the authenticated instructor.
+
+    This endpoint is consumed by frontend assign modals and student lists.
+    """
+    payload = require_role(request, 'instructor')
+    instr_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+    if not instr_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute('''
+            SELECT DISTINCT u.id, u.name, u.email
+            FROM users u
+            JOIN (
+                SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
+            ) s ON s.student_id = u.id
+            WHERE u.userType='student' AND u.status='approved'
+            ORDER BY u.name ASC
+        ''', (instr_id,))
+        rows = cursor.fetchall() or []
+        out = [{'id': int(r['id']), 'name': r.get('name') or '', 'email': r.get('email') or ''} for r in rows]
+        return out
+    finally:
+        cursor.close(); conn.close()
 
 @router.get('/instructor/students-summary', response_model=List[StudentSummary])
 def get_students_summary():
