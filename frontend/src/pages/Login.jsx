@@ -1,9 +1,8 @@
 import { useState, useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import AuthContext from '../context/AuthContext';
 
 const Login = () => {
-  const navigate = useNavigate();
   const { login } = useContext(AuthContext);
   const [formData, setFormData] = useState({
     email: '',
@@ -37,8 +36,8 @@ const Login = () => {
 
       if (response.ok) {
         const userWithToken = { ...(data.user || {}), token: data.access_token };
+        // Delegate redirect to centralized AuthContext.login
         login(userWithToken);
-        navigate('/dashboard');
       } else {
         setError(data.detail || data.error || 'Invalid email or password');
       }

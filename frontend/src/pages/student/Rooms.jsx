@@ -1,12 +1,15 @@
 import React, { useEffect, useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AuthContext from '../../context/AuthContext';
-import ModuleLayout from '../../components/ModuleLayout';
 
 const StudentRooms = () => {
   const { user } = useContext(AuthContext);
   const [rooms, setRooms] = useState([]);
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const navigate = useNavigate();
 
   const fetchRooms = async () => {
     try {
@@ -37,6 +40,9 @@ const StudentRooms = () => {
       }
       await fetchRooms();
       setCode('');
+      // After successfully joining a room, show confirmation then go to dashboard
+      setSuccessMessage('Joined room — redirecting to dashboard...');
+      setTimeout(() => navigate('/dashboard'), 700);
     } catch (err) {
       console.error('join', err);
       alert('Failed to join room: ' + (err.message || ''));
@@ -62,33 +68,15 @@ const StudentRooms = () => {
     }
   };
 
-  const handleQuickJoin = async (room) => {
-    // room.code expected
-    if (!room || !room.code) return;
-    setLoading(true);
-    try {
-      const headers = {'Content-Type':'application/json'};
-      if (user?.token) headers.Authorization = `Bearer ${user.token}`;
-      const res = await fetch('/api/student/rooms/join', { method: 'POST', headers, body: JSON.stringify({ code: room.code }) });
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || 'Join failed');
-      }
-      await fetchRooms();
-    } catch (err) {
-      console.error('quick join', err);
-      alert('Failed to join room: ' + (err.message || ''));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <ModuleLayout title="Rooms">
+    <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded p-6 mb-6">
           <h2 className="text-xl font-semibold">Join a Room</h2>
           <p className="text-sm text-gray-500">Enter the code provided by your instructor</p>
+          {successMessage && (
+            <div className="mt-3 mb-3 px-4 py-2 rounded bg-green-50 text-green-700">{successMessage}</div>
+          )}
           <form onSubmit={handleJoin} className="mt-3 flex gap-2">
             <input value={code} onChange={e => setCode(e.target.value)} placeholder="Enter code (e.g. ABC123)" className="flex-1 border rounded px-3 py-2" />
             <button disabled={loading} className="bg-[#1E5780] text-white px-4 rounded">Join</button>
@@ -100,9 +88,9 @@ const StudentRooms = () => {
           {rooms.length === 0 ? (
             <div className="text-sm text-gray-500">No rooms available yet.</div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {rooms.map(r => (
-                <div key={r.id} className="flex items-center justify-between p-3 border rounded">
+                <div key={r.id} className="bg-white border rounded-lg p-4 shadow-sm flex items-center justify-between">
                   <div>
                     <div className="font-medium">{r.name}</div>
                     <div className="text-xs text-gray-500">Code: <span className="font-mono">{r.code}</span></div>
@@ -114,7 +102,7 @@ const StudentRooms = () => {
                         <button onClick={() => handleLeave(r.id)} className="px-3 py-1 bg-red-50 text-red-700 rounded">Leave</button>
                       </>
                     ) : (
-                      <button disabled={loading} onClick={() => handleQuickJoin(r)} className="px-3 py-1 bg-blue-50 text-blue-700 rounded">Join</button>
+                      <div className="text-sm text-gray-500">Not joined — use the form above to join with your instructor's code.</div>
                     )}
                   </div>
                 </div>
@@ -123,7 +111,7 @@ const StudentRooms = () => {
           )}
         </div>
       </div>
-    </ModuleLayout>
+    </div>
   );
 };
 

@@ -289,6 +289,20 @@ function App() {
     } catch (err) {
       console.warn('login: failed to persist auth state', err);
     }
+    // Centralized Rooms-first redirect: always send newly-logged-in users to the Rooms page
+    try {
+      if (updatedUser?.role === 'student') {
+        // use location.replace so Back doesn't return to the login page
+        window.location.replace('/student/rooms');
+      } else if (updatedUser?.role === 'instructor') {
+        window.location.replace('/instructor/rooms');
+      } else if (updatedUser?.role === 'admin') {
+        window.location.replace('/admin-dashboard');
+      }
+    } catch (err) {
+      // If navigation fails for any reason, fall back to no-op (state is set so protected routes will work)
+      console.warn('post-login redirect failed', err);
+    }
   };
 
   const logout = () => {
@@ -445,7 +459,9 @@ function App() {
               path="/learning-modules"
               element={
                 isAuthenticated && user?.role === 'student' ? (
-                  <ModuleLayout title="Learning Modules"><LearningModules modules={modules} setModules={setModules} /></ModuleLayout>
+                  <RequireStudentRoom user={user}>
+                    <ModuleLayout title="Learning Modules"><LearningModules modules={modules} setModules={setModules} /></ModuleLayout>
+                  </RequireStudentRoom>
                 ) : <Navigate to="/login" />
               }
             />
@@ -453,7 +469,9 @@ function App() {
               path="/account-settings"
               element={
                 isAuthenticated && user?.role === 'student' ? (
-                  <ModuleLayout title="Account Settings"><AccountSettings /></ModuleLayout>
+                  <RequireStudentRoom user={user}>
+                    <ModuleLayout title="Account Settings"><AccountSettings /></ModuleLayout>
+                  </RequireStudentRoom>
                 ) : <Navigate to="/login" />
               }
             />
@@ -461,7 +479,9 @@ function App() {
               path="/student/assignments"
               element={
                 isAuthenticated && user?.role === 'student' ? (
-                  <ModuleLayout title="My Assignments"><StudentAssignments /></ModuleLayout>
+                  <RequireStudentRoom user={user}>
+                    <ModuleLayout title="My Assignments"><StudentAssignments /></ModuleLayout>
+                  </RequireStudentRoom>
                 ) : <Navigate to="/login" />
               }
             />
@@ -469,7 +489,9 @@ function App() {
               path="/learning-modules/:moduleName/:lessonName"
               element={
                 isAuthenticated && user?.role === 'student' ? (
-                  <ModuleLayout title="Lesson"><LearningModules modules={modules} setModules={setModules} /></ModuleLayout>
+                  <RequireStudentRoom user={user}>
+                    <ModuleLayout title="Lesson"><LearningModules modules={modules} setModules={setModules} /></ModuleLayout>
+                  </RequireStudentRoom>
                 ) : <Navigate to="/login" />
               }
             />
@@ -477,7 +499,9 @@ function App() {
               path="/student/lobby"
               element={
                 isAuthenticated && user?.role === 'student' ? (
-                  <ModuleLayout title="Simulation Lobby"><SimulationLobby /></ModuleLayout>
+                  <RequireStudentRoom user={user}>
+                    <ModuleLayout title="Simulation Lobby"><SimulationLobby /></ModuleLayout>
+                  </RequireStudentRoom>
                 ) : <Navigate to="/login" />
               }
             />
@@ -486,24 +510,30 @@ function App() {
             <Route
               path="/simulation/signature"
               element={
-                isAuthenticated ? (
-                  <ModuleLayout title="Signature Simulation"><SignatureBased /></ModuleLayout>
+                isAuthenticated && user?.role === 'student' ? (
+                  <RequireStudentRoom user={user}>
+                    <ModuleLayout title="Signature Simulation"><SignatureBased /></ModuleLayout>
+                  </RequireStudentRoom>
                 ) : <Navigate to="/login" />
               }
             />
             <Route
               path="/simulation/anomaly"
               element={
-                isAuthenticated ? (
-                  <ModuleLayout title="Anomaly Simulation"><AnomalyBased /></ModuleLayout>
+                isAuthenticated && user?.role === 'student' ? (
+                  <RequireStudentRoom user={user}>
+                    <ModuleLayout title="Anomaly Simulation"><AnomalyBased /></ModuleLayout>
+                  </RequireStudentRoom>
                 ) : <Navigate to="/login" />
               }
             />
             <Route
               path="/simulation/hybrid"
               element={
-                isAuthenticated ? (
-                  <ModuleLayout title="Hybrid Simulation"><Hybrid /></ModuleLayout>
+                isAuthenticated && user?.role === 'student' ? (
+                  <RequireStudentRoom user={user}>
+                    <ModuleLayout title="Hybrid Simulation"><Hybrid /></ModuleLayout>
+                  </RequireStudentRoom>
                 ) : <Navigate to="/login" />
               }
             />
@@ -523,37 +553,49 @@ function App() {
             <Route
               path="/manage-modules"
               element={
-                isAuthenticated && user?.role === 'instructor' ? <ManageModules /> : <Navigate to="/instructor-login" />
+                isAuthenticated && user?.role === 'instructor' ? (
+                  <RequireInstructorRoom user={user}><ManageModules /></RequireInstructorRoom>
+                ) : <Navigate to="/instructor-login" />
               }
             />
             <Route
               path="/instructor/assessments"
               element={
-                isAuthenticated && user?.role === 'instructor' ? <InstructorAssessments /> : <Navigate to="/instructor-login" />
+                isAuthenticated && user?.role === 'instructor' ? (
+                  <RequireInstructorRoom user={user}><InstructorAssessments /></RequireInstructorRoom>
+                ) : <Navigate to="/instructor-login" />
               }
             />
             <Route
               path="/student-progress"
               element={
-                isAuthenticated && user?.role === 'instructor' ? <StudentProgress /> : <Navigate to="/instructor-login" />
+                isAuthenticated && user?.role === 'instructor' ? (
+                  <RequireInstructorRoom user={user}><StudentProgress /></RequireInstructorRoom>
+                ) : <Navigate to="/instructor-login" />
               }
             />
             <Route
               path="/create-content"
               element={
-                isAuthenticated && user?.role === 'instructor' ? <CreateContent /> : <Navigate to="/instructor-login" />
+                isAuthenticated && user?.role === 'instructor' ? (
+                  <RequireInstructorRoom user={user}><CreateContent /></RequireInstructorRoom>
+                ) : <Navigate to="/instructor-login" />
               }
             />
             <Route
               path="/settings"
               element={
-                isAuthenticated && user?.role === 'instructor' ? <Settings /> : <Navigate to="/instructor-login" />
+                isAuthenticated && user?.role === 'instructor' ? (
+                  <RequireInstructorRoom user={user}><Settings /></RequireInstructorRoom>
+                ) : <Navigate to="/instructor-login" />
               }
             />
             <Route
               path="/instructor/lobby"
               element={
-                isAuthenticated && user?.role === 'instructor' ? <InstructorLobby /> : <Navigate to="/instructor-login" />
+                isAuthenticated && user?.role === 'instructor' ? (
+                  <RequireInstructorRoom user={user}><InstructorLobby /></RequireInstructorRoom>
+                ) : <Navigate to="/instructor-login" />
               }
             />
             <Route
@@ -571,7 +613,9 @@ function App() {
             <Route
               path="/instructor/simulation"
               element={
-                isAuthenticated && user?.role === 'instructor' ? <InstructorSimulation /> : <Navigate to="/instructor-login" />
+                isAuthenticated && user?.role === 'instructor' ? (
+                  <RequireInstructorRoom user={user}><InstructorSimulation /></RequireInstructorRoom>
+                ) : <Navigate to="/instructor-login" />
               }
             />
 

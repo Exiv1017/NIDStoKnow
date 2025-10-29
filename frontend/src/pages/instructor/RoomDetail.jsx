@@ -9,6 +9,7 @@ const RoomDetail = () => {
   const { user } = useContext(AuthContext);
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const fetchRoom = async () => {
@@ -29,7 +30,8 @@ const RoomDetail = () => {
   const copyCode = async () => {
     try {
       await navigator.clipboard.writeText(code);
-      alert('Copied to clipboard');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch (e) {
       alert('Copy failed');
     }
@@ -80,13 +82,13 @@ const RoomDetail = () => {
       <div className="ml-64 p-8 max-w-4xl">
         <h1 className="text-2xl font-bold mb-2">Room: {room.name}</h1>
         <div className="text-sm text-gray-600 mb-4">Created at: {room.created_at}</div>
-        <div className="bg-white border rounded p-4 mb-4">
-          <div className="mb-2">Join Code</div>
+        <div className="bg-white border rounded p-4 mb-4 shadow-sm">
+          <div className="mb-2 text-sm text-gray-600">Join Code</div>
           <div className="flex items-center justify-between">
-            <div className="font-mono text-xl font-semibold">{room.code}</div>
+            <div className="font-mono text-2xl font-semibold">{room.code}</div>
             <div className="flex gap-2">
-              <button onClick={copyCode} className="px-3 py-1 bg-gray-100 rounded">Copy</button>
-              <button onClick={openLobby} className="px-3 py-1 bg-blue-600 text-white rounded" disabled={loading}>{loading ? 'Opening...' : 'Open Lobby'}</button>
+              <button onClick={copyCode} className="px-3 py-1 bg-gray-100 rounded">{copied ? 'Copied' : 'Copy'}</button>
+              <button onClick={openLobby} className="px-3 py-1 bg-[#1E5780] text-white rounded" disabled={loading}>{loading ? 'Opening...' : 'Open Lobby'}</button>
               <button onClick={closeLobby} className="px-3 py-1 bg-red-50 text-red-700 rounded">Close Lobby</button>
             </div>
           </div>

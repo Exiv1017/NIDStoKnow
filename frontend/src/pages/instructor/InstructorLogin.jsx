@@ -1,9 +1,8 @@
 import { useState, useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import AuthContext from '../../context/AuthContext';
 
 const InstructorLogin = () => {
-  const navigate = useNavigate();
   const { login } = useContext(AuthContext);
   const [formData, setFormData] = useState({
     email: '',
@@ -37,8 +36,8 @@ const InstructorLogin = () => {
 
       if (response.ok) {
         const userWithToken = { ...(data.user || {}), token: data.access_token };
+        // Delegate redirect to centralized AuthContext.login
         login(userWithToken);
-        navigate('/instructor-dashboard');
       } else {
         if ((data.error || data.detail) === "Email not found") {
           setError("This email is not registered. Please sign up first.");
