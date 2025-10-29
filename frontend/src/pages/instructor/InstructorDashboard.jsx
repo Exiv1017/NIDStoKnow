@@ -384,22 +384,40 @@ const InstructorDashboard = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12 items-stretch">
             <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow p-6 flex flex-col items-center border border-gray-100 h-full">
-              <h3 className="text-lg font-semibold mb-4 text-[#1E5780]">Student Enrollment</h3>
-              <div className="w-full h-80">
-                <Pie data={studentEnrollmentData} options={{ plugins: { legend: { position: 'bottom' } }, maintainAspectRatio: false }} />
+              <h3 className="text-lg font-semibold mb-4 text-[#0E6BA8]">Student Enrollment</h3>
+              <div className="w-full h-80 flex items-center justify-center">
+                {stats.totalStudents > 0 ? (
+                  <div className="w-full h-full">
+                    <Pie data={studentEnrollmentData} options={{ plugins: { legend: { position: 'bottom' } }, maintainAspectRatio: false }} />
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-500">
+                    <div className="text-lg font-medium mb-2">No students joined yet</div>
+                    <div className="text-sm">Once students join your room, enrollment charts will appear here.</div>
+                  </div>
+                )}
               </div>
             </div>
             <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow p-6 flex flex-col items-center border border-gray-100 h-full">
-              <h3 className="text-lg font-semibold mb-4 text-[#1E5780]">Module Completion</h3>
-              <div className="w-full h-80">
-                <Bar data={moduleCompletionData} options={{
-                  plugins: { legend: { display: false } },
-                  scales: {
-                    y: { min: 0, max: 100, ticks: { stepSize: 20, autoSkip: false } },
-                    x: { ticks: { autoSkip: false } }
-                  },
-                  maintainAspectRatio: false,
-                }} />
+              <h3 className="text-lg font-semibold mb-4 text-[#0E6BA8]">Module Completion</h3>
+              <div className="w-full h-80 flex items-center justify-center">
+                {stats.totalStudents > 0 ? (
+                  <div className="w-full h-full">
+                    <Bar data={moduleCompletionData} options={{
+                      plugins: { legend: { display: false } },
+                      scales: {
+                        y: { min: 0, max: 100, ticks: { stepSize: 20, autoSkip: false } },
+                        x: { ticks: { autoSkip: false } }
+                      },
+                      maintainAspectRatio: false,
+                    }} />
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-500">
+                    <div className="text-lg font-medium mb-2">No progress data</div>
+                    <div className="text-sm">Module completion will be shown once students complete lessons.</div>
+                  </div>
+                )}
               </div>
               {/* Minimal legend for abbreviations */}
               <div className="text-xs text-gray-500 mt-3 text-center">
@@ -407,14 +425,23 @@ const InstructorDashboard = () => {
               </div>
             </div>
             <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow p-6 flex flex-col items-center border border-gray-100 h-full">
-              <h3 className="text-lg font-semibold mb-1 text-[#1E5780]">Assessment Performance Trend</h3>
+              <h3 className="text-lg font-semibold mb-1 text-[#0E6BA8]">Assessment Performance Trend</h3>
               <span className="text-xs text-gray-400 mb-4">Weekly Avg Quiz %</span>
-              <div className="w-full h-80">
-                <Bar data={assessmentTrendData} options={{
-                  plugins: { legend: { display: false } },
-                  scales: { y: { beginAtZero: true, max: 100, ticks: { stepSize: 20 } } },
-                  maintainAspectRatio: false,
-                }} />
+              <div className="w-full h-80 flex items-center justify-center">
+                {stats.totalStudents > 0 ? (
+                  <div className="w-full h-full">
+                    <Bar data={assessmentTrendData} options={{
+                      plugins: { legend: { display: false } },
+                      scales: { y: { beginAtZero: true, max: 100, ticks: { stepSize: 20 } } },
+                      maintainAspectRatio: false,
+                    }} />
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-500">
+                    <div className="text-lg font-medium mb-2">No assessment data</div>
+                    <div className="text-sm">Assessment trends appear after students attempt quizzes.</div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -425,17 +452,24 @@ const InstructorDashboard = () => {
 
           <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-shadow border border-gray-100 mb-12">
             <div className="p-6 border-b">
-              <h2 className="text-xl font-bold text-[#1E5780]">Student Activity</h2>
+              <h2 className="text-xl font-bold text-[#0E6BA8]">Student Activity</h2>
             </div>
             <div className="p-6">
-              <ul className="space-y-4">
-                {recentActivity.map((item) => (
-                  <li key={item.id} className="flex items-center justify-between">
-                    <span className="text-gray-800 font-medium">{item.activity}</span>
-                    <span className="text-xs text-gray-400">{item.time}</span>
-                  </li>
-                ))}
-              </ul>
+              {stats.totalStudents > 0 ? (
+                <ul className="space-y-4">
+                  {recentActivity.map((item) => (
+                    <li key={item.id} className="flex items-center justify-between">
+                      <span className="text-gray-800 font-medium">{item.activity}</span>
+                      <span className="text-xs text-gray-400">{item.time}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-center text-gray-500">
+                  <div className="text-lg font-medium mb-2">No recent activity</div>
+                  <div className="text-sm">Activity will appear here once students join and interact with modules.</div>
+                </div>
+              )}
             </div>
           </div>
 

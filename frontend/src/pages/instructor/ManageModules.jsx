@@ -26,6 +26,7 @@ function slugify(name = '') {
 const ManageModules = () => {
   const { user } = useContext(AuthContext);
   const [modules, setModules] = useState([]);
+  const [statsTotalStudents, setStatsTotalStudents] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -113,10 +114,32 @@ const ManageModules = () => {
 
   useEffect(()=>{ fetchMyRequests(); }, [user?.token]);
 
-  // Fetch modules data from backend
+  // Fetch instructor stats and then modules (so we can zero counts when no joined students)
   useEffect(() => {
-    fetchModules();
-  }, []);
+    const init = async () => {
+      await fetchStats();
+      await fetchModules();
+    };
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.token]);
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch(apiUrl('/api/instructor/stats'), {
+        headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {}
+      });
+      if (!res.ok) {
+        setStatsTotalStudents(0);
+        return;
+      }
+      const data = await res.json();
+      setStatsTotalStudents(typeof data?.totalStudents === 'number' ? data.totalStudents : 0);
+    } catch (e) {
+      console.error('Failed to fetch stats', e);
+      setStatsTotalStudents(0);
+    }
+  };
 
   const fetchModules = async () => {
     try {
@@ -176,7 +199,8 @@ const ManageModules = () => {
         title: module.name,
         description: getModuleDescription(module.name),
         status: 'Active',
-        students: module.students || 0,
+        // If instructor has no joined students, show 0 to avoid displaying global counts
+        students: (statsTotalStudents === 0 || statsTotalStudents === null) ? 0 : (module.students || 0),
         lastUpdated: '2024-01-15'
       }));
 
