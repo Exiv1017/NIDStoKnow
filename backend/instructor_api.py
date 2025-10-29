@@ -1286,29 +1286,52 @@ def instructor_students_summary(request: Request):
         total_row = cursor.fetchone() or {'totalStudents': 0}
         total_students = int(total_row.get('totalStudents') or 0)
 
-        # Recently joined students among those who joined instructor rooms (based on user.created_at)
-        cursor.execute('''
-            SELECT u.id, u.name, u.created_at
-            FROM users u
-            JOIN (
-                SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
-            ) s ON s.student_id = u.id
-            WHERE u.userType = 'student' AND u.status = 'approved' AND u.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-            ORDER BY u.created_at DESC LIMIT 10
-        ''', (instr_id,))
-        recent = cursor.fetchall() or []
+        # Check whether users.created_at and users.last_active columns exist (for older schemas)
+        has_created_at = False
+        has_last_active = False
+        try:
+            cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_schema=%s AND table_name='users'", (MYSQL_CONFIG['database'],))
+            cols = {r[0] for r in cursor.fetchall() or []}
+            has_created_at = 'created_at' in cols
+            has_last_active = 'last_active' in cols
+        except Exception:
+            # If information_schema is not accessible, fall back to optimistic behavior
+            has_created_at = True
+            has_last_active = True
 
-        # Active now among joined students (last 5 minutes)
-        cursor.execute('''
-            SELECT COUNT(DISTINCT u.id) AS activeNow
-            FROM users u
-            JOIN (
-                SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
-            ) s ON s.student_id = u.id
-            WHERE u.userType='student' AND u.status='approved' AND u.last_active >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
-        ''', (instr_id,))
-        active_row = cursor.fetchone() or {'activeNow': 0}
-        active_now = int(active_row.get('activeNow') or 0)
+        # Recently joined students among those who joined instructor rooms (based on user.created_at if available)
+        recent = []
+        if has_created_at:
+            try:
+                cursor.execute('''
+                    SELECT u.id, u.name, u.created_at
+                    FROM users u
+                    JOIN (
+                        SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
+                    ) s ON s.student_id = u.id
+                    WHERE u.userType = 'student' AND u.status = 'approved' AND u.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                    ORDER BY u.created_at DESC LIMIT 10
+                ''', (instr_id,))
+                recent = cursor.fetchall() or []
+            except Exception:
+                recent = []
+
+        # Active now among joined students (last 5 minutes) - only if last_active exists
+        active_now = 0
+        if has_last_active:
+            try:
+                cursor.execute('''
+                    SELECT COUNT(DISTINCT u.id) AS activeNow
+                    FROM users u
+                    JOIN (
+                        SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
+                    ) s ON s.student_id = u.id
+                    WHERE u.userType='student' AND u.status='approved' AND u.last_active >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                ''', (instr_id,))
+                active_row = cursor.fetchone() or {'activeNow': 0}
+                active_now = int(active_row.get('activeNow') or 0)
+            except Exception:
+                active_now = 0
 
         return {
             'totalStudents': total_students,
