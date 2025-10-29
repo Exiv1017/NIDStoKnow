@@ -1241,40 +1241,53 @@ def student_signup(req: StudentSignupRequest):
 
 @router.post('/student/login')
 def student_login(req: StudentLoginRequest):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute('SELECT * FROM users WHERE email=%s AND userType=%s', (req.email, 'student'))
-    user = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    if not user or not check_password_hash(user['password_hash'], req.password):
-        raise HTTPException(status_code=401, detail='Invalid email or password')
-    from datetime import timedelta
     try:
-        from config import get_admin_system_settings_cached
-        settings = get_admin_system_settings_cached()
-        minutes = int(settings.get('sessionTimeoutMinutes') or 60)
-        exp_delta = timedelta(minutes=minutes)
-    except Exception:
-        exp_delta = None
-    token = create_access_token({
-        'sub': str(user['id']),
-        'role': user['userType'],
-        'email': user['email'],
-        'name': user['name']
-    }, expires_delta=exp_delta)
-    return {
-        'message': 'Login successful',
-        'user': {
-            'id': user['id'],
-            'name': user['name'],
-            'email': user['email'],
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute('SELECT * FROM users WHERE email=%s AND userType=%s', (req.email, 'student'))
+        user = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if not user or not check_password_hash(user.get('password_hash', ''), req.password):
+            raise HTTPException(status_code=401, detail='Invalid email or password')
+
+        from datetime import timedelta
+        try:
+            from config import get_admin_system_settings_cached
+            settings = get_admin_system_settings_cached()
+            minutes = int(settings.get('sessionTimeoutMinutes') or 60)
+            exp_delta = timedelta(minutes=minutes)
+        except Exception:
+            exp_delta = None
+
+        token = create_access_token({
+            'sub': str(user['id']),
             'role': user['userType'],
-            'status': user['status']
-        },
-        'access_token': token,
-        'token_type': 'bearer'
-    }
+            'email': user['email'],
+            'name': user['name']
+        }, expires_delta=exp_delta)
+        return {
+            'message': 'Login successful',
+            'user': {
+                'id': user['id'],
+                'name': user['name'],
+                'email': user['email'],
+                'role': user['userType'],
+                'status': user['status']
+            },
+            'access_token': token,
+            'token_type': 'bearer'
+        }
+    except HTTPException:
+        # Propagate HTTPExceptions (401/403/400) unchanged so client receives JSON errors
+        raise
+    except Exception as e:
+        # Catch-all to prevent unhandled exceptions from producing HTML error pages via the proxy
+        import traceback, sys
+        traceback.print_exc(file=sys.stdout)
+        # Return a JSON-formatted 500 error to the client
+        raise HTTPException(status_code=500, detail='Internal server error during login')
 
 @router.get('/student/assignments')
 def get_student_assignments(request: Request, student_id: int):
