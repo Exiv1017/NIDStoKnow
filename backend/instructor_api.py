@@ -1788,14 +1788,28 @@ def instructor_students(request: Request):
         cursor.close(); conn.close()
 
 @router.get('/instructor/students-summary', response_model=List[StudentSummary])
-def get_students_summary():
-    """Get aggregated student progress data for instructor view"""
+def get_students_summary(request: Request):
+    """Get aggregated student progress data for the authenticated instructor (scoped to joined students)."""
+    payload = require_role(request, 'instructor')
+    instr_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+    if not instr_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         ensure_users_table(cursor)
-        # Get all students with their aggregated progress
+        # Find joined students for this instructor
         cursor.execute('''
+            SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id = m.room_id WHERE r.instructor_id = %s
+        ''', (instr_id,))
+        member_rows = cursor.fetchall() or []
+        student_ids = [int(r['student_id']) for r in member_rows if r and r.get('student_id')]
+        if not student_ids:
+            return []
+
+        # Use JOIN on the joined-students subquery to scope aggregates
+        sql = f'''
             SELECT 
                 u.id,
                 u.name,
@@ -1813,54 +1827,47 @@ def get_students_summary():
                         OR (COALESCE(sp.overview_completed,0)=1 AND COALESCE(sp.practical_completed,0)=1 AND COALESCE(sp.assessment_completed,0)=1)
                     ) THEN sp.module_name ELSE NULL END) as completedModules,
                 COUNT(DISTINCT sp.module_name) as totalModules,
-                                MAX(sp.updated_at) as lastActive,
-                                -- Use the most recent created_at from submissions or simulation_sessions
-                                CASE WHEN MAX(s.created_at) IS NULL AND MAX(ss.created_at) IS NULL THEN NULL
-                                         ELSE GREATEST(COALESCE(MAX(s.created_at),'1970-01-01'), COALESCE(MAX(ss.created_at),'1970-01-01'))
-                                END AS lastSubmission,
-                                -- Indicate whether the latest submission was a practical/assessment (submissions) or a simulation
-                                CASE
-                                    WHEN (COALESCE(MAX(s.created_at),'1970-01-01') >= COALESCE(MAX(ss.created_at),'1970-01-01') AND MAX(s.created_at) IS NOT NULL) THEN 'practical'
-                                    WHEN (MAX(ss.created_at) IS NOT NULL) THEN 'simulation'
-                                    ELSE NULL
-                                END AS lastSubmissionType
-            FROM users u
-                        LEFT JOIN student_progress sp ON u.id = sp.student_id
-                        LEFT JOIN submissions s ON u.id = s.student_id
-                        LEFT JOIN simulation_sessions ss ON u.id = ss.student_id
+                MAX(sp.updated_at) as lastActive,
+                CASE WHEN MAX(s.created_at) IS NULL AND MAX(ss.created_at) IS NULL THEN NULL
+                     ELSE GREATEST(COALESCE(MAX(s.created_at),'1970-01-01'), COALESCE(MAX(ss.created_at),'1970-01-01'))
+                END AS lastSubmission,
+                CASE
+                    WHEN (COALESCE(MAX(s.created_at),'1970-01-01') >= COALESCE(MAX(ss.created_at),'1970-01-01') AND MAX(s.created_at) IS NOT NULL) THEN 'practical'
+                    WHEN (MAX(ss.created_at) IS NOT NULL) THEN 'simulation'
+                    ELSE NULL
+                END AS lastSubmissionType
+            FROM (
+                SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id = m.room_id WHERE r.instructor_id = %s
+            ) joined_students
+            JOIN users u ON u.id = joined_students.student_id
+            LEFT JOIN student_progress sp ON u.id = sp.student_id
+            LEFT JOIN submissions s ON u.id = s.student_id
+            LEFT JOIN simulation_sessions ss ON u.id = ss.student_id
             WHERE u.userType = 'student' AND u.status = 'approved'
             GROUP BY u.id, u.name, u.email
             ORDER BY u.name ASC
-        ''')
-        
-        students = cursor.fetchall()
-        
-        # Format the response
+        '''
+        cursor.execute(sql, (instr_id,))
+        students = cursor.fetchall() or []
+
+        # Format the response similar to previous implementation
         student_summaries = []
+        from datetime import datetime
         for student in students:
-            # Format last active date
             last_active = "Never"
-            if student['lastActive']:
+            if student.get('lastActive'):
                 try:
                     if isinstance(student['lastActive'], str):
-                        # Handle string datetime
-                        from datetime import datetime
                         date_obj = datetime.fromisoformat(student['lastActive'].replace('Z', '+00:00'))
                     else:
-                        # Handle datetime object
                         date_obj = student['lastActive']
-                    
-                    # Format to readable date
                     last_active = date_obj.strftime('%Y-%m-%d')
-                except Exception as e:
-                    print(f"[DEBUG] Error formatting date: {e}")
-                    last_active = str(student['lastActive'])[:10] if student['lastActive'] else "Never"
-            
-            # Create details string based on progress
-            total_modules = int(student['totalModules'])
-            completed_modules = int(student['completedModules'])
-            progress = int(student['progress'])
-            
+                except Exception:
+                    last_active = str(student.get('lastActive'))[:10] if student.get('lastActive') else "Never"
+
+            total_modules = int(student.get('totalModules') or 0)
+            completed_modules = int(student.get('completedModules') or 0)
+            progress = int(student.get('progress') or 0)
             if total_modules == 0:
                 details = "New student - no modules started yet."
             elif progress >= 80:
@@ -1869,28 +1876,26 @@ def get_students_summary():
                 details = f"Good progress with {completed_modules} completed modules out of {total_modules}."
             else:
                 details = f"Student needs encouragement - {completed_modules} completed modules out of {total_modules}."
-            
+
             student_summaries.append({
-                "id": student['id'],
-                "name": student['name'],
-                "email": student['email'],
+                "id": student.get('id'),
+                "name": student.get('name'),
+                "email": student.get('email'),
                 "progress": progress,
                 "completedModules": completed_modules,
                 "totalModules": total_modules,
                 "lastActive": last_active,
                 "details": details
             })
-        
+
         return student_summaries
-        
     except Exception as e:
-        print(f"[ERROR] Failed to fetch student summaries: {e}")
+        print(f"[ERROR] Failed to fetch student summaries (scoped): {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail='Failed to fetch student data')
     finally:
-        cursor.close()
-        conn.close()
+        cursor.close(); conn.close()
 
 @router.delete('/instructor/notifications/{notification_id}')
 def delete_notification(notification_id: int):
