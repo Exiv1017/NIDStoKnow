@@ -1429,27 +1429,134 @@ def instructor_mark_notification_read(notification_id: int):
         cursor.close(); conn.close()
 
 @router.get('/instructor/feedback-trend')
-def instructor_feedback_trend():
-    # Scope feedback trend to this instructor's students or feedback authored by this instructor
+def instructor_feedback_trend(request: Request):
+    """Return a 4-week feedback count trend scoped to the authenticated instructor.
+
+    Returns an array of four integers representing counts for the last 4 weeks
+    in chronological order (oldest -> newest). If there are no joined students
+    or no feedback, returns [0,0,0,0].
+    """
     def _safe_default():
         return [0, 0, 0, 0]
+
+    payload = require_role(request, 'instructor')
+    instr_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+    if not instr_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+
+    conn = get_db_connection(); cursor = conn.cursor()
     try:
-        # Auth and joined students
-        # Using request injection pattern to keep compatibility
-        # Note: FastAPI will not pass request implicitly here; grab from global if needed
-        # We'll attempt to use require_role by inspecting caller context; fallback to global query that returns zeros
-        return _safe_default()
-    except Exception:
+        ensure_feedback_table(cursor)
+        ensure_simulation_rooms_table(cursor)
+        # Find joined student ids (used to ensure instructor only sees feedback relevant to their students)
+        cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s', (instr_id,))
+        member_rows = cursor.fetchall() or []
+        student_ids = [int(r[0]) for r in member_rows if r and r[0]]
+        # If instructor has no joined students, still show zeros (no leakage)
+        if not student_ids:
+            cursor.close(); conn.close(); return _safe_default()
+
+        # Count feedback authored by this instructor in the last 4 weeks grouped by week offset
+        # weekAgo = 0 => current week, 1 => 1 week ago, ... (floor of days/7)
+        cursor.execute(
+            '''
+            SELECT FLOOR(DATEDIFF(CURDATE(), DATE(created_at))/7) AS weekAgo, COUNT(*) AS cnt
+            FROM feedback
+            WHERE instructor_id = %s AND created_at >= DATE_SUB(NOW(), INTERVAL 28 DAY)
+            GROUP BY weekAgo
+            ''', (instr_id,)
+        )
+        rows = cursor.fetchall() or []
+        # Build result oldest->newest (3 weeks ago .. this week)
+        result = [0, 0, 0, 0]
+        for r in rows:
+            try:
+                week = int(r[0])
+                cnt = int(r[1])
+                if 0 <= week < 4:
+                    # place newest at end: index 3 -> week=0
+                    result[3 - week] = cnt
+            except Exception:
+                continue
+        cursor.close(); conn.close()
+        return result
+    except Exception as e:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"[WARN] feedback-trend failed: {e}")
         return _safe_default()
 
 @router.get('/instructor/assessment-trend')
-def instructor_assessment_trend():
-    """Return recent weekly average quiz scores (0-100).
+def instructor_assessment_trend(request: Request):
+    """Return weekly average assessment scores (last 4 weeks) scoped to this instructor's joined students.
 
-    For now, return an empty array when unable to scope to instructor's joined students.
-    We'll avoid returning global metrics here to prevent showing unrelated data.
+    Returns an array of four numbers (oldest -> newest). If no data, returns [0,0,0,0].
+    Attempts to extract score from JSON `payload.score` in `submissions` when available.
     """
-    return []
+    def _safe_default():
+        return [0, 0, 0, 0]
+
+    payload = require_role(request, 'instructor')
+    instr_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+    if not instr_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+
+    conn = get_db_connection(); cursor = conn.cursor()
+    try:
+        ensure_submissions_table(cursor)
+        ensure_simulation_rooms_table(cursor)
+        # Find joined student ids
+        cursor.execute('SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s', (instr_id,))
+        member_rows = cursor.fetchall() or []
+        student_ids = [int(r[0]) for r in member_rows if r and r[0]]
+        if not student_ids:
+            cursor.close(); conn.close(); return _safe_default()
+
+        placeholders = ','.join(['%s'] * len(student_ids))
+        # Attempt to compute AVG score from JSON payload -> $.score for assessment submissions
+        # This uses JSON_EXTRACT and CAST; if payloads don't contain score, AVG will ignore NULLs
+        sql = f'''
+            SELECT FLOOR(DATEDIFF(CURDATE(), DATE(s.created_at))/7) AS weekAgo,
+                   AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(s.payload, '$.score')) AS DECIMAL(10,2))) AS avgScore
+            FROM submissions s
+            WHERE s.submission_type = 'assessment'
+              AND s.student_id IN ({placeholders})
+              AND s.created_at >= DATE_SUB(NOW(), INTERVAL 28 DAY)
+            GROUP BY weekAgo
+        '''
+        cursor.execute(sql, tuple(student_ids))
+        rows = cursor.fetchall() or []
+        result = [0, 0, 0, 0]
+        for r in rows:
+            try:
+                week = int(r[0])
+                avg = r[1]
+                if avg is None:
+                    continue
+                val = float(avg)
+                if 0 <= week < 4:
+                    result[3 - week] = round(val, 1)
+            except Exception:
+                continue
+        cursor.close(); conn.close()
+        return result
+    except Exception as e:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"[WARN] assessment-trend failed: {e}")
+        return _safe_default()
 
 @router.get('/instructor/recent-activity')
 def instructor_recent_activity(request: Request):
