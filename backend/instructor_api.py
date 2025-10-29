@@ -1020,7 +1020,7 @@ def create_simulation_room(request: Request, req: CreateRoomRequest):
 
 @router.get('/instructor/rooms')
 def list_instructor_rooms(request: Request):
-    """List Rooms the authenticated instructor created."""
+    """List Rooms the authenticated instructor created, including member counts."""
     payload = require_role(request, 'instructor')
     instr_id = int(payload.get('sub')) if payload and payload.get('sub') else None
     if not instr_id:
@@ -1028,9 +1028,26 @@ def list_instructor_rooms(request: Request):
     conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
     try:
         ensure_simulation_rooms_table(cursor)
-        cursor.execute('SELECT id, name, code, created_at FROM simulation_rooms WHERE instructor_id=%s ORDER BY created_at DESC', (instr_id,))
+        # Count members for each room so frontend can choose to display only rooms with at least one student
+        cursor.execute('''
+            SELECT r.id, r.name, r.code, r.created_at, COUNT(m.id) AS member_count
+            FROM simulation_rooms r
+            LEFT JOIN simulation_room_members m ON m.room_id = r.id
+            WHERE r.instructor_id = %s
+            GROUP BY r.id
+            ORDER BY r.created_at DESC
+        ''', (instr_id,))
         rows = cursor.fetchall() or []
-        return [{'id': int(r['id']), 'name': r.get('name'), 'code': r.get('code'), 'created_at': str(r.get('created_at'))} for r in rows]
+        out = []
+        for r in rows:
+            out.append({
+                'id': int(r.get('id')),
+                'name': r.get('name'),
+                'code': r.get('code'),
+                'created_at': str(r.get('created_at')),
+                'member_count': int(r.get('member_count') or 0)
+            })
+        return out
     finally:
         cursor.close(); conn.close()
 

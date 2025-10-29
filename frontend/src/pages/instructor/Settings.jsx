@@ -45,14 +45,18 @@ const Settings = () => {
     user?.token ? { Authorization: `Bearer ${user.token}` } : {}
   ), [user?.token]);
 
-  // Load profile and settings
+  // Load profile, settings and instructor rooms. Avoid unnecessary global setUser updates that
+  // can cause redundant re-renders. Depend on user token to rerun when auth changes.
+  const [roomsList, setRoomsList] = useState([]);
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
-        const [pRes, sRes] = await Promise.all([
-          fetch('/api/instructor/profile', { headers: { 'Content-Type': 'application/json', ...authHeader } }),
-          fetch('/api/instructor/settings', { headers: { 'Content-Type': 'application/json', ...authHeader } }),
+        const headers = { 'Content-Type': 'application/json', ...(user?.token ? { Authorization: `Bearer ${user.token}` } : {}) };
+        const [pRes, sRes, rRes] = await Promise.all([
+          fetch('/api/instructor/profile', { headers }),
+          fetch('/api/instructor/settings', { headers }),
+          fetch('/api/instructor/rooms', { headers }),
         ]);
 
         if (!cancelled && pRes.ok) {
@@ -75,7 +79,16 @@ const Settings = () => {
             joinDate: p?.joinDate || '',
             avatarUrl: p?.avatar || '',
           }));
-          if (setUser) setUser(u => ({ ...(u || {}), name: p?.name, email: p?.email, avatar: p?.avatar }));
+          // Only update global user if values actually differ to avoid flicker loops
+          if (setUser && p) {
+            setUser(prev => {
+              const sameName = prev && prev.name === p.name;
+              const sameEmail = prev && prev.email === p.email;
+              const sameAvatar = prev && prev.avatar === p.avatar;
+              if (sameName && sameEmail && sameAvatar) return prev;
+              return { ...(prev || {}), name: p?.name, email: p?.email, avatar: p?.avatar };
+            });
+          }
         }
 
         if (!cancelled && sRes.ok) {
@@ -85,13 +98,19 @@ const Settings = () => {
             setOriginalFormData(prev => ({ ...prev, notifications: { ...prev.notifications, ...s.notifications } }));
           }
         }
+
+        if (!cancelled && rRes.ok) {
+          const rj = await rRes.json();
+          // rooms here used only for Settings view (list codes) — show all rooms
+          setRoomsList(Array.isArray(rj) ? rj : []);
+        }
       } catch {
         // ignore network errors
       }
     };
     load();
     return () => { cancelled = true; };
-  }, [authHeader, setUser]);
+  }, [user?.token, setUser]);
 
   const isProfileChanged = useMemo(() => {
     const now = {
@@ -268,7 +287,7 @@ const Settings = () => {
       <main className="ml-64 overflow-y-auto">
         <div className="p-8">
           <div className="flex justify-between items-center mb-8">
-            <h1 className="text-2xl font-semibold text-black">Account Settings</h1>
+                <h1 className="text-2xl font-semibold text-black">Settigns</h1>
           </div>
 
           <div className="bg-white rounded-lg shadow-sm">
@@ -348,6 +367,27 @@ const Settings = () => {
                           <input type="email" name="email" id="email" value={formData.email} readOnly className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-gray-100 text-gray-700 text-[15px]" />
                           <p className="text-[11px] text-gray-500 mt-1">Email is managed by your institution.</p>
                         </div>
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium mb-3">Room Codes</h3>
+                      <p className="text-sm text-gray-500 mb-3">Copy the room code to share with students. This is separate from the simulation lobby.</p>
+                      <div className="space-y-2">
+                        {roomsList.length === 0 ? (
+                          <div className="text-sm text-gray-500">No rooms created yet.</div>
+                        ) : (
+                          roomsList.map(r => (
+                            <div key={r.id} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded">
+                              <div>
+                                <div className="font-medium">{r.name || 'Room'}</div>
+                                <div className="text-xs text-gray-500">Code: <span className="font-mono">{r.code}</span></div>
+                              </div>
+                              <div>
+                                <button onClick={async () => { try { await navigator.clipboard.writeText(r.code); } catch {} }} className="px-3 py-1 bg-[#1E5780] text-white rounded">Copy</button>
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
                   </div>

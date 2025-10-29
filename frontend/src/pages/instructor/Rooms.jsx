@@ -15,7 +15,9 @@ const Rooms = () => {
       const res = await fetch('/api/instructor/rooms', { headers });
       if (!res.ok) throw new Error('Failed to fetch rooms');
       const data = await res.json();
-      setRooms(data);
+      // Only show rooms which have at least one student joined
+      const visible = (data || []).filter(r => (r.member_count || r.memberCount || 0) > 0);
+      setRooms(visible);
     } catch (err) {
       console.error('fetchRooms', err);
       setRooms([]);
@@ -108,12 +110,12 @@ const Rooms = () => {
                           <button onClick={() => copyCode(r.code)} className="text-sm text-[#1E5780] hover:text-[#154a63]">{copiedCode === r.code ? 'Copied' : 'Copy'}</button>
                         </div>
                       </div>
-                      <div className="mt-3 text-sm text-gray-600">Room ID: {r.id}</div>
+                      <div className="mt-3 text-sm text-gray-600">Room ID: {r.id} — Students: {r.member_count || r.memberCount || 0}</div>
                     </div>
 
                     <div className="mt-4 flex items-center justify-end gap-3">
-                      <button onClick={() => navigate(`/instructor/rooms/${r.code}`)} className="px-3 py-1 bg-gray-50 rounded hover:bg-gray-100">Details</button>
-                      <button onClick={() => navigate('/instructor/lobby', { state: { code: r.code } })} className="px-3 py-1 bg-[#E6F6FF] text-[#0369A1] rounded hover:bg-[#dff4ff]">Open Lobby</button>
+                      {/* Details removed — this feature is not needed for Rooms overview */}
+                      <button onClick={() => navigate('/instructor-dashboard', { state: { joinRoomCode: r.code } })} className="px-3 py-1 bg-[#E6F6FF] text-[#0369A1] rounded hover:bg-[#dff4ff]">Join</button>
                       <button onClick={() => handleDelete(r.id)} className="px-3 py-1 bg-red-50 text-red-700 rounded hover:bg-red-100">Delete</button>
                     </div>
                   </div>
