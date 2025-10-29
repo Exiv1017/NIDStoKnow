@@ -1122,49 +1122,85 @@ def delete_instructor_room(request: Request, room_id: int):
     return {'status': 'success', 'deleted': int(deleted)}
 
 @router.get('/instructor/stats')
-def instructor_stats():
+def instructor_stats(request: Request):
+    """Return stats scoped to students who joined any room owned by the authenticated instructor.
+
+    If no students have joined, all numeric stats return 0.
+    """
+    payload = require_role(request, 'instructor')
+    instr_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+    if not instr_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Count only approved students from users table
-    ensure_users_table(cursor)
-    cursor.execute("SELECT COUNT(*) AS totalStudents FROM users WHERE userType = 'student' AND status = 'approved'")
-    total_students = cursor.fetchone()['totalStudents']
 
-    # Active modules (distinct modules present in progress table)
-    cursor.execute('SELECT COUNT(DISTINCT module_name) AS activeModules FROM student_progress')
-    active_modules = cursor.fetchone()['activeModules']
-
-    # Recalculate average completion as the average per-student-per-module completion fraction (0..1)
-    # For each student-module pair present in student_progress we compute:
-    # - If total_lessons > 0: lessons_completed / total_lessons
-    # - Else: average of overview/practical/assessment flags (0..1)
-    # We sum those fractions and divide by total_students * active_modules so missing rows count as 0.
-    avg_completion = 0
-    if active_modules and total_students:
+    # Find distinct student ids who joined this instructor's rooms
+    try:
+        ensure_simulation_rooms_table(cursor)
         cursor.execute('''
-            SELECT SUM(
-              CASE
-                WHEN COALESCE(total_lessons,0) > 0 THEN LEAST(1.0, COALESCE(lessons_completed,0) / NULLIF(total_lessons,0))
-                ELSE ((COALESCE(overview_completed,0) + COALESCE(practical_completed,0) + COALESCE(assessment_completed,0)) / 3.0)
-              END
-            ) AS sum_frac
-            FROM student_progress
-        ''')
-        row = cursor.fetchone() or {}
-        sum_frac = float(row.get('sum_frac') or 0.0)
-        total_possible = total_students * active_modules
-        avg_completion = round((sum_frac / max(total_possible, 1)) * 100)
+            SELECT DISTINCT m.student_id AS student_id
+            FROM simulation_room_members m
+            JOIN simulation_rooms r ON r.id = m.room_id
+            WHERE r.instructor_id = %s
+        ''', (instr_id,))
+        member_rows = cursor.fetchall() or []
+        student_ids = [int(r['student_id']) for r in member_rows if r and r.get('student_id')]
+        total_students = len(student_ids)
 
-    feedback_count = 0  # No feedback table
+        if total_students == 0:
+            # No joined students -> return zeros
+            cursor.close(); conn.close()
+            return {
+                'totalStudents': 0,
+                'activeModules': 0,
+                'avgCompletion': 0,
+                'feedbackCount': 0
+            }
 
-    cursor.close()
-    conn.close()
-    return {
-        "totalStudents": total_students,
-        "activeModules": active_modules,
-        "avgCompletion": avg_completion,
-        "feedbackCount": feedback_count
-    }
+        # Active modules among these students
+        # Use a JOIN to avoid constructing long IN lists
+        cursor.execute('''
+            SELECT COUNT(DISTINCT sp.module_name) AS activeModules
+            FROM student_progress sp
+            JOIN (
+                SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
+            ) s ON s.student_id = sp.student_id
+        ''', (instr_id,))
+        active_modules_row = cursor.fetchone() or {'activeModules': 0}
+        active_modules = int(active_modules_row.get('activeModules') or 0)
+
+        # Compute average completion fraction only for these students
+        avg_completion = 0
+        if active_modules > 0 and total_students > 0:
+            cursor.execute('''
+                SELECT SUM(
+                  CASE
+                    WHEN COALESCE(sp.total_lessons,0) > 0 THEN LEAST(1.0, COALESCE(sp.lessons_completed,0) / NULLIF(sp.total_lessons,0))
+                    ELSE ((COALESCE(sp.overview_completed,0) + COALESCE(sp.practical_completed,0) + COALESCE(sp.assessment_completed,0)) / 3.0)
+                  END
+                ) AS sum_frac
+                FROM student_progress sp
+                JOIN (
+                    SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
+                ) s ON s.student_id = sp.student_id
+            ''', (instr_id,))
+            row = cursor.fetchone() or {}
+            sum_frac = float(row.get('sum_frac') or 0.0)
+            total_possible = total_students * active_modules
+            avg_completion = round((sum_frac / max(total_possible, 1)) * 100)
+
+        feedback_count = 0
+        cursor.close(); conn.close()
+        return {
+            'totalStudents': total_students,
+            'activeModules': active_modules,
+            'avgCompletion': avg_completion,
+            'feedbackCount': feedback_count
+        }
+    except Exception:
+        cursor.close(); conn.close()
+        raise
 
 @router.get('/instructor/students')
 def list_students(request: Request):

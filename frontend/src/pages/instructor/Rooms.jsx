@@ -15,9 +15,9 @@ const Rooms = () => {
       const res = await fetch('/api/instructor/rooms', { headers });
       if (!res.ok) throw new Error('Failed to fetch rooms');
       const data = await res.json();
-      // Only show rooms which have at least one student joined
-      const visible = (data || []).filter(r => (r.member_count || r.memberCount || 0) > 0);
-      setRooms(visible);
+      // Show all rooms created by the instructor. Rooms with zero members are shown
+      // with a 'No students yet' indicator so instructors can see the room and copy the code.
+      setRooms(data || []);
     } catch (err) {
       console.error('fetchRooms', err);
       setRooms([]);
@@ -47,10 +47,9 @@ const Rooms = () => {
       if (!res.ok) throw new Error('create failed');
       const body = await res.json();
       setName('');
-      // prepend to list so instructor sees it immediately
-      setRooms(prev => [body, ...prev]);
-      // After creating a room, send to dashboard as part of the flow
-      navigate('/instructor-dashboard');
+      // prepend to list so instructor sees it immediately. New rooms start with 0 members.
+      setRooms(prev => [{ ...body, member_count: 0 }, ...prev]);
+      // Keep instructor on the Rooms page so they can copy/share the code; do not navigate away.
     } catch (err) {
       console.error('create room', err);
       alert('Failed to create room');
@@ -87,8 +86,8 @@ const Rooms = () => {
             <h3 className="font-semibold text-lg mb-3">Create Room</h3>
             <p className="text-sm text-gray-500 mb-4">Give your room a descriptive name so students know which class this is for.</p>
             <form onSubmit={handleCreate} className="space-y-3">
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Network Security - Section A" className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#1E5780]" />
-              <button disabled={loading} className="w-full bg-[#1E5780] text-white py-2 rounded hover:bg-[#154a63] transition">{loading? 'Creating...' : 'Create Room'}</button>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Network Security - Section A" className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#0E6BA8]" />
+              <button disabled={loading} className="w-full bg-[#0E6BA8] text-white py-2 rounded hover:bg-[#0B4F75] transition">{loading? 'Creating...' : 'Create Room'}</button>
             </form>
           </div>
 
@@ -98,27 +97,41 @@ const Rooms = () => {
                 <div className="col-span-2 bg-white rounded-xl border p-6 text-center text-gray-500">No rooms yet. Create one to get started.</div>
               ) : (
                 rooms.map(r => (
-                  <div key={r.id} className="bg-white border rounded-lg p-4 shadow-sm flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="text-lg font-semibold">{r.name}</div>
-                          <div className="text-xs text-gray-500">Created: {r.created_at || ''}</div>
+                  <div key={r.id} className="bg-white border rounded-lg p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-1">
+                          <div className="text-lg font-semibold text-slate-800 truncate">{r.name}</div>
+                          <div className="text-xs text-gray-400 mt-1">Created: {r.created_at || ''}</div>
+                          <div className="mt-3 text-sm text-gray-600">Room ID: {r.id}</div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className="bg-gray-100 px-3 py-1 rounded-md font-mono text-sm font-semibold">{r.code}</div>
-                          <button onClick={() => copyCode(r.code)} className="text-sm text-[#1E5780] hover:text-[#154a63]">{copiedCode === r.code ? 'Copied' : 'Copy'}</button>
+                        <div className="flex-shrink-0 text-right">
+                          <div className="inline-flex items-center gap-2">
+                            <div
+                              role="button"
+                              onClick={() => copyCode(r.code)}
+                              className="bg-slate-100 px-3 py-1 rounded-full font-mono text-sm font-semibold cursor-pointer select-none border border-slate-200"
+                              title="Click to copy code"
+                              aria-label={`Copy code ${r.code}`}
+                            >
+                              {r.code}
+                            </div>
+                            <button onClick={() => copyCode(r.code)} className="text-sm text-[#0E6BA8] hover:text-[#0B4F75]">{copiedCode === r.code ? 'Copied' : 'Copy'}</button>
+                          </div>
+                          <div className="mt-2">
+                            { (r.member_count || r.memberCount || 0) > 0 ? (
+                              <span className="inline-block px-2 py-0.5 text-xs bg-green-50 text-green-700 rounded">Students: {r.member_count || r.memberCount || 0}</span>
+                            ) : (
+                              <span className="inline-block px-2 py-0.5 text-xs bg-gray-50 text-gray-500 rounded">No students yet</span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="mt-3 text-sm text-gray-600">Room ID: {r.id} — Students: {r.member_count || r.memberCount || 0}</div>
-                    </div>
 
-                    <div className="mt-4 flex items-center justify-end gap-3">
-                      {/* Details removed — this feature is not needed for Rooms overview */}
-                      <button onClick={() => navigate('/instructor-dashboard', { state: { joinRoomCode: r.code } })} className="px-3 py-1 bg-[#E6F6FF] text-[#0369A1] rounded hover:bg-[#dff4ff]">Join</button>
-                      <button onClick={() => handleDelete(r.id)} className="px-3 py-1 bg-red-50 text-red-700 rounded hover:bg-red-100">Delete</button>
+                      <div className="mt-4 flex items-center justify-end gap-3">
+                        <button onClick={() => navigate('/instructor-dashboard', { state: { joinRoomCode: r.code } })} className="px-4 py-2 bg-white border border-sky-200 text-sky-700 rounded hover:bg-sky-50 transition">Enter</button>
+                        <button onClick={() => handleDelete(r.id)} className="px-4 py-2 bg-red-50 text-red-700 rounded hover:bg-red-100 transition">Delete</button>
+                      </div>
                     </div>
-                  </div>
                 ))
               )}
             </div>

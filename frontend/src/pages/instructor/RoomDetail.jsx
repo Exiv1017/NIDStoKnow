@@ -88,7 +88,7 @@ const RoomDetail = () => {
             <div className="font-mono text-2xl font-semibold">{room.code}</div>
             <div className="flex gap-2">
               <button onClick={copyCode} className="px-3 py-1 bg-gray-100 rounded">{copied ? 'Copied' : 'Copy'}</button>
-              <button onClick={openLobby} className="px-3 py-1 bg-[#1E5780] text-white rounded" disabled={loading}>{loading ? 'Opening...' : 'Open Lobby'}</button>
+              <button onClick={openLobby} className="px-3 py-1 bg-[#0E6BA8] text-white rounded" disabled={loading}>{loading ? 'Opening...' : 'Open Lobby'}</button>
               <button onClick={closeLobby} className="px-3 py-1 bg-red-50 text-red-700 rounded">Close Lobby</button>
             </div>
           </div>

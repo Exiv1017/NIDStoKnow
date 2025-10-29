@@ -70,7 +70,7 @@ const Login = () => {
 
           <div className="md:col-span-5 lg:col-span-4">
             <div className="">
-              <h2 className="text-2xl font-semibold text-[#1E5780] mb-2">Student Login</h2>
+              <h2 className="text-2xl font-semibold text-[#0E6BA8] mb-2">Student Login</h2>
               {error && (
                 <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4">
                   {error}
@@ -88,7 +88,7 @@ const Login = () => {
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="your.name@lspu.edu.ph"
-                    className="w-full px-3 py-2 bg-transparent border border-gray-500 rounded-md focus:outline-none focus:ring-1 focus:ring-[#1E5780] focus:border-[#1E5780]"
+                    className="w-full px-3 py-2 bg-transparent border border-gray-500 rounded-md focus:outline-none focus:ring-1 focus:ring-[#0E6BA8] focus:border-[#0E6BA8]"
                     required
                   />
                 </div>
@@ -108,14 +108,14 @@ const Login = () => {
                   />
                 </div>
                 <div className="flex justify-end">
-                  <Link to="/forgot-password" className="text-sm text-[#1E5780] hover:text-[#1a4b6e]">
+                  <Link to="/forgot-password" className="text-sm text-[#0E6BA8] hover:text-[#0A5A7D]">
                     Forgot Password?
                   </Link>
                 </div>
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className={`w-full px-4 py-2 bg-[#1E5780] text-white rounded-md hover:bg-[#1a4b6e] transition-colors duration-200 mt-4 ${
+                  className={`w-full px-4 py-2 bg-[#0E6BA8] text-white rounded-md hover:bg-[#0A5A7D] transition-colors duration-200 mt-4 ${
                     isLoading ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
@@ -125,7 +125,7 @@ const Login = () => {
               <div className="mt-4 text-center">
                 <p className="text-sm text-gray-600">
                   Are you an instructor?{' '}
-                  <Link to="/instructor-login" className="text-[#1E5780] hover:text-[#1a4b6e] font-medium">
+                  <Link to="/instructor-login" className="text-[#0E6BA8] hover:text-[#0A5A7D] font-medium">
                     Login here
                   </Link>
                 </p>

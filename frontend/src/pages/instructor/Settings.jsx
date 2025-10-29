@@ -295,21 +295,21 @@ const Settings = () => {
               <div className="flex p-4 gap-4">
                 <button
                   onClick={() => setActiveTab('profile')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${activeTab === 'profile' ? 'bg-[#1E5780] text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${activeTab === 'profile' ? 'bg-[#0E6BA8] text-white' : 'text-gray-600 hover:bg-gray-100'}`}
                   aria-label="Profile Tab"
                 >
                   Profile
                 </button>
                 <button
                   onClick={() => setActiveTab('notifications')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${activeTab === 'notifications' ? 'bg-[#1E5780] text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${activeTab === 'notifications' ? 'bg-[#0E6BA8] text-white' : 'text-gray-600 hover:bg-gray-100'}`}
                   aria-label="Notifications Tab"
                 >
                   Notifications
                 </button>
                 <button
                   onClick={() => setActiveTab('security')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${activeTab === 'security' ? 'bg-[#1E5780] text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${activeTab === 'security' ? 'bg-[#0E6BA8] text-white' : 'text-gray-600 hover:bg-gray-100'}`}
                   aria-label="Security Tab"
                 >
                   Security

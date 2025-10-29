@@ -79,7 +79,7 @@ const StudentRooms = () => {
           )}
           <form onSubmit={handleJoin} className="mt-3 flex gap-2">
             <input value={code} onChange={e => setCode(e.target.value)} placeholder="Enter code (e.g. ABC123)" className="flex-1 border rounded px-3 py-2" />
-            <button disabled={loading} className="bg-[#1E5780] text-white px-4 rounded">Join</button>
+            <button disabled={loading} className="bg-[#0E6BA8] text-white px-4 rounded">Join</button>
           </form>
         </div>
 
@@ -90,16 +90,21 @@ const StudentRooms = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {rooms.map(r => (
-                <div key={r.id} className="bg-white border rounded-lg p-4 shadow-sm flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{r.name}</div>
-                    <div className="text-xs text-gray-500">Code: <span className="font-mono">{r.code}</span></div>
+                <div key={r.id} className="bg-white border rounded-lg p-4 shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
+                  <div className="flex-1">
+                    <div className="font-medium text-slate-800 truncate">{r.name}</div>
+                    {r.joined ? (
+                      <div className="text-xs text-gray-500 mt-1">Code: <span className="font-mono cursor-pointer text-sky-700" onClick={() => { try { navigator.clipboard.writeText(r.code); } catch {} }} title="Click to copy code">{r.code}</span></div>
+                    ) : (
+                      <div className="text-xs text-gray-400 mt-1">Code: <span className="font-mono text-gray-300">Hidden until you join</span></div>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     {r.joined ? (
                       <>
                         <div className="text-xs text-gray-400">Joined: {r.joined_at || ''}</div>
-                        <button onClick={() => handleLeave(r.id)} className="px-3 py-1 bg-red-50 text-red-700 rounded">Leave</button>
+                        <button onClick={() => navigate('/dashboard', { state: { roomCode: r.code } })} className="px-4 py-2 bg-white border border-sky-200 text-sky-700 rounded hover:bg-sky-50 transition">Enter</button>
+                        <button onClick={() => handleLeave(r.id)} className="px-4 py-2 bg-red-50 text-red-700 rounded hover:bg-red-100 transition">Leave</button>
                       </>
                     ) : (
                       <div className="text-sm text-gray-500">Not joined — use the form above to join with your instructor's code.</div>
