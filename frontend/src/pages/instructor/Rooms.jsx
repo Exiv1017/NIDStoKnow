@@ -128,7 +128,7 @@ const Rooms = () => {
                       </div>
 
                       <div className="mt-4 flex items-center justify-end gap-3">
-                        <button onClick={() => navigate('/instructor-dashboard', { state: { joinRoomCode: r.code } })} className="px-4 py-2 bg-white border border-sky-200 text-sky-700 rounded hover:bg-sky-50 transition">Enter</button>
+                        <button onClick={() => navigate(`/instructor-dashboard?room_id=${encodeURIComponent(r.id)}`)} className="px-4 py-2 bg-white border border-sky-200 text-sky-700 rounded hover:bg-sky-50 transition">Enter</button>
                         <button onClick={() => handleDelete(r.id)} className="px-4 py-2 bg-red-50 text-red-700 rounded hover:bg-red-100 transition">Delete</button>
                       </div>
                     </div>
