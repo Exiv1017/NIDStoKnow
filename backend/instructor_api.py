@@ -1695,67 +1695,154 @@ def instructor_assessment_trend(request: Request):
         # and compute weekly averages in Python for robustness (handles missing JSON_EXTRACT support
         # or payloads with different shapes). Add debug logging to help diagnose empty charts.
         try:
-            cursor.execute(f'''
-                SELECT s.payload, s.created_at
-                FROM submissions s
-                WHERE s.submission_type = 'assessment'
-                  AND s.student_id IN ({placeholders})
-                  AND s.created_at >= DATE_SUB(NOW(), INTERVAL 28 DAY)
-            ''', tuple(student_ids))
-            rows = cursor.fetchall() or []
+                        cursor.execute(f'''
+                                SELECT s.id, s.student_id, s.submission_type, s.payload, s.created_at
+                                FROM submissions s
+                                WHERE s.submission_type = 'assessment'
+                                    AND s.student_id IN ({placeholders})
+                                    AND s.created_at >= DATE_SUB(NOW(), INTERVAL 28 DAY)
+                        ''', tuple(student_ids))
+                        rows = cursor.fetchall() or []
         except Exception as e:
             print(f"[WARN] assessment-trend SQL fetch failed: {e}")
             cursor.close(); conn.close(); return [0, 0, 0, 0]
 
         print(f"[DEBUG] assessment-trend: fetched {len(rows)} submissions for student_ids={student_ids}")
+        # Also fetch module quiz records (student_module_quiz) and recent simulation session scores
+        quiz_rows = []
+        session_rows = []
+        try:
+            cursor.execute(f'''
+                SELECT student_id, score, attempted_at
+                FROM student_module_quiz
+                WHERE student_id IN ({placeholders})
+                  AND attempted_at >= DATE_SUB(NOW(), INTERVAL 28 DAY)
+            ''', tuple(student_ids))
+            quiz_rows = cursor.fetchall() or []
+        except Exception as _qe:
+            print(f"[WARN] assessment-trend: failed to fetch student_module_quiz rows: {_qe}")
+        try:
+            cursor.execute(f'''
+                SELECT student_id, score, role, created_at
+                FROM simulation_sessions
+                WHERE student_id IN ({placeholders})
+                  AND created_at >= DATE_SUB(NOW(), INTERVAL 28 DAY)
+            ''', tuple(student_ids))
+            session_rows = cursor.fetchall() or []
+        except Exception as _se:
+            print(f"[WARN] assessment-trend: failed to fetch simulation_sessions rows: {_se}")
+
+        print(f"[DEBUG] assessment-trend: quiz_rows={len(quiz_rows)} session_rows={len(session_rows)}")
+        # Print a small sample of fetched rows (id, student_id, submission_type, payload preview, created_at)
+        try:
+            for i, r in enumerate(rows[:10]):
+                sid = r[1] if isinstance(r, (list, tuple)) and len(r) > 1 else (r.get('student_id') if isinstance(r, dict) else None)
+                rid = r[0] if isinstance(r, (list, tuple)) and len(r) > 0 else (r.get('id') if isinstance(r, dict) else None)
+                stype = None
+                created = None
+                payload_preview = None
+                if isinstance(r, (list, tuple)):
+                    stype = r[2] if len(r) > 2 else None
+                    payload_val = r[3] if len(r) > 3 else None
+                    created = r[4] if len(r) > 4 else None
+                else:
+                    stype = r.get('submission_type')
+                    payload_val = r.get('payload')
+                    created = r.get('created_at')
+                try:
+                    payload_preview = (str(payload_val)[:200] + '...') if payload_val is not None else 'NULL'
+                except Exception:
+                    payload_preview = 'UNREPR'
+                print(f"[DEBUG] assessment-trend sample[{i}] id={rid} student_id={sid} type={stype} created_at={created} payload={payload_preview}")
+        except Exception as e:
+            print(f"[WARN] assessment-trend sample logging failed: {e}")
         # Accumulate scores per weekAgo (0 = this week, 1 = 1 week ago, ...)
         from collections import defaultdict
         import json
         week_scores = defaultdict(list)
         from datetime import datetime, date
+        # Helper to normalize and bucket a (score, created_at) pair
+        def _bucket_score(val_score, val_created):
+            try:
+                if val_score is None:
+                    return
+                sc = float(val_score)
+            except Exception:
+                return
+            try:
+                if isinstance(val_created, str):
+                    try:
+                        created_date = datetime.fromisoformat(val_created.replace('Z', '+00:00')).date()
+                    except Exception:
+                        try:
+                            created_date = datetime.strptime(val_created.split(' ')[0], '%Y-%m-%d').date()
+                        except Exception:
+                            created_date = date.today()
+                else:
+                    created_date = val_created.date() if hasattr(val_created, 'date') else date.today()
+                days = (date.today() - created_date).days
+                week = int(days // 7)
+                if 0 <= week < 4:
+                    week_scores[week].append(sc)
+            except Exception as _be:
+                print(f"[WARN] assessment-trend bucket failed: {_be}")
+
+        # Process submissions rows (payload may be JSON or dict)
         for r in rows:
             try:
-                payload = r[0]
-                created_at = r[1]
-                score = None
-                # payload may be returned as dict or as JSON string
-                if payload is None:
-                    continue
-                if isinstance(payload, dict):
-                    score = payload.get('score')
+                if isinstance(r, (list, tuple)):
+                    # SELECT s.id, s.student_id, s.submission_type, s.payload, s.created_at
+                    payload_val = r[3] if len(r) > 3 else None
+                    created_at = r[4] if len(r) > 4 else None
                 else:
-                    # attempt to parse JSON string
+                    payload_val = r.get('payload')
+                    created_at = r.get('created_at')
+
+                score = None
+                if payload_val is None:
+                    continue
+                if isinstance(payload_val, dict):
+                    score = payload_val.get('score')
+                else:
                     try:
-                        p = json.loads(payload)
+                        p = json.loads(payload_val)
                         score = p.get('score')
                     except Exception:
-                        # last-ditch: regex extract numeric "score": 12.3
                         try:
-                            m = re.search(r'"score"\s*:\s*([0-9]+(?:\.[0-9]+)?)', str(payload))
+                            m = re.search(r'"score"\s*:\s*([0-9]+(?:\.[0-9]+)?)', str(payload_val))
                             if m:
                                 score = float(m.group(1))
                         except Exception:
                             score = None
-                if score is None:
-                    continue
-                score = float(score)
-                # normalize created_at to date
-                if isinstance(created_at, str):
-                    try:
-                        created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00')).date()
-                    except Exception:
-                        try:
-                            created_date = datetime.strptime(created_at.split(' ')[0], '%Y-%m-%d').date()
-                        except Exception:
-                            created_date = date.today()
-                else:
-                    created_date = created_at.date() if hasattr(created_at, 'date') else date.today()
-                days = (date.today() - created_date).days
-                week = int(days // 7)
-                if 0 <= week < 4:
-                    week_scores[week].append(score)
+                _bucket_score(score, created_at)
             except Exception as e:
-                print(f"[WARN] assessment-trend row parse failed: {e}")
+                print(f"[WARN] assessment-trend submission row parse failed: {e}")
+
+        # Process quiz rows (student_module_quiz: student_id, score, attempted_at)
+        for q in quiz_rows:
+            try:
+                if isinstance(q, (list, tuple)):
+                    q_score = q[1]
+                    q_created = q[2]
+                else:
+                    q_score = q.get('score')
+                    q_created = q.get('attempted_at')
+                _bucket_score(q_score, q_created)
+            except Exception as e:
+                print(f"[WARN] assessment-trend quiz row parse failed: {e}")
+
+        # Process simulation session rows (student_id, score, role, created_at)
+        for srow in session_rows:
+            try:
+                if isinstance(srow, (list, tuple)):
+                    s_score = srow[1]
+                    s_created = srow[3] if len(srow) > 3 else None
+                else:
+                    s_score = srow.get('score')
+                    s_created = srow.get('created_at')
+                _bucket_score(s_score, s_created)
+            except Exception as e:
+                print(f"[WARN] assessment-trend session row parse failed: {e}")
 
         # Build result oldest->newest (3 weeks ago .. this week)
         result = [0, 0, 0, 0]
