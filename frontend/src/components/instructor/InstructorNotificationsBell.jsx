@@ -31,7 +31,9 @@ const InstructorNotificationsBell = ({ refreshIntervalMs = 30000, appearance = '
   const fetchCount = async (signal) => {
     if (!headers) return;
     try {
-      const res = await fetch('/api/instructor/notifications/count', { headers, signal });
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const url = `${API_BASE}/api/instructor/notifications/count`.replace(/([^:]?)\/\/+/g,'$1/');
+      const res = await fetch(url, { headers, signal });
       if (!res.ok) return;
       const data = await res.json();
       setCount(data?.count ?? 0);
@@ -43,7 +45,9 @@ const InstructorNotificationsBell = ({ refreshIntervalMs = 30000, appearance = '
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/instructor/notifications', { headers });
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const url = `${API_BASE}/api/instructor/notifications`.replace(/([^:]?)\/\/+/g,'$1/');
+      const res = await fetch(url, { headers });
       const data = await res.json();
       if (res.ok && Array.isArray(data)) setItems(data);
       else setError(data?.error || 'Failed to load notifications');
@@ -57,7 +61,9 @@ const InstructorNotificationsBell = ({ refreshIntervalMs = 30000, appearance = '
   const markRead = async (id) => {
     if (!headers) return;
     try {
-      const res = await fetch(`/api/instructor/notifications/${id}/read`, { method: 'PATCH', headers });
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const url = `${API_BASE}/api/instructor/notifications/${id}/read`.replace(/([^:]?)\/\/+/g,'$1/');
+      const res = await fetch(url, { method: 'PATCH', headers });
       if (res.ok) {
         setItems((prev) => prev.filter((n) => n.id !== id));
         setCount((c) => Math.max(0, c - 1));
@@ -68,7 +74,9 @@ const InstructorNotificationsBell = ({ refreshIntervalMs = 30000, appearance = '
   const markAllRead = async () => {
     if (!headers) return;
     try {
-      const res = await fetch('/api/instructor/notifications/mark-all-read', { method: 'POST', headers });
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const url = `${API_BASE}/api/instructor/notifications/mark-all-read`.replace(/([^:]?)\/\/+/g,'$1/');
+      const res = await fetch(url, { method: 'POST', headers });
       if (res.ok) {
         setItems([]);
         setCount(0);

@@ -51,22 +51,32 @@ const InstructorDashboard = () => {
 
   // Function to fetch notifications
   const fetchNotifications = () => {
-    fetch('/api/instructor/notifications', {
-      headers: authHeader()
-    })
-      .then(res => res.json())
-      .then(data => Array.isArray(data) ? setNotifications(data) : setNotifications([]))
-      .catch((err) => { setNotifications([]); console.error('Notifications fetch error:', err); });
+    try {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const url = `${API_BASE}/api/instructor/notifications`.replace(/([^:]?)\/\/+/g,'$1/');
+      fetch(url, { headers: authHeader() })
+        .then(res => res.json())
+        .then(data => Array.isArray(data) ? setNotifications(data) : setNotifications([]))
+        .catch((err) => { setNotifications([]); console.error('Notifications fetch error:', err); });
+    } catch (e) {
+      setNotifications([]);
+      console.error('Notifications fetch setup error:', e);
+    }
   };
 
   // Fetch unread notification count
   const fetchNotificationsCount = () => {
-    fetch('/api/instructor/notifications/count', {
-      headers: authHeader()
-    })
-      .then(res => res.json())
-      .then(data => setUnreadCount(typeof data?.count === 'number' ? data.count : 0))
-      .catch((err) => { setUnreadCount(0); console.error('Notifications count error:', err); });
+    try {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const url = `${API_BASE}/api/instructor/notifications/count`.replace(/([^:]?)\/\/+/g,'$1/');
+      fetch(url, { headers: authHeader() })
+        .then(res => res.json())
+        .then(data => setUnreadCount(typeof data?.count === 'number' ? data.count : 0))
+        .catch((err) => { setUnreadCount(0); console.error('Notifications count error:', err); });
+    } catch (e) {
+      setUnreadCount(0);
+      console.error('Notifications count setup error:', e);
+    }
   };
 
   // --- Fetch dashboard data from backend ---
@@ -393,7 +403,9 @@ const InstructorDashboard = () => {
   // Function to manually trigger a test notification (for testing purposes)
   const createTestNotification = async () => {
     try {
-      const response = await fetch('/api/instructor/notifications/create', {
+      const API_BASE = (typeof window !== 'undefined' && (window.__API_BASE__ || import.meta.env.VITE_API_URL)) || '';
+      const url = `${API_BASE}/api/instructor/notifications/create`.replace(/([^:]?)\/\/+/g,'$1/');
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
