@@ -1044,6 +1044,10 @@ def instructor_modules(request: Request):
                 GROUP BY sp.module_name
             ''', (room_id,))
             rows = cursor.fetchall() or []
+            try:
+                print(f"[DEBUG] instructor_modules (room) room_id={room_id} total_students={total_students} rows={rows}")
+            except Exception:
+                pass
         else:
             # Count distinct joined students for this instructor across all rooms
             cursor.execute('''
@@ -1071,6 +1075,10 @@ def instructor_modules(request: Request):
                 GROUP BY sp.module_name
             ''', (instr_id,))
             rows = cursor.fetchall() or []
+            try:
+                print(f"[DEBUG] instructor_modules (instr) instr_id={instr_id} total_students={total_students} rows={rows}")
+            except Exception:
+                pass
 
         modules = []
         for r in rows:
@@ -1087,6 +1095,11 @@ def instructor_modules(request: Request):
                 'finishedCount': finished_count,
                 'studentsWithProgress': students_with_progress
             })
+
+        try:
+            print(f"[DEBUG] instructor_modules: modules_payload={modules}")
+        except Exception:
+            pass
 
         return modules
     finally:
@@ -1678,32 +1691,81 @@ def instructor_assessment_trend(request: Request):
             cursor.close(); conn.close(); return _safe_default()
 
         placeholders = ','.join(['%s'] * len(student_ids))
-        # Attempt to compute AVG score from JSON payload -> $.score for assessment submissions
-        # This uses JSON_EXTRACT and CAST; if payloads don't contain score, AVG will ignore NULLs
-        sql = f'''
-            SELECT FLOOR(DATEDIFF(CURDATE(), DATE(s.created_at))/7) AS weekAgo,
-                   AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(s.payload, '$.score')) AS DECIMAL(10,2))) AS avgScore
-            FROM submissions s
-            WHERE s.submission_type = 'assessment'
-              AND s.student_id IN ({placeholders})
-              AND s.created_at >= DATE_SUB(NOW(), INTERVAL 28 DAY)
-            GROUP BY weekAgo
-        '''
-        cursor.execute(sql, tuple(student_ids))
-        rows = cursor.fetchall() or []
-        result = [0, 0, 0, 0]
+        # Fetch assessment submissions payloads for these students in the last 4 weeks
+        # and compute weekly averages in Python for robustness (handles missing JSON_EXTRACT support
+        # or payloads with different shapes). Add debug logging to help diagnose empty charts.
+        try:
+            cursor.execute(f'''
+                SELECT s.payload, s.created_at
+                FROM submissions s
+                WHERE s.submission_type = 'assessment'
+                  AND s.student_id IN ({placeholders})
+                  AND s.created_at >= DATE_SUB(NOW(), INTERVAL 28 DAY)
+            ''', tuple(student_ids))
+            rows = cursor.fetchall() or []
+        except Exception as e:
+            print(f"[WARN] assessment-trend SQL fetch failed: {e}")
+            cursor.close(); conn.close(); return [0, 0, 0, 0]
+
+        print(f"[DEBUG] assessment-trend: fetched {len(rows)} submissions for student_ids={student_ids}")
+        # Accumulate scores per weekAgo (0 = this week, 1 = 1 week ago, ...)
+        from collections import defaultdict
+        import json
+        week_scores = defaultdict(list)
+        from datetime import datetime, date
         for r in rows:
             try:
-                week = int(r[0])
-                avg = r[1]
-                if avg is None:
+                payload = r[0]
+                created_at = r[1]
+                score = None
+                # payload may be returned as dict or as JSON string
+                if payload is None:
                     continue
-                val = float(avg)
+                if isinstance(payload, dict):
+                    score = payload.get('score')
+                else:
+                    # attempt to parse JSON string
+                    try:
+                        p = json.loads(payload)
+                        score = p.get('score')
+                    except Exception:
+                        # last-ditch: regex extract numeric "score": 12.3
+                        try:
+                            m = re.search(r'"score"\s*:\s*([0-9]+(?:\.[0-9]+)?)', str(payload))
+                            if m:
+                                score = float(m.group(1))
+                        except Exception:
+                            score = None
+                if score is None:
+                    continue
+                score = float(score)
+                # normalize created_at to date
+                if isinstance(created_at, str):
+                    try:
+                        created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00')).date()
+                    except Exception:
+                        try:
+                            created_date = datetime.strptime(created_at.split(' ')[0], '%Y-%m-%d').date()
+                        except Exception:
+                            created_date = date.today()
+                else:
+                    created_date = created_at.date() if hasattr(created_at, 'date') else date.today()
+                days = (date.today() - created_date).days
+                week = int(days // 7)
                 if 0 <= week < 4:
-                    result[3 - week] = round(val, 1)
-            except Exception:
-                continue
+                    week_scores[week].append(score)
+            except Exception as e:
+                print(f"[WARN] assessment-trend row parse failed: {e}")
+
+        # Build result oldest->newest (3 weeks ago .. this week)
+        result = [0, 0, 0, 0]
+        for wk in range(4):
+            scores = week_scores.get(wk) or []
+            if scores:
+                result[3 - wk] = round(sum(scores) / len(scores), 1)
+
         cursor.close(); conn.close()
+        print(f"[DEBUG] assessment-trend result={result}")
         return result
     except Exception as e:
         try:
