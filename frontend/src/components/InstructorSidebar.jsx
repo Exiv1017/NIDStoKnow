@@ -116,7 +116,7 @@ const InstructorSidebar = () => {
               className="flex items-center p-3 rounded-lg hover:bg-white/10 transition-all duration-200"
             >
               <img src="/settings.svg" alt="" className="w-6 h-6 mr-3" />
-              <span className="font-medium">Settings</span>
+              <span className="font-medium">Account Settings</span>
             </Link>
           </li>
         </ul>

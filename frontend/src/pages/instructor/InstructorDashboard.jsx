@@ -203,7 +203,10 @@ const InstructorDashboard = () => {
     labels: Array.isArray(modules) ? modules.map((m) => m.name) : [],
     datasets: [
       {
-        data: Array.isArray(modules) ? modules.map((m) => m.students) : [],
+        // Prefer explicit module.students from backend, then studentsWithProgress, then global stats.totalStudents
+        data: Array.isArray(modules)
+          ? modules.map((m) => (typeof m.students === 'number' ? m.students : (typeof m.studentsWithProgress === 'number' ? m.studentsWithProgress : (stats.totalStudents || 0))))
+          : [],
         backgroundColor: ['#1E5780', '#206EA6', '#A3A3A3'],
         borderWidth: 1,
       },
@@ -218,7 +221,27 @@ const InstructorDashboard = () => {
     datasets: [
       {
         label: 'Completion %',
-        data: Array.isArray(modules) ? modules.map((m) => m.completion) : [],
+        // Compute completion defensively on the client using finishedCount / denominator
+        // denominator: prefer m.students (explicit total students for module), then m.studentsWithProgress, then global stats.totalStudents
+        data: Array.isArray(modules)
+          ? modules.map((m) => {
+              const finished = Number(m?.finishedCount || 0);
+              const denom = (typeof m?.students === 'number' && m.students > 0)
+                ? m.students
+                : (typeof m?.studentsWithProgress === 'number' && m.studentsWithProgress > 0)
+                  ? m.studentsWithProgress
+                  : (typeof stats?.totalStudents === 'number' && stats.totalStudents > 0)
+                    ? stats.totalStudents
+                    : 0;
+              if (denom <= 0) {
+                // Fall back to any server-provided completion value or 0
+                return (typeof m?.completion === 'number') ? Math.max(0, Math.min(100, Math.round(m.completion))) : 0;
+              }
+              const percent = Math.round((finished / denom) * 100);
+              // Clamp to 0..100
+              return Math.max(0, Math.min(100, percent));
+            })
+          : [],
         backgroundColor: '#22c55e',
         borderRadius: 6,
       },
