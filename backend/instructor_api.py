@@ -1345,7 +1345,7 @@ def instructor_stats(request: Request):
         cursor.close(); conn.close()
         raise
 
-@router.get('/instructor/students-summary')
+@router.get('/instructor/students-summary-meta')
 def instructor_students_summary(request: Request):
     """Return student counts and recent joins scoped to students who joined the instructor's rooms.
 
