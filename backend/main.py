@@ -913,6 +913,10 @@ from auth import decode_token
 async def simulation_websocket(websocket: WebSocket, lobby_code: str):
     # Enforce JWT similar to lobby_ws
     try:
+        logging.info(f"[simulation_ws] WS connect attempt: lobby={lobby_code} headers={{}} query={{}}".format(dict(websocket.headers), dict(websocket.query_params)))
+    except Exception:
+        pass
+    try:
         auth = websocket.headers.get('authorization') or websocket.headers.get('Authorization')
         token = None
         if auth and auth.lower().startswith('bearer '):
@@ -920,9 +924,13 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
         if not token:
             token = websocket.query_params.get('token')
         if not token:
+            try:
+                logging.warning(f"[simulation_ws] denied connection: missing token for lobby={lobby_code}")
+            except Exception:
+                pass
             await websocket.close(code=4401)
             return
-        # Validate token and enforce room-level access: only the room's instructor or joined students may connect
+    # Validate token and enforce room-level access: only the room's instructor or joined students may connect
         payload = decode_token(token)
         role = (payload.get('role') or '').lower() if payload else ''
         user_id = None
@@ -960,6 +968,10 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
             row = cur.fetchone()
             if not row:
                 try:
+                    logging.warning(f"[simulation_ws] lobby not found: {lobby_code}")
+                except Exception:
+                    pass
+                try:
                     cur.close(); conn.close()
                 except Exception:
                     pass
@@ -970,6 +982,10 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
             # Enforce role rules
             if role == 'instructor':
                 if user_id is None or user_id != instr_id:
+                    try:
+                        logging.warning(f"[simulation_ws] instructor token mismatch: token_sub={user_id} instr_id={instr_id} lobby={lobby_code}")
+                    except Exception:
+                        pass
                     try:
                         cur.close(); conn.close()
                     except Exception:
@@ -987,6 +1003,10 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                 cur.execute('SELECT id FROM simulation_room_members WHERE room_id=%s AND student_id=%s LIMIT 1', (room_id, user_id))
                 mem = cur.fetchone()
                 if not mem:
+                    try:
+                        logging.warning(f"[simulation_ws] student not a member of room: student_id={user_id} lobby={lobby_code}")
+                    except Exception:
+                        pass
                     try:
                         cur.close(); conn.close()
                     except Exception:
@@ -1034,6 +1054,10 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                 simulation_rooms[lobby_code].setdefault("metrics", {"totalEvents": 0, "attacksLaunched": 0, "detectionsTriggered": 0})
                 if role.lower() == "attacker":
                     objs = assign_objectives_for_attacker(lobby_code, name)
+                    try:
+                        logging.info(f"[simulation_ws] assigned {len(objs or [])} objectives to attacker={name} lobby={lobby_code}")
+                    except Exception:
+                        pass
                     await websocket.send_json({"type": "objectives", "objectives": objs})
                 # notify observers of participant join
                 room_broadcast(lobby_code, {"type": "participant_joined", "name": name, "role": role}, roles=["Observer"])
