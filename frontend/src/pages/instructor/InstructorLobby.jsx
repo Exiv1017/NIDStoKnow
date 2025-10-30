@@ -19,12 +19,23 @@ const InstructorLobby = () => {
   // Config modal/state removed
 
   const handleGenerateLobby = async () => {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    // Call backend to create lobby
-    const headers = user?.token ? { 'Authorization': `Bearer ${user.token}` } : {};
-    await fetch(`/api/create_lobby/${code}`, { method: 'POST', headers });
-    setLobbyCode(code);
-    setGenerated(true);
+    // Ask backend to create a simulation room (server-generated code), then create a lobby with that same code.
+    try {
+      const headers = user?.token ? { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+      // Create a simulation room on the server so the room code is authoritative
+      const resRoom = await fetch('/api/instructor/rooms', { method: 'POST', headers, body: JSON.stringify({ name: 'Lobby' }) });
+      if (!resRoom.ok) throw new Error('failed to create simulation room');
+      const roomData = await resRoom.json();
+      const code = (roomData && roomData.code) ? roomData.code : (Math.random().toString(36).substring(2, 8).toUpperCase());
+      // Now persist a lobby entry that maps to this room code
+      const resLobby = await fetch(`/api/create_lobby/${code}`, { method: 'POST', headers });
+      if (!resLobby.ok) throw new Error('create lobby failed');
+      setLobbyCode(code);
+      setGenerated(true);
+    } catch (err) {
+      console.error('handleGenerateLobby', err);
+      alert('Failed to generate lobby');
+    }
   };
 
   useEffect(() => {

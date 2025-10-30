@@ -100,6 +100,9 @@ async def lobby_websocket(websocket: WebSocket, lobby_code: str):
             await websocket.close(code=4401)
             return
         payload = decode_token(token)
+        # Preserve auth token payload separately because later we reuse the name `payload`
+        # for incoming WS messages. auth_payload holds identity info like sub/role.
+        auth_payload = payload
         # Optionally check role here depending on route usage
     except Exception as e:
         try:
@@ -146,6 +149,66 @@ async def lobby_websocket(websocket: WebSocket, lobby_code: str):
                     except Exception as e:
                         try: logging.error(f"[lobby_ws] persist join failed: {e}")
                         except Exception: pass
+                    # If the joining participant is a student, also add them to simulation_room_members
+                    try:
+                        user_id = None
+                        try:
+                            user_id = int(auth_payload.get('sub')) if auth_payload and auth_payload.get('sub') else None
+                        except Exception:
+                            user_id = None
+                        if (payload.get('role') or '').lower() == 'student' and user_id:
+                            conn2 = get_db_connection()
+                            cur2 = conn2.cursor()
+                            try:
+                                # Defensive table creation (idempotent)
+                                cur2.execute(
+                                    '''
+                                    CREATE TABLE IF NOT EXISTS simulation_rooms (
+                                        id INT AUTO_INCREMENT PRIMARY KEY,
+                                        instructor_id INT NOT NULL,
+                                        name VARCHAR(255) NOT NULL,
+                                        code VARCHAR(32) NOT NULL UNIQUE,
+                                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                                    '''
+                                )
+                                cur2.execute(
+                                    '''
+                                    CREATE TABLE IF NOT EXISTS simulation_room_members (
+                                        id INT AUTO_INCREMENT PRIMARY KEY,
+                                        room_id INT NOT NULL,
+                                        student_id INT NOT NULL,
+                                        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                        UNIQUE KEY uniq_room_member (room_id, student_id)
+                                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                                    '''
+                                )
+                                # Find room id and insert membership if present
+                                cur2.execute('SELECT id FROM simulation_rooms WHERE code=%s LIMIT 1', (lobby_code,))
+                                rr = cur2.fetchone()
+                                if rr:
+                                    try:
+                                        room_id = int(rr[0])
+                                    except Exception:
+                                        try:
+                                            room_id = int(rr.get('id'))
+                                        except Exception:
+                                            room_id = None
+                                    if room_id:
+                                        cur2.execute('INSERT IGNORE INTO simulation_room_members (room_id, student_id) VALUES (%s, %s)', (room_id, user_id))
+                                        conn2.commit()
+                            except Exception:
+                                try:
+                                    conn2.rollback()
+                                except Exception:
+                                    pass
+                            finally:
+                                try:
+                                    cur2.close(); conn2.close()
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
                 
                 # Send join success to the joining participant
                 is_instructor = payload["role"] == "Instructor"
