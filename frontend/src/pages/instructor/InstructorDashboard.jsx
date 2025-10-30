@@ -184,6 +184,36 @@ const InstructorDashboard = () => {
       window.removeEventListener('studentsChanged', handleStudentsChanged);
     };
   }, []);
+
+  // Temporary debug: log modules and computed datasets to help diagnose chart problems
+  useEffect(() => {
+    try {
+      console.debug('InstructorDashboard: raw modules', modules);
+      // compute the same values client-side as the chart uses
+      const computedStudents = Array.isArray(modules)
+        ? modules.map((m) => (typeof m.students === 'number' ? m.students : (typeof m.studentsWithProgress === 'number' ? m.studentsWithProgress : (stats.totalStudents || 0))))
+        : [];
+      const computedCompletion = Array.isArray(modules)
+        ? modules.map((m) => {
+            const finished = Number(m?.finishedCount || 0);
+            const denom = (typeof m?.students === 'number' && m.students > 0)
+              ? m.students
+              : (typeof m?.studentsWithProgress === 'number' && m.studentsWithProgress > 0)
+                ? m.studentsWithProgress
+                : (typeof stats?.totalStudents === 'number' && stats.totalStudents > 0)
+                  ? stats.totalStudents
+                  : 0;
+            if (denom <= 0) return (typeof m?.completion === 'number') ? Math.max(0, Math.min(100, Math.round(m.completion))) : 0;
+            const percent = Math.round((finished / denom) * 100);
+            return Math.max(0, Math.min(100, percent));
+          })
+        : [];
+      console.debug('InstructorDashboard: computedStudents', computedStudents);
+      console.debug('InstructorDashboard: computedCompletion', computedCompletion);
+    } catch (e) {
+      console.error('InstructorDashboard debug error', e);
+    }
+  }, [modules, stats]);
   // Removed duplicate notification interval useEffect (merged into single effect above)
 
   // Defensive chart data
