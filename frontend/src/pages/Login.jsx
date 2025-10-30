@@ -32,14 +32,29 @@ const Login = () => {
         body: JSON.stringify(formData),
       });
 
-  const data = await response.json();
+      // Guard against non-JSON responses (eg. proxy HTML error pages)
+      const contentType = (response.headers.get('content-type') || '').toLowerCase();
+      let data = null;
+      if (contentType.includes('application/json')) {
+        try {
+          data = await response.json();
+        } catch (e) {
+          console.error('Failed to parse JSON login response:', e);
+        }
+      } else {
+        // Capture raw body for debugging and present a clearer message
+        const raw = await response.text();
+        console.error('Non-JSON login response body:', raw);
+        setError('Server error: received unexpected response. Check server logs.');
+        return;
+      }
 
       if (response.ok) {
         const userWithToken = { ...(data.user || {}), token: data.access_token };
         // Delegate redirect to centralized AuthContext.login
         login(userWithToken);
       } else {
-        setError(data.detail || data.error || 'Invalid email or password');
+        setError(data?.detail || data?.error || 'Invalid email or password');
       }
     } catch (err) {
       setError('An error occurred. Please try again.');

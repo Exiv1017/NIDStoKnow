@@ -32,21 +32,36 @@ const InstructorLogin = () => {
         body: JSON.stringify(formData),
       });
 
-  const data = await response.json();
+      // Protect against non-JSON responses (eg. proxy HTML error pages)
+      const contentType = (response.headers.get('content-type') || '').toLowerCase();
+      let data = null;
+      if (contentType.includes('application/json')) {
+        try {
+          data = await response.json();
+        } catch (e) {
+          console.error('Failed to parse JSON instructor login response:', e);
+        }
+      } else {
+        const raw = await response.text();
+        console.error('Non-JSON instructor login response body:', raw);
+        setError('Server error: received unexpected response. Check server logs.');
+        return;
+      }
 
       if (response.ok) {
         const userWithToken = { ...(data.user || {}), token: data.access_token };
         // Delegate redirect to centralized AuthContext.login
         login(userWithToken);
       } else {
-        if ((data.error || data.detail) === "Email not found") {
-          setError("This email is not registered. Please sign up first.");
-        } else if ((data.error || data.detail) === "Incorrect password") {
-          setError("Incorrect password. Please try again.");
-        } else if ((data.error || data.detail) === "Instructor account not approved yet.") {
-          setError("Your account is pending admin approval.");
+        const errVal = (data?.error || data?.detail);
+        if (errVal === 'Email not found') {
+          setError('This email is not registered. Please sign up first.');
+        } else if (errVal === 'Incorrect password') {
+          setError('Incorrect password. Please try again.');
+        } else if (errVal === 'Instructor account not approved yet.') {
+          setError('Your account is pending admin approval.');
         } else {
-          setError(data.detail || data.error || 'Invalid email or password');
+          setError(data?.detail || data?.error || 'Invalid email or password');
         }
       }
     } catch (err) {
