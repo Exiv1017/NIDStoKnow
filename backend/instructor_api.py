@@ -1033,7 +1033,10 @@ def instructor_modules(request: Request):
                 SELECT
                     sp.module_name AS name,
                     COUNT(DISTINCT sp.student_id) AS students_with_progress,
-                    SUM(CASE WHEN COALESCE(sp.total_lessons,0) > 0 AND COALESCE(sp.lessons_completed,0) >= sp.total_lessons THEN 1 ELSE 0 END) AS finished_count
+                    SUM(CASE WHEN (
+                        (COALESCE(sp.total_lessons,0) > 0 AND COALESCE(sp.lessons_completed,0) >= COALESCE(sp.total_lessons,0))
+                        OR (COALESCE(sp.overview_completed,0)=1 AND COALESCE(sp.practical_completed,0)=1 AND COALESCE(sp.assessment_completed,0)=1)
+                    ) THEN 1 ELSE 0 END) AS finished_count
                 FROM student_progress sp
                 JOIN (
                     SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id=%s
@@ -1057,7 +1060,10 @@ def instructor_modules(request: Request):
                 SELECT
                     sp.module_name AS name,
                     COUNT(DISTINCT sp.student_id) AS students_with_progress,
-                    SUM(CASE WHEN COALESCE(sp.total_lessons,0) > 0 AND COALESCE(sp.lessons_completed,0) >= sp.total_lessons THEN 1 ELSE 0 END) AS finished_count
+                    SUM(CASE WHEN (
+                        (COALESCE(sp.total_lessons,0) > 0 AND COALESCE(sp.lessons_completed,0) >= COALESCE(sp.total_lessons,0))
+                        OR (COALESCE(sp.overview_completed,0)=1 AND COALESCE(sp.practical_completed,0)=1 AND COALESCE(sp.assessment_completed,0)=1)
+                    ) THEN 1 ELSE 0 END) AS finished_count
                 FROM student_progress sp
                 JOIN (
                     SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
