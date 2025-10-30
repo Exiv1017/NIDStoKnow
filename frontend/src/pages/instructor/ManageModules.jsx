@@ -200,13 +200,16 @@ const ManageModules = () => {
       const orderedCore = ORDER.filter(slug => merged[slug]).map(slug => merged[slug]);
       const modulesToShow = [...orderedCore, ...additional];
 
-      const formattedModules = modulesToShow.map((module, index) => ({
+        const formattedModules = modulesToShow.map((module, index) => ({
         id: index + 1,
         title: module.name,
         description: getModuleDescription(module.name),
         status: 'Active',
-        // If instructor has no joined students, show 0 to avoid displaying global counts
-        students: (statsTotalStudents === 0 || statsTotalStudents === null) ? 0 : (module.students || 0),
+        // Prefer explicit backend-provided module student count when available.
+        // Fall back to studentsWithProgress, then to the aggregated statsTotalStudents, and finally 0.
+        students: (typeof module.students === 'number' && module.students >= 0)
+          ? module.students
+          : (typeof module.studentsWithProgress === 'number' ? module.studentsWithProgress : (typeof statsTotalStudents === 'number' ? statsTotalStudents : 0)),
         lastUpdated: '2024-01-15'
       }));
 
