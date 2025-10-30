@@ -1302,32 +1302,32 @@ def instructor_stats(request: Request):
         # Compute average completion fraction only for these students
         avg_completion = 0
         if active_modules > 0 and total_students > 0:
-                        if room_id:
-                                cursor.execute('''
-                                        SELECT SUM(
-                                            CASE
-                                                WHEN COALESCE(sp.total_lessons,0) > 0 THEN LEAST(1.0, COALESCE(sp.lessons_completed,0) / NULLIF(sp.total_lessons,0))
-                                                ELSE ((COALESCE(sp.overview_completed,0) + COALESCE(sp.practical_completed,0) + COALESCE(sp.assessment_completed,0)) / 3.0)
-                                            END
-                                        ) AS sum_frac
-                                        FROM student_progress sp
-                                        JOIN (
-                                                SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id=%s
-                                        ) s ON s.student_id = sp.student_id
-                                ''', (room_id,))
-                        else:
-                                cursor.execute('''
-                                        SELECT SUM(
-                                            CASE
-                                                WHEN COALESCE(sp.total_lessons,0) > 0 THEN LEAST(1.0, COALESCE(sp.lessons_completed,0) / NULLIF(sp.total_lessons,0))
-                                                ELSE ((COALESCE(sp.overview_completed,0) + COALESCE(sp.practical_completed,0) + COALESCE(sp.assessment_completed,0)) / 3.0)
-                                            END
-                                        ) AS sum_frac
-                                        FROM student_progress sp
-                                        JOIN (
-                                                SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
-                                        ) s ON s.student_id = sp.student_id
-                                ''', (instr_id,))
+            if room_id:
+                cursor.execute('''
+                    SELECT SUM(
+                        CASE
+                            WHEN COALESCE(sp.total_lessons,0) > 0 THEN LEAST(1.0, COALESCE(sp.lessons_completed,0) / NULLIF(sp.total_lessons,0))
+                            ELSE ((COALESCE(sp.overview_completed,0) + COALESCE(sp.practical_completed,0) + COALESCE(sp.assessment_completed,0)) / 3.0)
+                        END
+                    ) AS sum_frac
+                    FROM student_progress sp
+                    JOIN (
+                        SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id=%s
+                    ) s ON s.student_id = sp.student_id
+                ''', (room_id,))
+            else:
+                cursor.execute('''
+                    SELECT SUM(
+                        CASE
+                            WHEN COALESCE(sp.total_lessons,0) > 0 THEN LEAST(1.0, COALESCE(sp.lessons_completed,0) / NULLIF(sp.total_lessons,0))
+                            ELSE ((COALESCE(sp.overview_completed,0) + COALESCE(sp.practical_completed,0) + COALESCE(sp.assessment_completed,0)) / 3.0)
+                        END
+                    ) AS sum_frac
+                    FROM student_progress sp
+                    JOIN (
+                        SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
+                    ) s ON s.student_id = sp.student_id
+                ''', (instr_id,))
             row = cursor.fetchone() or {}
             sum_frac = float(row.get('sum_frac') or 0.0)
             total_possible = total_students * active_modules
