@@ -304,7 +304,8 @@ def create_submission(sub: SubmissionPayload):
         )
         submission_id = cursor.lastrowid
         # Insert recent activity
-        activity = f"{sub.student_name} submitted {sub.submission_type.capitalize()} — {sub.module_title}"
+        # Include an explicit "Student {id}" token so instructor recent-activity text-search fallback can match
+        activity = f"Student {sub.student_id} {sub.student_name} submitted {sub.submission_type.capitalize()} — {sub.module_title}"
         cursor.execute('INSERT INTO recent_activity (activity) VALUES (%s)', (activity,))
         conn.commit()
         cursor.close(); conn.close()
@@ -1599,7 +1600,8 @@ def set_student_lesson_completion(request: Request, student_id: int, module_name
             if (req.completed or (not req.touch_only and (req.completed is None or req.completed))) and (req.lesson_id or '').lower().startswith('practical'):
                 # Include student name for instructor view
                 sname = _get_student_name_by_id(cursor, student_id)
-                cursor.execute('INSERT INTO recent_activity (activity) VALUES (%s)', (f"{sname} marked Practical complete for {norm_mod}",))
+                # Prefix with Student {id} so legacy text-search matching picks this up
+                cursor.execute('INSERT INTO recent_activity (activity) VALUES (%s)', (f"Student {student_id} {sname} marked Practical complete for {norm_mod}",))
                 conn.commit()
         except Exception as _:
             pass
@@ -2723,7 +2725,8 @@ def set_student_module_quiz(student_id: int, module_name: str, req: ModuleQuizRe
                 sname = _get_student_name_by_id(cursor, student_id)
                 activity = f"{sname} improved quiz score for {module_name} to {req.score}/{req.total}"
             if should_log:
-                cursor.execute('INSERT INTO recent_activity (activity) VALUES (%s)', (activity,))
+                # Prefix with Student {id} for consistent matching
+                cursor.execute('INSERT INTO recent_activity (activity) VALUES (%s)', (f"Student {student_id} {activity}",))
                 conn.commit()
         except Exception as _:
             pass
