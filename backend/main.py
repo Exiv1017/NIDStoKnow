@@ -1030,6 +1030,23 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                 cur.execute('SELECT id FROM simulation_room_members WHERE room_id=%s AND student_id=%s LIMIT 1', (room_id, user_id))
                 mem = cur.fetchone()
                 if not mem:
+                    # Attempt to create membership atomically if the lobby join just persisted it
+                    try:
+                        if user_id:
+                            try:
+                                cur.execute('INSERT IGNORE INTO simulation_room_members (room_id, student_id) VALUES (%s, %s)', (room_id, user_id))
+                                conn.commit()
+                            except Exception:
+                                try:
+                                    conn.rollback()
+                                except Exception:
+                                    pass
+                            # Re-query after attempted insert
+                            cur.execute('SELECT id FROM simulation_room_members WHERE room_id=%s AND student_id=%s LIMIT 1', (room_id, user_id))
+                            mem = cur.fetchone()
+                    except Exception:
+                        mem = None
+                if not mem:
                     try:
                         logging.warning(f"[simulation_ws] student not a member of room: student_id={user_id} lobby={lobby_code}")
                     except Exception:
