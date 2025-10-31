@@ -160,43 +160,69 @@ async def lobby_websocket(websocket: WebSocket, lobby_code: str):
                             conn2 = get_db_connection()
                             cur2 = conn2.cursor()
                             try:
-                                # Defensive table creation (idempotent)
-                                cur2.execute(
-                                    '''
-                                    CREATE TABLE IF NOT EXISTS simulation_rooms (
-                                        id INT AUTO_INCREMENT PRIMARY KEY,
-                                        instructor_id INT NOT NULL,
-                                        name VARCHAR(255) NOT NULL,
-                                        code VARCHAR(32) NOT NULL UNIQUE,
-                                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-                                    '''
-                                )
-                                cur2.execute(
-                                    '''
-                                    CREATE TABLE IF NOT EXISTS simulation_room_members (
-                                        id INT AUTO_INCREMENT PRIMARY KEY,
-                                        room_id INT NOT NULL,
-                                        student_id INT NOT NULL,
-                                        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                        UNIQUE KEY uniq_room_member (room_id, student_id)
-                                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-                                    '''
-                                )
-                                # Find room id and insert membership if present
-                                cur2.execute('SELECT id FROM simulation_rooms WHERE code=%s LIMIT 1', (lobby_code,))
-                                rr = cur2.fetchone()
-                                if rr:
-                                    try:
-                                        room_id = int(rr[0])
-                                    except Exception:
-                                        try:
-                                            room_id = int(rr.get('id'))
-                                        except Exception:
-                                            room_id = None
-                                    if room_id:
-                                        cur2.execute('INSERT IGNORE INTO simulation_room_members (room_id, student_id) VALUES (%s, %s)', (room_id, user_id))
-                                        conn2.commit()
+                                        # Defensive table creation (idempotent)
+                                        cur2.execute(
+                                            '''
+                                            CREATE TABLE IF NOT EXISTS simulation_rooms (
+                                                id INT AUTO_INCREMENT PRIMARY KEY,
+                                                instructor_id INT NOT NULL,
+                                                name VARCHAR(255) NOT NULL,
+                                                code VARCHAR(32) NOT NULL UNIQUE,
+                                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                                            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                                            '''
+                                        )
+                                        cur2.execute(
+                                            '''
+                                            CREATE TABLE IF NOT EXISTS simulation_room_members (
+                                                id INT AUTO_INCREMENT PRIMARY KEY,
+                                                room_id INT NOT NULL,
+                                                student_id INT NOT NULL,
+                                                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                                UNIQUE KEY uniq_room_member (room_id, student_id)
+                                            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                                            '''
+                                        )
+                                        # Find room id; if missing, attempt to create a minimal simulation_rooms
+                                        cur2.execute('SELECT id FROM simulation_rooms WHERE code=%s LIMIT 1', (lobby_code,))
+                                        rr = cur2.fetchone()
+                                        if not rr:
+                                            try:
+                                                # Try to derive instructor_id from persisted lobbies.created_by
+                                                cur2.execute('SELECT created_by FROM lobbies WHERE code=%s LIMIT 1', (lobby_code,))
+                                                lb = cur2.fetchone()
+                                                instr = None
+                                                if lb:
+                                                    try:
+                                                        instr = int(lb[0]) if isinstance(lb, tuple) else int(lb.get('created_by'))
+                                                    except Exception:
+                                                        instr = None
+                                                instr_id = int(instr) if instr is not None else 0
+                                                # Insert a minimal simulation_rooms row idempotently
+                                                try:
+                                                    cur2.execute("INSERT IGNORE INTO simulation_rooms (instructor_id, name, code) VALUES (%s,%s,%s)", (instr_id, f"Lobby {lobby_code}", lobby_code))
+                                                    conn2.commit()
+                                                except Exception:
+                                                    try:
+                                                        conn2.rollback()
+                                                    except Exception:
+                                                        pass
+                                                # Re-query for room id
+                                                cur2.execute('SELECT id FROM simulation_rooms WHERE code=%s LIMIT 1', (lobby_code,))
+                                                rr = cur2.fetchone()
+                                            except Exception:
+                                                rr = None
+                                        if rr:
+                                            try:
+                                                room_id = int(rr[0])
+                                            except Exception:
+                                                try:
+                                                    room_id = int(rr.get('id'))
+                                                except Exception:
+                                                    room_id = None
+                                            if room_id:
+                                                cur2.execute('INSERT IGNORE INTO simulation_room_members (room_id, student_id) VALUES (%s, %s)', (room_id, user_id))
+                                                conn2.commit()
                             except Exception:
                                 try:
                                     conn2.rollback()
