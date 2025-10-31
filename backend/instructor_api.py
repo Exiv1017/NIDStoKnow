@@ -1136,6 +1136,16 @@ def create_simulation_room(request: Request, req: CreateRoomRequest):
         def _gen():
             return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         code = _gen()
+        # Log who requested a room create for diagnostics (helps track unexpected creations)
+        try:
+            client_host = request.client.host if getattr(request, 'client', None) else 'unknown'
+            ua = request.headers.get('user-agent', '') if getattr(request, 'headers', None) else ''
+            try:
+                logging.info(f"[instructor_api] create_simulation_room requested by instr_id={instr_id} host={client_host} ua={ua}")
+            except Exception:
+                pass
+        except Exception:
+            pass
         # Avoid race by retrying a few times
         attempts = 0
         while attempts < 6:
@@ -1143,6 +1153,11 @@ def create_simulation_room(request: Request, req: CreateRoomRequest):
                 cursor.execute('INSERT INTO simulation_rooms (instructor_id, name, code) VALUES (%s, %s, %s)', (instr_id, (req.name or '').strip() or 'Room', code))
                 conn.commit()
                 room_id = cursor.lastrowid
+                # Log successful creation with room id for diagnostics
+                try:
+                    logging.info(f"[instructor_api] create_simulation_room SUCCESS instr_id={instr_id} room_id={room_id} code={code}")
+                except Exception:
+                    pass
                 return {'id': int(room_id), 'name': req.name, 'code': code}
             except Exception:
                 conn.rollback()
