@@ -430,66 +430,8 @@ function App() {
     }
   }, [user]);
 
-  // Guard components: check server for rooms and redirect to Rooms page if none
-  const RequireStudentRoom = ({ children, user }) => {
-    const [checked, setChecked] = React.useState(false);
-    const [allowed, setAllowed] = React.useState(false);
-    React.useEffect(() => {
-      let mounted = true;
-      (async () => {
-        try {
-          const headers = user?.token ? { Authorization: `Bearer ${user.token}` } : {};
-          const res = await fetch('/api/student/rooms', { headers });
-          if (!mounted) return;
-          if (!res.ok) {
-            // If the call fails, be permissive and allow access to avoid locking users out
-            setAllowed(true);
-          } else {
-            const data = await res.json();
-            setAllowed(Array.isArray(data) && data.length > 0);
-          }
-        } catch (e) {
-          setAllowed(true);
-        } finally {
-          if (mounted) setChecked(true);
-        }
-      })();
-      return () => { mounted = false; };
-    }, [user?.token]);
-
-    if (!checked) return <div />; // small blank while checking
-    return allowed ? children : <Navigate to="/student/rooms" replace />;
-  };
-
-  const RequireInstructorRoom = ({ children, user }) => {
-    const [checked, setChecked] = React.useState(false);
-    const [allowed, setAllowed] = React.useState(false);
-    React.useEffect(() => {
-      let mounted = true;
-      (async () => {
-        try {
-          const headers = user?.token ? { Authorization: `Bearer ${user.token}` } : {};
-          const res = await fetch('/api/instructor/rooms', { headers });
-          if (!mounted) return;
-          if (!res.ok) {
-            setAllowed(true);
-          } else {
-            const data = await res.json();
-            // instructor GET returns an array of rooms
-            setAllowed(Array.isArray(data) && data.length > 0);
-          }
-        } catch (e) {
-          setAllowed(true);
-        } finally {
-          if (mounted) setChecked(true);
-        }
-      })();
-      return () => { mounted = false; };
-    }, [user?.token]);
-
-    if (!checked) return <div />;
-    return allowed ? children : <Navigate to="/instructor/rooms" replace />;
-  };
+  // Use the top-level stable RequireStudentRoom / RequireInstructorRoom components
+  // (defined at module scope) to avoid recreating them on every App render.
 
   return (
     <AuthContext.Provider value={{ 
