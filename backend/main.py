@@ -741,7 +741,11 @@ async def push_metrics_to_instructors(lobby_code: str):
             try:
                 await ws.send_json({"type": "simulation_metrics", "metrics": metrics})
                 await ws.send_json({"type": "metrics_update", "metrics": metrics})
-            except Exception:
+            except Exception as _e:
+                try:
+                    logging.exception(f"[push_metrics_to_instructors] failed to send to instructor ws for lobby={lobby_code}: {_e}")
+                except Exception:
+                    pass
                 try:
                     instructor_simulation_connections[lobby_code] = [w for w in instructor_simulation_connections[lobby_code] if w != ws]
                 except Exception:
@@ -758,7 +762,11 @@ async def push_score_to_instructors(lobby_code: str, participant_name: str, scor
                     "name": participant_name,
                     "score": int(score)
                 })
-            except Exception:
+            except Exception as _e:
+                try:
+                    logging.exception(f"[push_score_to_instructors] failed to send to instructor ws for lobby={lobby_code}: {_e}")
+                except Exception:
+                    pass
                 try:
                     instructor_simulation_connections[lobby_code] = [w for w in instructor_simulation_connections[lobby_code] if w != ws]
                 except Exception:
@@ -773,7 +781,11 @@ async def push_participants_to_instructors(lobby_code: str):
         for ws in list(instructor_simulation_connections[lobby_code]):
             try:
                 await ws.send_json({"type": "participant_update", "participants": parts})
-            except Exception:
+            except Exception as _e:
+                try:
+                    logging.exception(f"[push_participants_to_instructors] failed to send to instructor ws for lobby={lobby_code}: {_e}")
+                except Exception:
+                    pass
                 try:
                     instructor_simulation_connections[lobby_code] = [w for w in instructor_simulation_connections[lobby_code] if w != ws]
                 except Exception:
@@ -2391,11 +2403,18 @@ async def broadcast_to_simulation_participants(lobby_code: str, message: dict):
                     "type": "simulation_metrics",
                     "metrics": metrics
                 })
-            except:
+            except Exception as _e:
+                try:
+                    logging.exception(f"[broadcast_to_simulation_participants] failed to send to instructor ws for lobby={lobby_code}: {_e}")
+                except Exception:
+                    pass
                 # Remove disconnected websockets
-                instructor_simulation_connections[lobby_code] = [
-                    w for w in instructor_simulation_connections[lobby_code] if w != ws
-                ]
+                try:
+                    instructor_simulation_connections[lobby_code] = [
+                        w for w in instructor_simulation_connections[lobby_code] if w != ws
+                    ]
+                except Exception:
+                    pass
 
 # Function to log simulation events (can be called from other parts of the system)
 async def log_simulation_event(lobby_code: str, event_type: str, description: str, participant_name: str = None):
@@ -2419,14 +2438,21 @@ async def log_simulation_event(lobby_code: str, event_type: str, description: st
     
     # Notify instructors
     if lobby_code in instructor_simulation_connections:
-        for ws in instructor_simulation_connections[lobby_code]:
+        for ws in list(instructor_simulation_connections[lobby_code]):
             try:
                 await ws.send_json(event)
-            except:
+            except Exception as _e:
+                try:
+                    logging.exception(f"[log_simulation_event] failed to send to instructor ws for lobby={lobby_code}: {_e}")
+                except Exception:
+                    pass
                 # Remove disconnected websockets
-                instructor_simulation_connections[lobby_code] = [
-                    w for w in instructor_simulation_connections[lobby_code] if w != ws
-                ]
+                try:
+                    instructor_simulation_connections[lobby_code] = [
+                        w for w in instructor_simulation_connections[lobby_code] if w != ws
+                    ]
+                except Exception:
+                    pass
 
 # ===================== END INSTRUCTOR SIMULATION =====================
 
