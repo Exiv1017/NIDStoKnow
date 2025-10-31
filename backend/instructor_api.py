@@ -149,11 +149,22 @@ def ensure_simulation_rooms_table(cursor):
             instructor_id INT NOT NULL,
             name VARCHAR(255) NOT NULL,
             code VARCHAR(32) NOT NULL UNIQUE,
+            last_run_code VARCHAR(64) DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_instructor (instructor_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         '''
     )
+    # Backfill/ensure last_run_code column exists for older deployments
+    try:
+        cursor.execute("SHOW COLUMNS FROM simulation_rooms LIKE 'last_run_code'")
+        if cursor.fetchone() is None:
+            try:
+                cursor.execute("ALTER TABLE simulation_rooms ADD COLUMN last_run_code VARCHAR(64) DEFAULT NULL")
+            except Exception:
+                pass
+    except Exception:
+        pass
     cursor.execute(
         '''
         CREATE TABLE IF NOT EXISTS simulation_room_members (

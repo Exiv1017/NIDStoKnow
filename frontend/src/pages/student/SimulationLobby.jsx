@@ -77,13 +77,24 @@ const SimulationLobby = () => {
             break;
           case 'simulation_started':
             setSimulationStarted(true);
-            // Navigate to role-specific simulation interface using latest refs
-            if (isInstructorRef.current) {
-              navigate('/instructor/simulation', {
-                state: { lobbyCode, participants: participantsRef.current }
-              });
-            } else {
-              navigateToSimulation(roleRef.current);
+            // Use server-provided run_code when present (runtime join code)
+            try {
+              const runCode = (data.run_code) ? data.run_code : lobbyCode;
+              if (isInstructorRef.current) {
+                // Instructor control UI uses the original lobby code (persisted room)
+                navigate('/instructor/simulation', {
+                  state: { lobbyCode, participants: participantsRef.current }
+                });
+              } else {
+                // Students should connect to the generated run code
+                try {
+                  sessionStorage.setItem('simCtx', JSON.stringify({ lobbyCode: runCode, participants: participantsRef.current, role: roleRef.current, name }));
+                } catch (e) {}
+                // navigate using the run-specific code
+                navigateToSimulation(roleRef.current);
+              }
+            } catch (e) {
+              console.error('simulation_started handling failed', e);
             }
             break;
           case 'error':

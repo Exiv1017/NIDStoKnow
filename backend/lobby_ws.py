@@ -347,15 +347,43 @@ async def broadcast_chat_message(lobby_code: str, sender: str, message: str):
 
 async def broadcast_simulation_start(lobby_code: str):
     """Broadcast simulation start to all connections"""
+    # Generate a short run-specific code for this simulation run and persist it
+    import random, string
+    def _gen_run():
+        return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    run_code = _gen_run()
+    # Best-effort persist: set last_run_code on simulation_rooms where code matches this lobby
+    try:
+        conn = get_db_connection(); cur = conn.cursor()
+        try:
+            # Try to update the canonical room row's last_run_code
+            cur.execute('UPDATE simulation_rooms SET last_run_code=%s WHERE code=%s', (run_code, lobby_code))
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        try:
+            cur.close(); conn.close()
+        except Exception:
+            pass
+    except Exception:
+        pass
+
     data = {
-        "type": "simulation_started"
+        "type": "simulation_started",
+        "run_code": run_code
     }
     for ws in list(lobby_connections.get(lobby_code, [])):
         try:
             await ws.send_json(data)
         except Exception:
             # Remove dead connections
-            lobby_connections[lobby_code].remove(ws)
+            try:
+                lobby_connections[lobby_code].remove(ws)
+            except Exception:
+                pass
 
 async def broadcast_difficulty(lobby_code: str, difficulty: str):
     """Broadcast difficulty change to all lobby connections"""

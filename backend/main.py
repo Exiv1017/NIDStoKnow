@@ -964,46 +964,89 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                 '''
             )
             # Lookup room by code
-            cur.execute('SELECT id, instructor_id FROM simulation_rooms WHERE code=%s LIMIT 1', (lobby_code,))
+            cur.execute('SELECT id, instructor_id FROM simulation_rooms WHERE code=%s OR last_run_code=%s LIMIT 1', (lobby_code, lobby_code))
             row = cur.fetchone()
             if not row:
-                # Defensive fallback: try to find a persisted lobby definition in `lobbies` table
+                # First attempt: try to remap this incoming lobby_code to a persisted room
+                # based on the connecting user's membership (students) or ownership (instructors).
                 try:
-                    logging.warning(f"[simulation_ws] simulation_rooms row not found for code={lobby_code}, attempting fallback to lobbies table")
-                except Exception:
-                    pass
-                try:
-                    cur.execute('SELECT created_by FROM lobbies WHERE code=%s LIMIT 1', (lobby_code,))
-                    lobby_row = cur.fetchone()
-                    if lobby_row:
-                        # Create a minimal simulation_rooms row using created_by as instructor_id (or 0)
+                    # If student, see if they are a member of any persisted room and use that
+                    if (role == 'student') and user_id:
                         try:
-                            instr = int(lobby_row[0]) if isinstance(lobby_row, tuple) and lobby_row[0] is not None else (lobby_row.get('created_by') if isinstance(lobby_row, dict) else None)
-                        except Exception:
-                            instr = None
-                        instr_id = int(instr) if instr is not None else 0
-                        try:
-                            cur.execute("INSERT IGNORE INTO simulation_rooms (instructor_id, name, code) VALUES (%s,%s,%s)", (instr_id, f"Lobby {lobby_code}", lobby_code))
-                            conn.commit()
+                            cur.execute('''
+                                SELECT r.id, r.instructor_id
+                                FROM simulation_room_members m
+                                JOIN simulation_rooms r ON r.id = m.room_id
+                                WHERE m.student_id=%s
+                                ORDER BY m.joined_at DESC
+                                LIMIT 1
+                            ''', (user_id,))
+                            member_row = cur.fetchone()
+                            if member_row:
+                                row = member_row
+                                try:
+                                    logging.info(f"[simulation_ws] remapped lobby {lobby_code} -> room_id={row[0]} using student membership user_id={user_id}")
+                                except Exception:
+                                    pass
                         except Exception:
                             pass
-                        # Re-query after attempted insert
-                        cur.execute('SELECT id, instructor_id FROM simulation_rooms WHERE code=%s LIMIT 1', (lobby_code,))
-                        row = cur.fetchone()
+
+                    # If still not found and role is instructor, try to find a room owned by this instructor
+                    if not row and (role == 'instructor') and user_id:
+                        try:
+                            cur.execute('SELECT id, instructor_id FROM simulation_rooms WHERE instructor_id=%s ORDER BY created_at DESC LIMIT 1', (user_id,))
+                            instr_row = cur.fetchone()
+                            if instr_row:
+                                row = instr_row
+                                try:
+                                    logging.info(f"[simulation_ws] remapped lobby {lobby_code} -> room_id={row[0]} using instructor ownership user_id={user_id}")
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+
                 except Exception:
-                    # If fallback attempt fails, proceed to close
-                    row = None
+                    # ignore remap failures and proceed with original fallback
+                    pass
+
+                # Defensive fallback: try to find a persisted lobby definition in `lobbies` table
                 if not row:
                     try:
-                        logging.warning(f"[simulation_ws] lobby not found: {lobby_code}")
+                        logging.warning(f"[simulation_ws] simulation_rooms row not found for code={lobby_code}, attempting fallback to lobbies table")
                     except Exception:
                         pass
                     try:
-                        cur.close(); conn.close()
+                        cur.execute('SELECT created_by FROM lobbies WHERE code=%s LIMIT 1', (lobby_code,))
+                        lobby_row = cur.fetchone()
+                        if lobby_row:
+                            # Create a minimal simulation_rooms row using created_by as instructor_id (or 0)
+                            try:
+                                instr = int(lobby_row[0]) if isinstance(lobby_row, tuple) and lobby_row[0] is not None else (lobby_row.get('created_by') if isinstance(lobby_row, dict) else None)
+                            except Exception:
+                                instr = None
+                            instr_id = int(instr) if instr is not None else 0
+                            try:
+                                cur.execute("INSERT IGNORE INTO simulation_rooms (instructor_id, name, code) VALUES (%s,%s,%s)", (instr_id, f"Lobby {lobby_code}", lobby_code))
+                                conn.commit()
+                            except Exception:
+                                pass
+                            # Re-query after attempted insert
+                            cur.execute('SELECT id, instructor_id FROM simulation_rooms WHERE code=%s LIMIT 1', (lobby_code,))
+                            row = cur.fetchone()
                     except Exception:
-                        pass
-                    await websocket.close(code=4404)
-                    return
+                        # If fallback attempt fails, proceed to close
+                        row = None
+                    if not row:
+                        try:
+                            logging.warning(f"[simulation_ws] lobby not found: {lobby_code}")
+                        except Exception:
+                            pass
+                        try:
+                            cur.close(); conn.close()
+                        except Exception:
+                            pass
+                        await websocket.close(code=4404)
+                        return
             room_id = int(row[0] if isinstance(row, tuple) else row[0])
             instr_id = int(row[1] if isinstance(row, tuple) else row[1])
             # Enforce role rules
