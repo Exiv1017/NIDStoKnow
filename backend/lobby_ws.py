@@ -362,31 +362,13 @@ def create_lobby(lobby_code: str, created_by: int | None = None):
         except Exception as e:
             try: logging.error(f"[lobby_ws] persist lobby failed: {e}")
             except Exception: pass
-        # Also ensure a corresponding row exists in simulation_rooms so websocket /simulation/ can find it
-        try:
-            conn = get_db_connection(); cur = conn.cursor()
-            # Create simulation_rooms table if missing (defensive)
-            cur.execute(
-                '''
-                CREATE TABLE IF NOT EXISTS simulation_rooms (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    instructor_id INT NOT NULL,
-                    name VARCHAR(255) NOT NULL,
-                    code VARCHAR(32) NOT NULL UNIQUE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-                '''
-            )
-            # Insert a minimal simulation_rooms row so the simulation websocket recognizes this lobby code
-            instr = int(created_by) if created_by is not None else 0
-            name = f"Lobby {lobby_code}"
-            try:
-                cur.execute("INSERT IGNORE INTO simulation_rooms (instructor_id, name, code) VALUES (%s,%s,%s)", (instr, name, lobby_code))
-                conn.commit()
-            except Exception:
-                pass
-            cur.close(); conn.close()
-        except Exception:
+            # NOTE: Do not auto-create rows in `simulation_rooms` here. Creating
+            # simulation room rows on lobby creation caused duplicate/extra room
+            # records when the backend restarted (multiple instances or restart
+            # hooks could re-run this path). The simulation websocket has a
+            # defensive fallback that will create a simulation_rooms row when a
+            # simulation connection is established and a persisted `lobbies` row
+            # exists. Keeping that single creation point avoids repeated inserts.
             pass
 
 from fastapi import Request, HTTPException
