@@ -161,6 +161,68 @@ const getDefaultModules = () => {
   ];
 };
 
+// Guard components: check server for rooms and redirect to Rooms page if none
+function RequireStudentRoom({ children, user }) {
+  const [checked, setChecked] = React.useState(false);
+  const [allowed, setAllowed] = React.useState(false);
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const headers = user?.token ? { Authorization: `Bearer ${user.token}` } : {};
+        const res = await fetch('/api/student/rooms', { headers });
+        if (!mounted) return;
+        if (!res.ok) {
+          // If the call fails, be permissive and allow access to avoid locking users out
+          setAllowed(true);
+        } else {
+          const data = await res.json();
+          setAllowed(Array.isArray(data) && data.length > 0);
+        }
+      } catch (e) {
+        setAllowed(true);
+      } finally {
+        if (mounted) setChecked(true);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [user?.token]);
+
+  if (!checked) return <div />; // small blank while checking
+  return allowed ? children : <Navigate to="/student/rooms" replace />;
+}
+
+function RequireInstructorRoom({ children, user }) {
+  const [checked, setChecked] = React.useState(false);
+  const [allowed, setAllowed] = React.useState(false);
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const headers = user?.token ? { Authorization: `Bearer ${user.token}` } : {};
+        const res = await fetch('/api/instructor/rooms', { headers });
+        if (!mounted) return;
+        if (!res.ok) {
+          setAllowed(true);
+        } else {
+          const data = await res.json();
+          // instructor GET returns an array of rooms
+          setAllowed(Array.isArray(data) && data.length > 0);
+        }
+      } catch (e) {
+        setAllowed(true);
+      } finally {
+        if (mounted) setChecked(true);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [user?.token]);
+
+  if (!checked) return <div />;
+  return allowed ? children : <Navigate to="/instructor/rooms" replace />;
+}
+
+
 // Render Navigation only on landing, signup, and login pages; hide everywhere else
 function ConditionalNavigation() {
   const location = useLocation();

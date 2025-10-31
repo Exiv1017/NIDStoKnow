@@ -183,33 +183,19 @@ async def lobby_websocket(websocket: WebSocket, lobby_code: str):
                                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
                                             '''
                                         )
-                                        # Find room id; if missing, attempt to create a minimal simulation_rooms
+                                        # Find room id; do NOT auto-create a canonical simulation_rooms row here.
+                                        # Creating simulation_rooms during lobby joins caused duplicate/extra
+                                        # room records when backends restarted or clients reconnected.
                                         cur2.execute('SELECT id FROM simulation_rooms WHERE code=%s LIMIT 1', (lobby_code,))
                                         rr = cur2.fetchone()
                                         if not rr:
                                             try:
-                                                # Try to derive instructor_id from persisted lobbies.created_by
-                                                cur2.execute('SELECT created_by FROM lobbies WHERE code=%s LIMIT 1', (lobby_code,))
-                                                lb = cur2.fetchone()
-                                                instr = None
-                                                if lb:
-                                                    try:
-                                                        instr = int(lb[0]) if isinstance(lb, tuple) else int(lb.get('created_by'))
-                                                    except Exception:
-                                                        instr = None
-                                                instr_id = int(instr) if instr is not None else 0
-                                                # Insert a minimal simulation_rooms row idempotently
+                                                # Best-effort info for operators; skip creating a simulation_rooms row.
                                                 try:
-                                                    cur2.execute("INSERT IGNORE INTO simulation_rooms (instructor_id, name, code) VALUES (%s,%s,%s)", (instr_id, f"Lobby {lobby_code}", lobby_code))
-                                                    conn2.commit()
+                                                    logging.warning(f"[lobby_ws] simulation_rooms row not found for code={lobby_code}; skipping member persistence")
                                                 except Exception:
-                                                    try:
-                                                        conn2.rollback()
-                                                    except Exception:
-                                                        pass
-                                                # Re-query for room id
-                                                cur2.execute('SELECT id FROM simulation_rooms WHERE code=%s LIMIT 1', (lobby_code,))
-                                                rr = cur2.fetchone()
+                                                    pass
+                                                rr = None
                                             except Exception:
                                                 rr = None
                                         if rr:
