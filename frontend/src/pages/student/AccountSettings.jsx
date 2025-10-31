@@ -40,6 +40,7 @@ const AccountSettings = () => {
   // Load profile (name/email/joinDate/avatarUrl) and settings from backend
   useEffect(() => {
     const fetchAll = async () => {
+      console.log('[AccountSettings] fetchAll starting', { token: !!user?.token });
       try {
         if (!user?.token) return;
         // Profile
@@ -65,6 +66,7 @@ const AccountSettings = () => {
             joinDate: prof?.joinDate || '',
             avatarUrl: prof?.avatar || '',
           }));
+      console.log('[AccountSettings] profile loaded', { name: prof?.name, email: prof?.email });
           // Update AuthContext user so sidebar reflects avatar immediately
           if (typeof setUser === 'function') {
             setUser(u => ({ ...(u || {}), name: prof?.name ?? fullName, email: prof?.email ?? u?.email, avatar: prof?.avatar || '' }));
@@ -77,11 +79,20 @@ const AccountSettings = () => {
           const notif = (setj && setj.notifications) ? setj.notifications : {};
           setFormData(prev => ({ ...prev, notifications: { ...prev.notifications, ...notif } }));
           setOriginalFormData(prev => ({ ...prev, notifications: { ...prev.notifications, ...notif } }));
+          console.log('[AccountSettings] settings loaded', { notifications: notif });
         }
       } catch {}
     };
     fetchAll();
+    console.log('[AccountSettings] effect kicked off');
   }, [user?.token]);
+
+  useEffect(() => {
+    console.log('[AccountSettings] mounted');
+    return () => {
+      console.log('[AccountSettings] unmounted');
+    };
+  }, []);
 
   // Reset avatar load error when URL changes
   useEffect(() => {

@@ -1031,20 +1031,16 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                         cur.execute('SELECT created_by FROM lobbies WHERE code=%s LIMIT 1', (lobby_code,))
                         lobby_row = cur.fetchone()
                         if lobby_row:
-                            # Create a minimal simulation_rooms row using created_by as instructor_id (or 0)
+                            # DO NOT automatically create simulation_rooms from lobbies.
+                            # Creation must be performed explicitly by an instructor via the UI/API.
                             try:
-                                instr = int(lobby_row[0]) if isinstance(lobby_row, tuple) and lobby_row[0] is not None else (lobby_row.get('created_by') if isinstance(lobby_row, dict) else None)
-                            except Exception:
-                                instr = None
-                            instr_id = int(instr) if instr is not None else 0
-                            try:
-                                cur.execute("INSERT IGNORE INTO simulation_rooms (instructor_id, name, code) VALUES (%s,%s,%s)", (instr_id, f"Lobby {lobby_code}", lobby_code))
-                                conn.commit()
+                                logging.warning(f"[simulation_ws] found lobby definition in 'lobbies' for code={lobby_code} but automatic creation is disabled")
                             except Exception:
                                 pass
-                            # Re-query after attempted insert
-                            cur.execute('SELECT id, instructor_id FROM simulation_rooms WHERE code=%s LIMIT 1', (lobby_code,))
-                            row = cur.fetchone()
+                            # leave `row` as None so we fall through to the not-found handling
+                    except Exception:
+                        # If fallback attempt fails, proceed to close
+                        row = None
                     except Exception:
                         # If fallback attempt fails, proceed to close
                         row = None
