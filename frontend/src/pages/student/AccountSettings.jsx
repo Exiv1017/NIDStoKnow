@@ -4,7 +4,13 @@ import AuthContext from '../../context/AuthContext';
 
 const AccountSettings = () => {
   const { user, setUser } = useContext(AuthContext);
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      return sessionStorage.getItem('account_settings_active_tab') || 'profile';
+    } catch (e) {
+      return 'profile';
+    }
+  });
   const [formData, setFormData] = useState({
     firstName: (user?.name || '').split(' ')[0] || '',
     lastName: (user?.name || '').split(' ').slice(1).join(' ') || '',
@@ -93,6 +99,15 @@ const AccountSettings = () => {
       console.log('[AccountSettings] unmounted');
     };
   }, []);
+
+  // Persist which tab the user last had open so remounts don't reset it to 'profile'
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('account_settings_active_tab', activeTab);
+    } catch (e) {}
+    // Helpful runtime hint while debugging remounts
+    console.log('[AccountSettings] activeTab set', activeTab);
+  }, [activeTab]);
 
   // Reset avatar load error when URL changes
   useEffect(() => {
