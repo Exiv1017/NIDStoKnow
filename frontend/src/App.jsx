@@ -200,29 +200,46 @@ function App() {
   // useNavigate is available because the Router now wraps App (see main.jsx)
   const navigate = useNavigate();
 
-  // Load modules from localStorage when user changes
+  // Load modules from localStorage when user changes. Avoid force-refreshing/clearing
+  // localStorage on every auth change since that can cause visible UI flicker.
   useEffect(() => {
     if (user?.id) {
       const modulesKey = getStorageKey('modules', user.role);
-      
-      // Force clear ALL module-related localStorage data
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('modules') || key.includes('completed-lessons') || key.includes('last-lesson'))) {
-          keysToRemove.push(key);
+
+      // When troubleshooting you can set this to true to wipe and repopulate modules.
+      // Keep it false in normal operation to prevent repeated writes and UI blinking.
+      const forceRefresh = false; // set to true temporarily during testing
+
+      if (forceRefresh) {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('modules') || key.includes('completed-lessons') || key.includes('last-lesson'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+
+        const newModules = getDefaultModules();
+        setModules(newModules);
+        localStorage.setItem(modulesKey, JSON.stringify(newModules));
+      } else {
+        // Prefer existing saved modules to avoid unnecessary re-renders
+        try {
+          const existing = localStorage.getItem(modulesKey);
+          if (existing) {
+            setModules(JSON.parse(existing));
+          } else {
+            const newModules = getDefaultModules();
+            setModules(newModules);
+            localStorage.setItem(modulesKey, JSON.stringify(newModules));
+          }
+        } catch (e) {
+          const newModules = getDefaultModules();
+          setModules(newModules);
+          try { localStorage.setItem(modulesKey, JSON.stringify(newModules)); } catch {}
         }
       }
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-      
-      // Force refresh modules for comprehensive content - remove this after testing
-      const forceRefresh = true; // Set to false after you see the new content
-      
-      // Always load fresh modules to ensure we get the new structure
-      const newModules = getDefaultModules();
-      setModules(newModules);
-      // Save the new comprehensive modules
-      localStorage.setItem(modulesKey, JSON.stringify(newModules));
     }
   }, [user?.id]);
 
