@@ -23,6 +23,7 @@ def _password_strong_enough(pw: str) -> bool:
         return False
 from auth import require_role
 from notifications_helper import ensure_notifications_table, create_notification, migrate_notifications_schema
+from typing import Dict, Any
 
 def ensure_admins_table(cursor):
         """Create minimal admins table if missing to avoid 1146 errors during login.
@@ -77,6 +78,48 @@ def ensure_lobby_tables(cursor):
         except Exception:
                 # Best-effort: leave to other code paths if creation fails here
                 pass
+
+def ensure_simulation_rooms_tables(cursor):
+    """Ensure simulation_rooms and simulation_room_members exist for admin visibility/actions."""
+    try:
+        cursor.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS simulation_rooms (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                instructor_id INT NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                code VARCHAR(32) NOT NULL UNIQUE,
+                last_run_code VARCHAR(64) DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_instructor (instructor_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            '''
+        )
+        # idempotent ensure of last_run_code
+        try:
+            cursor.execute("SHOW COLUMNS FROM simulation_rooms LIKE 'last_run_code'")
+            if cursor.fetchone() is None:
+                try:
+                    cursor.execute("ALTER TABLE simulation_rooms ADD COLUMN last_run_code VARCHAR(64) DEFAULT NULL")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        cursor.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS simulation_room_members (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                room_id INT NOT NULL,
+                student_id INT NOT NULL,
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_room_member (room_id, student_id),
+                INDEX idx_room (room_id),
+                INDEX idx_student (student_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            '''
+        )
+    except Exception:
+        pass
 
 class AdminLoginRequest(BaseModel):
     email: str
@@ -720,6 +763,162 @@ def admin_list_lobbies(request: Request):
             cursor.close(); conn.close()
         except Exception:
             pass
+
+# ---------------- Rooms (Admin) -----------------
+
+@router.get('/admin/rooms')
+def admin_list_rooms(request: Request):
+    """List all simulation rooms with instructor info and member counts. Admin only.
+
+    Returns: [{ id, name, code, created_at, instructor_id, instructor_name, instructor_email, member_count }]
+    """
+    require_role(request, 'admin')
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    try:
+        ensure_simulation_rooms_tables(cursor)
+        # Join with users for instructor info and count members
+        cursor.execute(
+            '''
+            SELECT r.id, r.name, r.code, r.created_at, r.instructor_id,
+                   u.name AS instructor_name, u.email AS instructor_email,
+                   COUNT(m.id) AS member_count
+            FROM simulation_rooms r
+            LEFT JOIN users u ON u.id = r.instructor_id
+            LEFT JOIN simulation_room_members m ON m.room_id = r.id
+            GROUP BY r.id
+            ORDER BY r.created_at DESC
+            '''
+        )
+        rows = cursor.fetchall() or []
+        # Normalize types
+        out: list[Dict[str, Any]] = []
+        for r in rows:
+            out.append({
+                'id': int(r.get('id')),
+                'name': r.get('name'),
+                'code': r.get('code'),
+                'created_at': str(r.get('created_at') or ''),
+                'instructor_id': int(r.get('instructor_id') or 0),
+                'instructor_name': r.get('instructor_name'),
+                'instructor_email': r.get('instructor_email'),
+                'member_count': int(r.get('member_count') or 0)
+            })
+        return { 'rooms': out }
+    finally:
+        try:
+            cursor.close(); conn.close()
+        except Exception:
+            pass
+
+@router.get('/admin/rooms/{room_id}/members')
+def admin_list_room_members(request: Request, room_id: int):
+    """List student members of a room with basic info. Admin only."""
+    require_role(request, 'admin')
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    try:
+        ensure_simulation_rooms_tables(cursor)
+        cursor.execute(
+            '''
+            SELECT m.student_id, m.joined_at, u.name, u.email
+            FROM simulation_room_members m
+            LEFT JOIN users u ON u.id = m.student_id
+            WHERE m.room_id = %s
+            ORDER BY u.name ASC
+            ''', (room_id,)
+        )
+        rows = cursor.fetchall() or []
+        return [
+            {
+                'student_id': int(r.get('student_id') or 0),
+                'name': r.get('name') or '',
+                'email': r.get('email') or '',
+                'joined_at': str(r.get('joined_at') or '')
+            } for r in rows
+        ]
+    finally:
+        try:
+            cursor.close(); conn.close()
+        except Exception:
+            pass
+
+@router.delete('/admin/rooms/{room_id}')
+def admin_delete_room(request: Request, room_id: int):
+    """Delete a simulation room and its memberships (admin override).
+
+    Best-effort: also close live websockets for that room code.
+    """
+    payload = require_role(request, 'admin')
+    admin_id = None
+    try:
+        admin_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+    except Exception:
+        admin_id = None
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    code = None
+    try:
+        ensure_simulation_rooms_tables(cursor)
+        cursor.execute('SELECT id, code FROM simulation_rooms WHERE id=%s LIMIT 1', (room_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail='Room not found')
+        code = row.get('code')
+        # Delete memberships then room
+        try:
+            c2 = conn.cursor()
+            c2.execute('DELETE FROM simulation_room_members WHERE room_id=%s', (room_id,))
+            c2.close()
+        except Exception:
+            pass
+        cursor2 = conn.cursor()
+        cursor2.execute('DELETE FROM simulation_rooms WHERE id=%s', (room_id,))
+        conn.commit(); cursor2.close()
+    finally:
+        try:
+            cursor.close(); conn.close()
+        except Exception:
+            pass
+
+    # Live cleanup (best-effort)
+    try:
+        import importlib, asyncio
+        main_mod = importlib.import_module('backend.main')
+        if code:
+            room = getattr(main_mod, 'simulation_rooms', {}).pop(code, None)
+            try:
+                loop = asyncio.get_event_loop()
+            except Exception:
+                loop = None
+            if room:
+                for _, p in (room.get('participants') or {}).items():
+                    ws = p.get('ws') if isinstance(p, dict) else None
+                    if ws is not None and loop is not None:
+                        try:
+                            loop.create_task(ws.close())
+                        except Exception:
+                            pass
+            conns = getattr(main_mod, 'instructor_simulation_connections', {})
+            if code in conns:
+                conns_list = conns.pop(code, [])
+                try:
+                    loop = asyncio.get_event_loop()
+                except Exception:
+                    loop = None
+                if loop is not None:
+                    for ws in conns_list:
+                        try:
+                            loop.create_task(ws.close())
+                        except Exception:
+                            pass
+    except Exception:
+        pass
+
+    # Audit
+    try:
+        if admin_id is not None:
+            log_admin_action(admin_id, f"delete_room id={room_id} code={code}")
+    except Exception:
+        pass
+    return { 'status': 'success', 'deleted': 1 }
 
 # ---------------- Shared Notifications (Admin view) -----------------
 

@@ -16,6 +16,7 @@ import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminModuleRequests from './pages/admin/AdminModuleRequests';
 import AdminLobbies from './pages/admin/AdminLobbies';
+import AdminRooms from './pages/admin/AdminRooms';
 import StudentDashboard from './pages/student/StudentDashboard';
 import LearningModules from './pages/student/LearningModules';
 import AccountSettings from './pages/student/AccountSettings';
@@ -480,6 +481,12 @@ function App() {
               path="/admin/lobbies"
               element={
                 isAuthenticated && user?.role === 'admin' ? <AdminLobbies /> : <Navigate to="/admin-login" />
+              }
+            />
+            <Route
+              path="/admin/rooms"
+              element={
+                isAuthenticated && user?.role === 'admin' ? <AdminRooms /> : <Navigate to="/admin-login" />
               }
             />
             <Route

@@ -160,6 +160,14 @@ export default function AdminModuleRequests(){
               </Link>
             </li>
             <li>
+              <Link to="/admin/rooms" className="flex items-center p-3 rounded-lg hover:bg-white/10 font-medium">
+                <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V7a2 2 0 00-2-2h-2V3H8v2H6a2 2 0 00-2 2v6m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4m16 0H4" />
+                </svg>
+                Rooms
+              </Link>
+            </li>
+            <li>
               <Link to="/admin/lobbies" className="flex items-center p-3 rounded-lg hover:bg-white/10 font-medium">
                 <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5V4H2v16h5m10 0v-4H7v4m10 0H7" />
