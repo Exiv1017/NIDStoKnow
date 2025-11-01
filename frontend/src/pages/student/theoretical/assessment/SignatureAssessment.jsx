@@ -159,6 +159,7 @@ const SignatureAssessment = ({ modules, setModules }) => {
               </div>
             </div>
           </div>
+        </div>
       </div>
     </div>
   );

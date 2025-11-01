@@ -832,7 +832,6 @@ const SignaturePractical = ({ modules, setModules }) => {
                   /> 
                   <span className="font-medium text-gray-900">Guided Builder (recommended)</span>
                 </label>
-              </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input 
                     type="radio" 
@@ -955,7 +954,7 @@ const SignaturePractical = ({ modules, setModules }) => {
                   )}
                 </div>
 
-              </>
+              </div>
             ) : (
               <>
                 <div className="text-sm text-gray-600 mt-3">Paste your rules.json or load the scaffold.</div>
