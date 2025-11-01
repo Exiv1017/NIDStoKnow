@@ -12,7 +12,7 @@ from notifications_helper import migrate_notifications_schema
 router = APIRouter()
 
 from config import MYSQL_CONFIG, get_db_connection
-import os, uuid, re
+import os, uuid, re, logging
 
 def ensure_instructor_profiles_table(cursor):
     """Ensure instructor_profiles exists to store join_date and avatar_url per instructor."""
@@ -2476,11 +2476,46 @@ def get_assignments(request: Request, instructor_id: Optional[int] = None):
                 '''
             )
         rows = cursor.fetchall() or []
-        # Normalize status and compute overdue
+        # Normalize status, derive completion from student progress, and compute overdue
         from datetime import datetime, timezone
         now = datetime.utcnow()
         for r in rows:
             r['status'] = _normalize_assignment_status(r.get('status'))
+            # If the student has already completed this module before/after assignment, force status to completed
+            try:
+                # Prefer explicit moduleSlug if present; otherwise normalize moduleName crudely
+                mod_slug = (r.get('moduleSlug') or '').strip().lower()
+                if not mod_slug:
+                    mod_slug = str(r.get('moduleName') or '').strip().lower().replace(' ', '-')
+                # Check student_progress for assessment/practical completion
+                try:
+                    cursor2 = conn.cursor(dictionary=True)
+                    # Attempt to read completion flags; if columns missing (legacy), treat as not completed
+                    cursor2.execute(
+                        '''SELECT assessment_completed, practical_completed, overview_completed, quizzes_passed, total_quizzes
+                           FROM student_progress WHERE student_id=%s AND module_name=%s''',
+                        (r.get('studentId'), mod_slug)
+                    )
+                    rowp = cursor2.fetchone() or {}
+                    if (rowp.get('assessment_completed') or 0) == 1:
+                        r['status'] = 'completed'
+                    # Optionally mark in-progress if some work done
+                    elif r['status'] == 'assigned':
+                        some_progress = any([(rowp.get('overview_completed') or 0) == 1,
+                                             (rowp.get('practical_completed') or 0) == 1,
+                                             (rowp.get('quizzes_passed') or 0) > 0])
+                        if some_progress:
+                            r['status'] = 'in-progress'
+                except Exception:
+                    # Missing table/columns: ignore and continue with stored status
+                    pass
+                finally:
+                    try:
+                        cursor2.close()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             # Compute overdue if dueDate passed and not completed
             try:
                 due = r.get('dueDate')

@@ -1329,11 +1329,34 @@ def get_student_assignments(request: Request, student_id: int):
             ''', (student_id,)
         )
         rows = cursor.fetchall() or []
-        # Normalize status and compute overdue on the fly
+        # Normalize status, derive completion from progress, and compute overdue on the fly
         from datetime import datetime, timezone
         now = datetime.utcnow()
         for r in rows:
             r['status'] = _normalize_assignment_status(r.get('status'))
+            # If progress shows module already completed, force status to completed
+            try:
+                mod_slug = (r.get('moduleSlug') or '').strip().lower()
+                if not mod_slug:
+                    mod_slug = str(r.get('moduleName') or '').strip().lower().replace(' ', '-')
+                try:
+                    c2 = conn.cursor(dictionary=True)
+                    c2.execute('''SELECT assessment_completed, practical_completed, overview_completed, quizzes_passed FROM student_progress WHERE student_id=%s AND module_name=%s''', (student_id, mod_slug))
+                    pr = c2.fetchone() or {}
+                    if (pr.get('assessment_completed') or 0) == 1:
+                        r['status'] = 'completed'
+                    elif r['status'] == 'assigned':
+                        if any([(pr.get('overview_completed') or 0) == 1, (pr.get('practical_completed') or 0) == 1, (pr.get('quizzes_passed') or 0) > 0]):
+                            r['status'] = 'in-progress'
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        c2.close()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             try:
                 due = r.get('dueDate')
                 if due and r['status'] != 'completed':
