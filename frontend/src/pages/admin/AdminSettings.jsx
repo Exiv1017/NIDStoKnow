@@ -4,6 +4,7 @@ import AuthContext from '../../context/AuthContext';
 
 const AdminSettings = () => {
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('system');
   const defaultSystem = {
     enableUserRegistration: true,
@@ -83,6 +84,17 @@ const AdminSettings = () => {
   }, [user]);
 
   // No-op effect removed stray JSX bug
+
+  // Logout handler for admin sidebar
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem('admin');
+      localStorage.removeItem('admin_user');
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('token_admin');
+    } catch {}
+    navigate('/admin-login');
+  };
 
   // System settings change detection
   const isSystemChanged = JSON.stringify(formData.systemSettings) !== JSON.stringify(originalFormData.systemSettings);
@@ -274,6 +286,7 @@ const AdminSettings = () => {
         </nav>
         <div className="p-4 mt-auto border-t border-white/10">
           <button
+            onClick={handleLogout}
             className="w-full flex items-center gap-2 p-3 rounded-lg hover:bg-white/10 transition-all duration-200 text-left text-red-300 font-semibold"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
