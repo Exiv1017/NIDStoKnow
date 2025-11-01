@@ -545,7 +545,6 @@ const SignaturePractical = ({ modules, setModules }) => {
   };
 
   return (
-    <>
     <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 min-h-screen">
       <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 mb-6 border border-blue-100">
         <div className="flex items-start justify-between gap-3">
@@ -589,7 +588,7 @@ const SignaturePractical = ({ modules, setModules }) => {
               );
             })}
           </ol>
-          
+
           {/* Enhanced progress bar */}
           <div className="mt-4 relative">
             <div className="h-3 bg-gradient-to-r from-gray-200 to-gray-300 rounded-full shadow-inner">
@@ -812,158 +811,103 @@ const SignaturePractical = ({ modules, setModules }) => {
 
         {/* Step 4: Build rules */}
         {currentStep===4 && (
-          <div className="rounded-xl border-2 border-purple-200 p-6 bg-gradient-to-br from-purple-50 via-white to-pink-50 shadow-lg">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-lg">4</span>
-              </div>
-              <h2 className="text-xl font-bold text-gray-900">Build Your Rules</h2>
+          <div className="rounded-xl border p-4 bg-white">
+            <h2 className="text-lg font-semibold text-gray-900">Build your rules</h2>
+            <p className="text-gray-700 mt-2 text-sm">Use the guided builder or switch to JSON if you prefer.</p>
+
+            <div className="flex items-center gap-4 text-sm mt-3">
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={useGuided} onChange={()=>setUseGuided(true)} /> Guided (recommended)
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={!useGuided} onChange={()=>setUseGuided(false)} /> Advanced (paste JSON)
+              </label>
             </div>
-            <p className="text-gray-700 text-lg leading-relaxed mb-6">Use the guided builder or switch to JSON if you prefer advanced configuration.</p>
-            
-            <div className="bg-white rounded-lg p-4 border border-purple-100 mb-6">
-              <div className="flex items-center gap-4 text-sm">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" 
-                    checked={useGuided} 
-                    onChange={()=>setUseGuided(true)} 
-                    className="text-purple-600 focus:ring-purple-500"
-                  /> 
-                  <span className="font-medium text-gray-900">Guided Builder (recommended)</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="radio" 
-                    checked={!useGuided} 
-                    onChange={()=>setUseGuided(false)} 
-                    className="text-purple-600 focus:ring-purple-500"
-                  /> 
-                  <span className="font-medium text-gray-900">Advanced (paste JSON)</span>
-                </label>
-              </div>
-            </div>
-            
+
             {useGuided && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                <div className="text-sm text-blue-800">
-                  <span className="font-semibold">Match types:</span> 
-                  <span className="mx-2">•</span> <span className="font-mono bg-white px-2 py-0.5 rounded">contains</span> (substring)
-                  <span className="mx-2">•</span> <span className="font-mono bg-white px-2 py-0.5 rounded">exact</span> (whole value)
-                  <span className="mx-2">•</span> <span className="font-mono bg-white px-2 py-0.5 rounded">regex</span> (pattern, e.g. <span className="font-mono bg-white px-1 rounded">\\bOR\\b\\s*1=1</span>)
-                  <br/>
-                  <span className="font-semibold">Note:</span> Use method GET/POST for HTTP logs only.
+              <div className="mt-3 grid md:grid-cols-6 gap-2 items-end">
+                <div>
+                  <label className="text-xs text-gray-600">Field</label>
+                  <select value={brField} onChange={e=>setBrField(e.target.value)} className="w-full border rounded p-2 text-sm">
+                    <option value="path">path</option>
+                    <option value="query">query</option>
+                    <option value="ua">user-agent</option>
+                    <option value="cmd">command</option>
+                  </select>
                 </div>
-              </div>
-            )}
-            {useGuided ? (
-              <div className="space-y-6">
-                <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <span className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
-                      <span className="w-3 h-3 bg-purple-500 rounded-full"></span>
-                    </span>
-                    Add New Rule
-                  </h3>
-                  
-                  <div className="grid md:grid-cols-6 gap-4 items-end">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Field</label>
-                      <select 
-                        value={brField} 
-                        onChange={e=>setBrField(e.target.value)} 
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      >
-                        <option value="path">path</option>
-                        <option value="query">query</option>
-                        <option value="ua">user-agent</option>
-                        <option value="cmd">command</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Match type</label>
-                      <select 
-                        value={brType} 
-                        onChange={e=>setBrType(e.target.value)} 
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      >
-                        <option value="contains">contains</option>
-                        <option value="exact">exact</option>
-                        <option value="regex">regex</option>
-                      </select>
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Pattern</label>
-                      <input 
-                        value={brPattern} 
-                        onChange={e=>setBrPattern(e.target.value)} 
-                        placeholder="/wp-login.php or sqlmap or \\bOR\\b\\s*1=1" 
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">HTTP Method</label>
-                      <select 
-                        value={brMethod} 
-                        onChange={e=>setBrMethod(e.target.value)} 
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      >
-                        <option value="">Any</option>
-                        <option value="GET">GET</option>
-                        <option value="POST">POST</option>
-                      </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600">Threshold per IP</label>
-                    <input value={brThreshold} onChange={e=>setBrThreshold(e.target.value)} placeholder="e.g., 3" className="w-full border rounded p-2 text-sm" />
-                  </div>
+                <div>
+                  <label className="text-xs text-gray-600">Match type</label>
+                  <select value={brType} onChange={e=>setBrType(e.target.value)} className="w-full border rounded p-2 text-sm">
+                    <option value="contains">contains</option>
+                    <option value="exact">exact</option>
+                    <option value="regex">regex</option>
+                  </select>
                 </div>
-                <div className="mt-2">
+                <div className="md:col-span-2">
+                  <label className="text-xs text-gray-600">Pattern</label>
+                  <input value={brPattern} onChange={e=>setBrPattern(e.target.value)} placeholder="/wp-login.php or sqlmap or \\bOR\\b\\s*1=1" className="w-full border rounded p-2 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600">HTTP method</label>
+                  <select value={brMethod} onChange={e=>setBrMethod(e.target.value)} className="w-full border rounded p-2 text-sm">
+                    <option value="">Any</option>
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600">Threshold per IP</label>
+                  <input value={brThreshold} onChange={e=>setBrThreshold(e.target.value)} placeholder="e.g., 3" className="w-full border rounded p-2 text-sm" />
+                </div>
+                <div className="md:col-span-6">
                   <button onClick={addGuidedRule} className="px-3 py-2 bg-[#206EA6] text-white rounded">Add rule</button>
                   <button onClick={()=>addStarterRules('http3')} className="ml-2 px-3 py-2 border rounded text-sm">Insert HTTP starters</button>
                   <button onClick={()=>addStarterRules('lfi_rfi')} className="ml-2 px-3 py-2 border rounded text-sm">Insert LFI/RFI starters</button>
                   <button onClick={()=>addStarterRules('ssh_dropper')} className="ml-2 px-3 py-2 border rounded text-sm">Insert SSH starters</button>
                 </div>
-                <div className="mt-3 text-sm">
-                  {builderRules.length === 0 ? (
-                    <div className="text-gray-500">
-                      No rules yet. Try examples:
-                      <ul className="list-disc ml-5 mt-1 space-y-0.5">
-                        <li><span className="font-semibold">path contains</span> <span className="font-mono">/wp-login.php</span> (brute‑force attempts)</li>
-                        <li><span className="font-semibold">ua contains</span> <span className="font-mono">sqlmap</span> or <span className="font-mono">Nikto</span> (scanner/tool user‑agents)</li>
-                        <li><span className="font-semibold">path contains</span> <span className="font-mono">../</span> or <span className="font-mono">/etc/passwd</span> (path traversal/LFI)</li>
-                        <li><span className="font-semibold">query contains</span> <span className="font-mono">include=http://</span> (RFI)</li>
-                        <li><span className="font-semibold">query regex</span> <span className="font-mono">\bOR\b\s*1=1</span> (SQLi)</li>
-                        <li><span className="font-semibold">cmd contains</span> <span className="font-mono">curl</span> or <span className="font-mono">wget</span> plus <span className="font-mono">| bash</span>/<span className="font-mono">| sh</span> (dropper)</li>
-                      </ul>
-                    </div>
-                  ) : (
-                    <ul className="space-y-2">
-                      {builderRules.map((r, i) => (
-                        <li key={i} className="flex items-center justify-between border rounded p-2">
-                          <div className="text-gray-800">
-                            <span className="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded mr-2">{r.id}</span>
-                            <span className="font-semibold">{r.field}</span> {r.type} <span className="font-mono">{String(r.match)}</span>
-                            {r.method ? <span className="ml-2 text-xs text-gray-500">[{r.method}]</span> : null}
-                            {r.threshold ? <span className="ml-2 text-xs text-gray-500">[per IP ≥ {r.threshold.count}]</span> : null}
-                          </div>
-                          <button onClick={()=>removeGuidedRule(i)} className="text-red-600 text-xs hover:underline">Remove</button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
               </div>
-            ) : (
-              <>
-                <div className="text-sm text-gray-600 mt-3">Paste your rules.json or load the scaffold.</div>
+            )}
+
+            {!useGuided && (
+              <div className="mt-3">
+                <div className="text-sm text-gray-600">Paste your rules.json or load the scaffold.</div>
                 <div className="flex items-center gap-2 mt-2">
                   <button onClick={loadScaffoldIntoText} className="px-3 py-1.5 border rounded text-sm">Load scaffold</button>
                 </div>
                 <textarea value={rulesText} onChange={e=>setRulesText(e.target.value)} className="w-full min-h-[180px] p-2 border rounded font-mono text-xs mt-2" placeholder='{"rules":[{"id":"R-1","field":"path","type":"contains","match":"/wp-login.php"}]}'></textarea>
-              </>
+              </div>
             )}
+
+            <div className="mt-3 text-sm">
+              {builderRules.length === 0 ? (
+                <div className="text-gray-500">
+                  No rules yet. Try examples:
+                  <ul className="list-disc ml-5 mt-1 space-y-0.5">
+                    <li><span className="font-semibold">path contains</span> <span className="font-mono">/wp-login.php</span> (brute‑force attempts)</li>
+                    <li><span className="font-semibold">ua contains</span> <span className="font-mono">sqlmap</span> or <span className="font-mono">Nikto</span> (scanner/tool user‑agents)</li>
+                    <li><span className="font-semibold">path contains</span> <span className="font-mono">../</span> or <span className="font-mono">/etc/passwd</span> (path traversal/LFI)</li>
+                    <li><span className="font-semibold">query contains</span> <span className="font-mono">include=http://</span> (RFI)</li>
+                    <li><span className="font-semibold">query regex</span> <span className="font-mono">\bOR\b\s*1=1</span> (SQLi)</li>
+                    <li><span className="font-semibold">cmd contains</span> <span className="font-mono">curl</span> or <span className="font-mono">wget</span> plus <span className="font-mono">| bash</span>/<span className="font-mono">| sh</span> (dropper)</li>
+                  </ul>
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {builderRules.map((r, i) => (
+                    <li key={i} className="flex items-center justify-between border rounded p-2">
+                      <div className="text-gray-800">
+                        <span className="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded mr-2">{r.id}</span>
+                        <span className="font-semibold">{r.field}</span> {r.type} <span className="font-mono">{String(r.match)}</span>
+                        {r.method ? <span className="ml-2 text-xs text-gray-500">[{r.method}]</span> : null}
+                        {r.threshold ? <span className="ml-2 text-xs text-gray-500">[per IP ≥ {r.threshold.count}]</span> : null}
+                      </div>
+                      <button onClick={()=>removeGuidedRule(i)} className="text-red-600 text-xs hover:underline">Remove</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             <div className="pt-3"><button onClick={()=>setCurrentStep(5)} className="px-4 py-2 bg-[#206EA6] text-white rounded">Next: Test & tune</button></div>
           </div>
         )}
@@ -1121,7 +1065,6 @@ const SignaturePractical = ({ modules, setModules }) => {
           </div>
         )}
       </div>
-    </div>
     {toast && (
       <div className="fixed bottom-4 right-4 bg-gray-900 text-white text-sm px-4 py-2 rounded shadow-lg flex items-center gap-2 animate-fadeIn" role="status" aria-live="polite">
         <span>✅</span>
@@ -1129,7 +1072,7 @@ const SignaturePractical = ({ modules, setModules }) => {
         <button onClick={()=>setToast(null)} className="ml-1 text-white/70 hover:text-white" aria-label="Dismiss">×</button>
       </div>
     )}
-    </>
+    </div>
   );
 };
 
