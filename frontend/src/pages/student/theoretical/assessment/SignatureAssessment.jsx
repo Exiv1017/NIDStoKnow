@@ -92,32 +92,73 @@ const SignatureAssessment = ({ modules, setModules }) => {
   };
 
   return (
-    <div className="p-8 bg-[#F5F8FC] min-h-screen">
-      <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{title} — Practical Assessment</h1>
-          <p className="text-gray-600 mt-1">15 interactive questions. Score at least 80% to pass.</p>
+    <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 min-h-screen">
+      <div className="max-w-4xl mx-auto p-6">
+        {/* Enhanced header */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 mb-6 border border-blue-100">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{title} — Assessment</h1>
+              <p className="text-gray-600 text-lg mt-2">Test your knowledge with 15 interactive questions</p>
+            </div>
+            <div className="text-right">
+              <span className="inline-flex items-center gap-2 text-sm font-medium text-purple-700 bg-purple-100 px-4 py-2 rounded-xl border border-purple-200">
+                <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>
+                Estimated: 10–15 mins
+              </span>
+            </div>
+          </div>
+          
+          {/* Progress indicator */}
+          <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+                <span className="font-medium text-gray-700">Pass Requirement: 80% (12/15 questions)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
+                <span className="font-medium text-gray-700">Unlimited Attempts</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <span className="text-xs font-medium text-blue-700 bg-blue-100 px-2 py-1 rounded-full">Estimated: 10–15 mins</span>
-      </div>
-      <div className="bg-white rounded-2xl shadow p-6 space-y-4">
-        <QuestionCarousel
-          questions={questions}
-          onPass={onPass}
-            // Auto-complete when last question is submitted
-          autoFinishOnLast={true}
-          onQuestionChecked={handleQuestionChecked}
-          onComplete={onComplete}
-          passThreshold={0.8}
-          intro={{
-            title: 'Quiz',
-            lead: 'Let’s check your knowledge about the concepts you just learned.',
-            details: 'This is a 15‑question quiz. You must get 80% to pass. You can review and retake as many times as needed.',
-          }}
-        />
-        <div className="flex items-center gap-3 pt-2">
-          <Link to="/learning-modules" className="text-blue-600 hover:underline">Back to Modules</Link>
-        </div>
+
+        {/* Enhanced content container */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-blue-100 overflow-hidden">
+          <div className="p-6">
+            <QuestionCarousel
+              questions={questions}
+              onPass={onPass}
+              // Auto-complete when last question is submitted
+              autoFinishOnLast={true}
+              onQuestionChecked={handleQuestionChecked}
+              onComplete={onComplete}
+              passThreshold={0.8}
+              intro={{
+                title: 'Knowledge Assessment',
+                lead: 'Test your understanding of signature-based detection concepts.',
+                details: 'This is a comprehensive 15-question assessment covering practical and theoretical aspects. You must score 80% to pass. You can review and retake as many times as needed.',
+              }}
+            />
+            
+            {/* Enhanced navigation */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <Link 
+                  to="/learning-modules" 
+                  className="inline-flex items-center gap-2 px-4 py-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                >
+                  <span>←</span>
+                  Back to Modules
+                </Link>
+                
+                <div className="text-sm text-gray-500">
+                  Assessment • Signature-Based Detection
+                </div>
+              </div>
+            </div>
+          </div>
       </div>
     </div>
   );

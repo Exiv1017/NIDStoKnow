@@ -546,83 +546,197 @@ const SignaturePractical = ({ modules, setModules }) => {
 
   return (
     <>
-    <div className="p-8 bg-[#F5F8FC] min-h-screen">
-      <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+    <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 min-h-screen">
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-6 mb-6 border border-blue-100">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{title} — Practical Exercise</h1>
-            <p className="text-gray-600 mt-1">A guided, step‑by‑step activity to apply signatures on real logs.</p>
-            <p className="text-xs text-gray-500 mt-1">Time Spent: {(()=>{ const s=timeSpentSeconds||0; const m=Math.floor(s/60); const r=s%60; return `${m}m ${r}s`; })()}</p>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{title} — Practical Exercise</h1>
+            <p className="text-gray-600 mt-2 text-lg">A guided, step‑by‑step activity to apply signatures on real logs.</p>
+            <div className="flex items-center gap-4 mt-3">
+              <div className="bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200">
+                <span className="text-sm font-medium text-blue-700">Time Spent: </span>
+                <span className="text-sm font-bold text-blue-900">{(()=>{ const s=timeSpentSeconds||0; const m=Math.floor(s/60); const r=s%60; return `${m}m ${r}s`; })()}</span>
+              </div>
+              <div className="bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
+                <span className="text-sm font-medium text-green-700">Step {currentStep} of {totalSteps}</span>
+              </div>
+            </div>
           </div>
-          <span className="text-xs font-medium text-blue-700 bg-blue-100 px-2 py-1 rounded-full">10–20 mins</span>
+          <span className="text-sm font-medium text-purple-700 bg-purple-100 px-3 py-2 rounded-xl border border-purple-200">Estimated: 10–20 mins</span>
         </div>
-        {/* Stepper */}
-        <div className="mt-4 hidden md:block">
-          <ol className="grid grid-cols-6 gap-2">
+        
+        {/* Enhanced Stepper */}
+        <div className="mt-6 hidden md:block">
+          <ol className="grid grid-cols-6 gap-3">
             {['Overview','Review','Assets','Build','Test','Report'].map((label, i)=>{
               const step=i+1; const active=step===currentStep; const done=step<currentStep;
               return (
-                <li key={i} className={`flex items-center gap-2 p-2 rounded border ${active?'border-blue-600 bg-blue-50':'border-gray-200 bg-gray-50'} ${done?'opacity-75':''}`}>
-                  <span className={`h-6 w-6 flex items-center justify-center rounded-full text-xs ${active?'bg-blue-600 text-white':'bg-gray-300 text-gray-800'}`}>{step}</span>
-                  <span className="text-sm">{label}</span>
+                <li key={i} className={`relative flex items-center gap-3 p-3 rounded-xl border-2 transition-all duration-200 ${
+                  active ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-purple-50 shadow-md transform scale-105' : 
+                  done ? 'border-green-400 bg-green-50' : 
+                  'border-gray-200 bg-gray-50 hover:border-gray-300'
+                }`}>
+                  <span className={`h-8 w-8 flex items-center justify-center rounded-full text-sm font-bold transition-all duration-200 ${
+                    active ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg' : 
+                    done ? 'bg-green-500 text-white' : 
+                    'bg-gray-300 text-gray-700'
+                  }`}>
+                    {done ? '✓' : step}
+                  </span>
+                  <span className={`text-sm font-medium ${active ? 'text-blue-800' : done ? 'text-green-800' : 'text-gray-600'}`}>{label}</span>
+                  {active && <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>}
                 </li>
               );
             })}
           </ol>
-          {/* Visual progress bar */}
-          <div className="mt-3 h-2 bg-gray-100 rounded">
-            <div className="h-2 bg-blue-600 rounded" style={{ width: `${pct}%` }} />
+          
+          {/* Enhanced progress bar */}
+          <div className="mt-4 relative">
+            <div className="h-3 bg-gradient-to-r from-gray-200 to-gray-300 rounded-full shadow-inner">
+              <div className="h-3 bg-gradient-to-r from-blue-500 via-purple-500 to-green-500 rounded-full transition-all duration-500 ease-out shadow-lg" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="flex justify-between text-sm font-medium text-gray-700 mt-2">
+              <span className="bg-white px-3 py-1 rounded-lg shadow-sm border border-gray-200">{pct}% Complete</span>
+              <span className="bg-white px-3 py-1 rounded-lg shadow-sm border border-gray-200">Progress Saved</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow p-6 space-y-6">
+      <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 space-y-6 border border-blue-100">
         {/* Step 1: Overview */}
         {currentStep===1 && (
-          <div className="rounded-xl border p-4 bg-gradient-to-br from-sky-50 to-white">
-            <h2 className="text-lg font-semibold text-gray-900">What you'll do</h2>
-            <p className="text-gray-700 mt-2">Find known malicious patterns in sample HTTP and SSH logs using signatures. You'll build a few simple rules and test them here.</p>
-            <ul className="list-disc ml-6 mt-3 text-gray-800 text-sm space-y-1">
-              <li>Pick patterns (e.g., /wp-login.php brute force, sqlmap UA, ../ traversal, curl | bash dropper).</li>
-              <li>Create rules with field, match type (contains/exact/regex), optional method and threshold.</li>
-              <li>Run the rules, inspect matches, and tighten to reduce false positives.</li>
-            </ul>
-            <div className="mt-3">
-              <div className="text-sm font-medium text-gray-900">By the end, you'll be able to:</div>
-              <ul className="list-disc ml-6 text-sm text-gray-800 space-y-1 mt-1">
-                <li>Translate theory into practice: map fields (path, query, UA, command) and choose the right match type.</li>
-                <li>Detect common indicators from the module: SQLi probes, traversal/LFI-RFI, scanner/tool UAs, and auth brute-force.</li>
-                <li>Apply thresholds and document findings in a concise report for instructor review.</li>
-              </ul>
+          <div className="rounded-xl border-2 border-blue-200 p-6 bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
+                <span className="text-white font-bold text-lg">1</span>
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">What you'll do</h2>
             </div>
-            <div className="pt-3"><button onClick={()=>setCurrentStep(2)} className="px-4 py-2 bg-[#206EA6] text-white rounded">Start practical</button></div>
+            <p className="text-gray-700 text-lg leading-relaxed mb-4">Find known malicious patterns in sample HTTP and SSH logs using signatures. You'll build a few simple rules and test them here.</p>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-blue-100">
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <span className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                  </span>
+                  Learning Objectives
+                </h3>
+                <ul className="space-y-2 text-sm text-gray-800">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-500 font-bold">✓</span>
+                    Pick patterns (e.g., /wp-login.php brute force, sqlmap UA, ../ traversal, curl | bash dropper).
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-500 font-bold">✓</span>
+                    Create rules with field, match type (contains/exact/regex), optional method and threshold.
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-500 font-bold">✓</span>
+                    Run the rules, inspect matches, and tighten to reduce false positives.
+                  </li>
+                </ul>
+              </div>
+              
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <span className="w-5 h-5 bg-purple-100 rounded-full flex items-center justify-center">
+                    <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                  </span>
+                  Skills You'll Gain
+                </h3>
+                <ul className="space-y-2 text-sm text-gray-800">
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-500 font-bold">→</span>
+                    Translate theory into practice: map fields (path, query, UA, command) and choose the right match type.
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-500 font-bold">→</span>
+                    Detect common indicators from the module: SQLi probes, traversal/LFI-RFI, scanner/tool UAs, and auth brute-force.
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-500 font-bold">→</span>
+                    Apply thresholds and document findings in a concise report for instructor review.
+                  </li>
+                </ul>
+              </div>
+            </div>
+            
+            <div className="pt-6">
+              <button 
+                onClick={()=>setCurrentStep(2)} 
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                Start Practical Exercise →
+              </button>
+            </div>
           </div>
         )}
 
         {/* Step 2: Theory refresh */}
         {currentStep===2 && (
-          <div className="rounded-xl border p-4 bg-gradient-to-br from-[#f0fbff] to-white">
-            <h2 className="text-lg font-semibold text-gray-900">Theory refresh</h2>
-            <p className="text-gray-700 mt-2">This hands‑on directly applies what you covered in the theory:</p>
-          <ul className="list-disc ml-6 text-sm text-gray-800 mt-2 space-y-1">
-            <li><span className="font-medium">Rule anatomy & patterns:</span> fields (path, query, user‑agent, command), exact vs regex.</li>
-            <li><span className="font-medium">Common attack indicators:</span> SQLi probes, path traversal, scanner/tool user‑agents, login brute force.</li>
-            <li><span className="font-medium">Tuning to reduce false positives:</span> anchors, escaping, narrowing context.</li>
-            <li><span className="font-medium">Thresholds:</span> converting raw matches into alerts with simple frequency guards.</li>
-          </ul>
-          <div className="text-sm mt-3">
-            Quick links to review:
-            <ul className="list-disc ml-6 text-blue-700">
-              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=1">Introduction to IDS (Module 1)</a></li>
-              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=2">Signature vs Anomaly (Module 2)</a></li>
-              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=3">Signature Detection Workflow (Module 2)</a></li>
-              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=5">Snort and Suricata (Module 3)</a></li>
-              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=6">Traffic Capture & Rule Databases (Module 3)</a></li>
-              <li><a className="hover:underline" href="/student/theoretical/signature-based-detection/theory?lesson=8">Limitations of Signature‑Based NIDS (Module 4)</a></li>
-            </ul>
+          <div className="rounded-xl border-2 border-green-200 p-6 bg-gradient-to-br from-green-50 via-white to-blue-50 shadow-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-blue-500 rounded-xl flex items-center justify-center">
+                <span className="text-white font-bold text-lg">2</span>
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Theory Refresh</h2>
+            </div>
+            <p className="text-gray-700 text-lg leading-relaxed mb-6">This hands‑on directly applies what you covered in the theory:</p>
+            
+            <div className="grid md:grid-cols-2 gap-4 mb-6">
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-green-100">
+                <h4 className="font-semibold text-green-800 mb-2 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                  Rule Anatomy & Patterns
+                </h4>
+                <p className="text-sm text-gray-700">Fields (path, query, user‑agent, command), exact vs regex.</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-blue-100">
+                <h4 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                  Common Attack Indicators
+                </h4>
+                <p className="text-sm text-gray-700">SQLi probes, path traversal, scanner/tool user‑agents, login brute force.</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
+                <h4 className="font-semibold text-purple-800 mb-2 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                  Tuning to Reduce False Positives
+                </h4>
+                <p className="text-sm text-gray-700">Anchors, escaping, narrowing context.</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm border border-amber-100">
+                <h4 className="font-semibold text-amber-800 mb-2 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                  Thresholds
+                </h4>
+                <p className="text-sm text-gray-700">Converting raw matches into alerts with simple frequency guards.</p>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 mt-4">
+              <div className="text-sm font-medium text-gray-900 mb-3">Quick links to review:</div>
+              <div className="grid md:grid-cols-2 gap-2">
+                <a className="text-blue-600 hover:text-blue-800 hover:underline text-sm transition-colors" href="/student/theoretical/signature-based-detection/theory?lesson=1">Introduction to IDS (Module 1)</a>
+                <a className="text-blue-600 hover:text-blue-800 hover:underline text-sm transition-colors" href="/student/theoretical/signature-based-detection/theory?lesson=2">Signature vs Anomaly (Module 2)</a>
+                <a className="text-blue-600 hover:text-blue-800 hover:underline text-sm transition-colors" href="/student/theoretical/signature-based-detection/theory?lesson=3">Signature Detection Workflow (Module 2)</a>
+                <a className="text-blue-600 hover:text-blue-800 hover:underline text-sm transition-colors" href="/student/theoretical/signature-based-detection/theory?lesson=5">Snort and Suricata (Module 3)</a>
+                <a className="text-blue-600 hover:text-blue-800 hover:underline text-sm transition-colors" href="/student/theoretical/signature-based-detection/theory?lesson=6">Traffic Capture & Rule Databases (Module 3)</a>
+                <a className="text-blue-600 hover:text-blue-800 hover:underline text-sm transition-colors" href="/student/theoretical/signature-based-detection/theory?lesson=8">Limitations of Signature‑Based NIDS (Module 4)</a>
+              </div>
+            </div>
+            
+            <div className="pt-6">
+              <button 
+                onClick={()=>setCurrentStep(3)} 
+                className="px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-xl hover:from-green-700 hover:to-blue-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                Next: Get Assets →
+              </button>
+            </div>
           </div>
-            <div className="pt-3"><button onClick={()=>setCurrentStep(3)} className="px-4 py-2 bg-[#206EA6] text-white rounded">Next: Get assets</button></div>
-        </div>
         )}
 
         {/* Step 3: Assets */}
@@ -631,91 +745,174 @@ const SignaturePractical = ({ modules, setModules }) => {
             <h2 className="text-lg font-semibold text-gray-900">Get the assets</h2>
             <p className="text-gray-700 mt-2">Download the sample logs and starter rules, and optionally export a report. You’ll use these in the next steps.</p>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
-              <a href="/samples/web-access.log" download className="group block rounded-lg border bg-white p-4 hover:border-blue-500 transition">
-                <div className="text-sm font-semibold">web-access.log</div>
-                <div className="text-xs text-gray-600">HTTP access log (SQLi, traversal, tool UAs)</div>
-                <div className="mt-3 inline-block px-3 py-1.5 text-sm bg-blue-600 text-white rounded group-hover:bg-blue-700">Download</div>
+              <a href="/samples/web-access.log" download className="group block rounded-xl border-2 border-blue-100 bg-white p-5 hover:border-blue-300 hover:shadow-lg transition-all duration-200 transform hover:scale-105">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <span className="text-blue-600 font-bold text-sm">📄</span>
+                  </div>
+                  <div className="text-sm font-bold text-gray-900">web-access.log</div>
+                </div>
+                <div className="text-xs text-gray-600 mb-3">HTTP access log (SQLi, traversal, tool UAs)</div>
+                <div className="inline-block px-4 py-2 text-sm bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg group-hover:from-blue-600 group-hover:to-blue-700 font-medium shadow-sm">Download</div>
               </a>
-              <a href="/samples/ssh-commands.log" download className="group block rounded-lg border bg-white p-4 hover:border-blue-500 transition">
-                <div className="text-sm font-semibold">ssh-commands.log</div>
-                <div className="text-xs text-gray-600">Cowrie‑style commands (wget/curl droppers)</div>
-                <div className="mt-3 inline-block px-3 py-1.5 text-sm bg-blue-600 text-white rounded group-hover:bg-blue-700">Download</div>
+              <a href="/samples/ssh-commands.log" download className="group block rounded-xl border-2 border-green-100 bg-white p-5 hover:border-green-300 hover:shadow-lg transition-all duration-200 transform hover:scale-105">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                    <span className="text-green-600 font-bold text-sm">🖥️</span>
+                  </div>
+                  <div className="text-sm font-bold text-gray-900">ssh-commands.log</div>
+                </div>
+                <div className="text-xs text-gray-600 mb-3">Cowrie‑style commands (wget/curl droppers)</div>
+                <div className="inline-block px-4 py-2 text-sm bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg group-hover:from-green-600 group-hover:to-green-700 font-medium shadow-sm">Download</div>
               </a>
-              <a href="/samples/rules.scaffold.json" download className="group block rounded-lg border bg-white p-4 hover:border-blue-500 transition">
-                <div className="text-sm font-semibold">rules.scaffold.json</div>
-                <div className="text-xs text-gray-600">Starter rules you can tighten</div>
-                <div className="mt-3 inline-block px-3 py-1.5 text-sm bg-blue-600 text-white rounded group-hover:bg-blue-700">Download</div>
+              <a href="/samples/rules.scaffold.json" download className="group block rounded-xl border-2 border-purple-100 bg-white p-5 hover:border-purple-300 hover:shadow-lg transition-all duration-200 transform hover:scale-105">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <span className="text-purple-600 font-bold text-sm">⚙️</span>
+                  </div>
+                  <div className="text-sm font-bold text-gray-900">rules.scaffold.json</div>
+                </div>
+                <div className="text-xs text-gray-600 mb-3">Starter rules you can tighten</div>
+                <div className="inline-block px-4 py-2 text-sm bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg group-hover:from-purple-600 group-hover:to-purple-700 font-medium shadow-sm">Download</div>
               </a>
-              <div className="group block rounded-lg border bg-white p-4 hover:border-blue-500 transition">
-                <div className="text-sm font-semibold">Report (Markdown)</div>
-                <div className="text-xs text-gray-600">Generate a .md report from your current rules and results</div>
-                <button onClick={generateReportMarkdown} className="mt-3 inline-block px-3 py-1.5 text-sm bg-blue-600 text-white rounded group-hover:bg-blue-700">Download</button>
+              
+              <div className="group block rounded-xl border-2 border-amber-100 bg-white p-5 hover:border-amber-300 hover:shadow-lg transition-all duration-200 transform hover:scale-105">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                    <span className="text-amber-600 font-bold text-sm">📄</span>
+                  </div>
+                  <div className="text-sm font-bold text-gray-900">Report (Markdown)</div>
+                </div>
+                <div className="text-xs text-gray-600 mb-3">Generate a .md report from your current rules and results</div>
+                <button onClick={generateReportMarkdown} className="inline-block px-4 py-2 text-sm bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg hover:from-amber-600 hover:to-amber-700 font-medium shadow-sm">Generate</button>
               </div>
-              <div className="group block rounded-lg border bg-white p-4 hover:border-blue-500 transition">
-                <div className="text-sm font-semibold">Report (DOCX)</div>
-                <div className="text-xs text-gray-600">Generate a Word report from your current rules and results</div>
-                <button onClick={generateReportDocx} className="mt-3 inline-block px-3 py-1.5 text-sm bg-blue-600 text-white rounded group-hover:bg-blue-700">Download</button>
+              
+              <div className="group block rounded-xl border-2 border-red-100 bg-white p-5 hover:border-red-300 hover:shadow-lg transition-all duration-200 transform hover:scale-105">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                    <span className="text-red-600 font-bold text-sm">📄</span>
+                  </div>
+                  <div className="text-sm font-bold text-gray-900">Report (DOCX)</div>
+                </div>
+                <div className="text-xs text-gray-600 mb-3">Generate a Word report from your current rules and results</div>
+                <button onClick={generateReportDocx} className="inline-block px-4 py-2 text-sm bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 font-medium shadow-sm">Generate</button>
               </div>
             </div>
             <div className="pt-4 flex items-center justify-between">
               <div className="text-xs text-gray-600">Next: you’ll build 3 simple rules using a guided form.</div>
-              <button onClick={()=>setCurrentStep(4)} className="px-4 py-2 bg-[#206EA6] text-white rounded">Next: Build rules</button>
+              <button 
+                onClick={()=>setCurrentStep(4)} 
+                className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-sky-600 text-white rounded-xl hover:from-emerald-700 hover:to-sky-700 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                Next: Build Rules →
+              </button>
             </div>
           </div>
         )}
 
         {/* Step 4: Build rules */}
         {currentStep===4 && (
-          <div className="rounded-xl border p-4 bg-white">
-            <h2 className="text-lg font-semibold text-gray-900">Build your rules</h2>
-            <p className="text-gray-700 mt-2 text-sm">Use the guided builder or switch to JSON if you prefer.</p>
-            <div className="flex items-center gap-4 text-sm mt-3">
-              <label className="flex items-center gap-2">
-                <input type="radio" checked={useGuided} onChange={()=>setUseGuided(true)} /> Guided (recommended)
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="radio" checked={!useGuided} onChange={()=>setUseGuided(false)} /> Advanced (paste JSON)
-              </label>
+          <div className="rounded-xl border-2 border-purple-200 p-6 bg-gradient-to-br from-purple-50 via-white to-pink-50 shadow-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
+                <span className="text-white font-bold text-lg">4</span>
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Build Your Rules</h2>
             </div>
+            <p className="text-gray-700 text-lg leading-relaxed mb-6">Use the guided builder or switch to JSON if you prefer advanced configuration.</p>
+            
+            <div className="bg-white rounded-lg p-4 border border-purple-100 mb-6">
+              <div className="flex items-center gap-4 text-sm">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    checked={useGuided} 
+                    onChange={()=>setUseGuided(true)} 
+                    className="text-purple-600 focus:ring-purple-500"
+                  /> 
+                  <span className="font-medium text-gray-900">Guided Builder (recommended)</span>
+                </label>
+              </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    checked={!useGuided} 
+                    onChange={()=>setUseGuided(false)} 
+                    className="text-purple-600 focus:ring-purple-500"
+                  /> 
+                  <span className="font-medium text-gray-900">Advanced (paste JSON)</span>
+                </label>
+              </div>
+            </div>
+            
             {useGuided && (
-              <div className="mt-2 text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded p-2">
-                Match types: <span className="font-semibold">contains</span> (substring), <span className="font-semibold">exact</span> (whole value), <span className="font-semibold">regex</span> (pattern, e.g. <span className="font-mono">\\bOR\\b\\s*1=1</span>). Use method GET/POST for HTTP only.
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <div className="text-sm text-blue-800">
+                  <span className="font-semibold">Match types:</span> 
+                  <span className="mx-2">•</span> <span className="font-mono bg-white px-2 py-0.5 rounded">contains</span> (substring)
+                  <span className="mx-2">•</span> <span className="font-mono bg-white px-2 py-0.5 rounded">exact</span> (whole value)
+                  <span className="mx-2">•</span> <span className="font-mono bg-white px-2 py-0.5 rounded">regex</span> (pattern, e.g. <span className="font-mono bg-white px-1 rounded">\\bOR\\b\\s*1=1</span>)
+                  <br/>
+                  <span className="font-semibold">Note:</span> Use method GET/POST for HTTP logs only.
+                </div>
               </div>
             )}
             {useGuided ? (
-              <>
-                <div className="grid md:grid-cols-6 gap-2 items-end mt-3">
-                  <div>
-                    <label className="text-xs text-gray-600">Field</label>
-                    <select value={brField} onChange={e=>setBrField(e.target.value)} className="w-full border rounded p-2 text-sm">
-                      <option value="path">path</option>
-                      <option value="query">query</option>
-                      <option value="ua">user-agent</option>
-                      <option value="cmd">command</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600">Match type</label>
-                    <select value={brType} onChange={e=>setBrType(e.target.value)} className="w-full border rounded p-2 text-sm">
-                      <option value="contains">contains</option>
-                      <option value="exact">exact</option>
-                      <option value="regex">regex</option>
-                    </select>
-                    <div className="text-[11px] text-gray-500 mt-1">
-                      contains = substring (case‑insensitive), exact = full match, regex = pattern (e.g., <span className="font-mono">\\bOR\\b\\s*1=1</span>)
+              <div className="space-y-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <span className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center">
+                      <span className="w-3 h-3 bg-purple-500 rounded-full"></span>
+                    </span>
+                    Add New Rule
+                  </h3>
+                  
+                  <div className="grid md:grid-cols-6 gap-4 items-end">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Field</label>
+                      <select 
+                        value={brField} 
+                        onChange={e=>setBrField(e.target.value)} 
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      >
+                        <option value="path">path</option>
+                        <option value="query">query</option>
+                        <option value="ua">user-agent</option>
+                        <option value="cmd">command</option>
+                      </select>
                     </div>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="text-xs text-gray-600">Pattern</label>
-                    <input value={brPattern} onChange={e=>setBrPattern(e.target.value)} placeholder="/wp-login.php or sqlmap or \\bOR\\b\\s*1=1" className="w-full border rounded p-2 text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600">HTTP method</label>
-                    <select value={brMethod} onChange={e=>setBrMethod(e.target.value)} className="w-full border rounded p-2 text-sm">
-                      <option value="">Any</option>
-                      <option value="GET">GET</option>
-                      <option value="POST">POST</option>
-                    </select>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Match type</label>
+                      <select 
+                        value={brType} 
+                        onChange={e=>setBrType(e.target.value)} 
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      >
+                        <option value="contains">contains</option>
+                        <option value="exact">exact</option>
+                        <option value="regex">regex</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Pattern</label>
+                      <input 
+                        value={brPattern} 
+                        onChange={e=>setBrPattern(e.target.value)} 
+                        placeholder="/wp-login.php or sqlmap or \\bOR\\b\\s*1=1" 
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">HTTP Method</label>
+                      <select 
+                        value={brMethod} 
+                        onChange={e=>setBrMethod(e.target.value)} 
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      >
+                        <option value="">Any</option>
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                      </select>
                   </div>
                   <div>
                     <label className="text-xs text-gray-600">Threshold per IP</label>
