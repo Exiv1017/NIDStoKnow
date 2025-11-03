@@ -33,6 +33,17 @@ export default function Submissions() {
     fetchSubs();
   }, []);
 
+  const formatPH = (t) => {
+    if (!t) return '';
+    try {
+      const d = new Date(t);
+      if (isNaN(d.getTime())) return String(t);
+      return d.toLocaleString('en-PH', { timeZone: 'Asia/Manila' });
+    } catch {
+      return String(t);
+    }
+  };
+
   const filtered = subs.filter(s => {
     const matchesQ = q.trim() === '' || `${s.studentName} ${s.moduleTitle} ${s.moduleSlug}`.toLowerCase().includes(q.toLowerCase());
     const matchesType = type === 'all' || s.submissionType === type;
@@ -102,7 +113,7 @@ export default function Submissions() {
                         <tbody>
                           {practicalSubs.map(s => (
                             <tr key={s.id} className="border-b hover:bg-gray-50">
-                              <td className="py-3 px-4 text-xs text-gray-600">{new Date(s.createdAt).toLocaleString()}</td>
+                              <td className="py-3 px-4 text-xs text-gray-600">{formatPH(s.createdAt)}</td>
                               <td className="py-3 px-4 font-medium">{s.studentName}</td>
                               <td className="py-3 px-4">{s.moduleTitle}</td>
                               <td className="py-3 px-4">{s.ruleCount ?? '-'}</td>
@@ -135,7 +146,7 @@ export default function Submissions() {
                           <tbody>
                             {attackerSubs.map(s => (
                               <tr key={s.id} className="border-b hover:bg-gray-50">
-                                <td className="py-3 px-4 text-xs text-gray-600">{new Date(s.createdAt).toLocaleString()}</td>
+                                <td className="py-3 px-4 text-xs text-gray-600">{formatPH(s.createdAt)}</td>
                                 <td className="py-3 px-4 font-medium">{s.studentName}</td>
                                 <td className="py-3 px-4 whitespace-nowrap">{s.attackerScore ?? '-'}</td>
                               </tr>
@@ -163,7 +174,7 @@ export default function Submissions() {
                           <tbody>
                             {defenderSubs.map(s => (
                               <tr key={s.id} className="border-b hover:bg-gray-50">
-                                <td className="py-3 px-4 text-xs text-gray-600">{new Date(s.createdAt).toLocaleString()}</td>
+                                <td className="py-3 px-4 text-xs text-gray-600">{formatPH(s.createdAt)}</td>
                                 <td className="py-3 px-4 font-medium">{s.studentName}</td>
                                 <td className="py-3 px-4 whitespace-nowrap">{s.defenderScore ?? '-'}</td>
                               </tr>

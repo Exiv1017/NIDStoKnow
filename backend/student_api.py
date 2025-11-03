@@ -2300,10 +2300,21 @@ def simulation_completed(request: Request, student_id: int, body: SimulationComp
                     sname = row[0] if isinstance(row, tuple) else (row.get('name') if isinstance(row, dict) else None)
             except Exception as _e:
                 sname = None
-            cursor.execute(
-                'INSERT INTO simulation_sessions (student_id, student_name, role, score, lobby_code) VALUES (%s,%s,%s,%s,%s)',
-                (student_id, sname, role, int(body.score or 0), body.lobby_code)
-            )
+            # De-duplicate per (student_id, role, lobby_code): update existing row if found, else insert
+            try:
+                c3 = conn.cursor()
+                c3.execute('SELECT id FROM simulation_sessions WHERE student_id=%s AND role=%s AND (lobby_code <=> %s) ORDER BY id DESC LIMIT 1', (student_id, role, body.lobby_code))
+                existing = c3.fetchone()
+            except Exception:
+                existing = None
+            if existing:
+                ex_id = existing[0] if isinstance(existing, tuple) else (existing.get('id') if isinstance(existing, dict) else None)
+                if ex_id:
+                    cursor.execute('UPDATE simulation_sessions SET score=%s, student_name=COALESCE(%s, student_name), created_at=NOW() WHERE id=%s', (int(body.score or 0), sname, ex_id))
+                else:
+                    cursor.execute('INSERT INTO simulation_sessions (student_id, student_name, role, score, lobby_code) VALUES (%s,%s,%s,%s,%s)', (student_id, sname, role, int(body.score or 0), body.lobby_code))
+            else:
+                cursor.execute('INSERT INTO simulation_sessions (student_id, student_name, role, score, lobby_code) VALUES (%s,%s,%s,%s,%s)', (student_id, sname, role, int(body.score or 0), body.lobby_code))
         except Exception as se:
             print(f"[WARN] failed to record simulation session: {se}")
         conn.commit()

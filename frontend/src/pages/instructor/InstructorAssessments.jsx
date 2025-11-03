@@ -492,7 +492,7 @@ export default function InstructorAssessments() {
                         <tbody>
                           {practicalSubs.map(s => (
                             <tr key={s.id} className="border-b hover:bg-gray-50">
-                              <td className="py-3 px-4 text-xs text-gray-600">{new Date(s.createdAt).toLocaleString()}</td>
+                              <td className="py-3 px-4 text-xs text-gray-600">{(() => { try { return new Date(s.createdAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }); } catch { return String(s.createdAt); } })()}</td>
                               <td className="py-3 px-4 font-medium">{s.studentName}</td>
                               <td className="py-3 px-4">{s.moduleTitle}</td>
                               <td className="py-3 px-4 whitespace-nowrap"><TypeBadge type={s.submissionType} /></td>
@@ -535,7 +535,7 @@ export default function InstructorAssessments() {
                           <tbody>
                             {attackerSubs.map(s => (
                               <tr key={s.id} className="border-b hover:bg-gray-50">
-                                <td className="py-3 px-4 text-xs text-gray-600">{new Date(s.createdAt).toLocaleString()}</td>
+                                <td className="py-3 px-4 text-xs text-gray-600">{(() => { try { return new Date(s.createdAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }); } catch { return String(s.createdAt); } })()}</td>
                                 <td className="py-3 px-4 font-medium">{s.studentName}</td>
                                 <td className="py-3 px-4 whitespace-nowrap">{s.attackerScore ?? '-'}</td>
                               </tr>
@@ -574,7 +574,7 @@ export default function InstructorAssessments() {
                           <tbody>
                             {defenderSubs.map(s => (
                               <tr key={s.id} className="border-b hover:bg-gray-50">
-                                <td className="py-3 px-4 text-xs text-gray-600">{new Date(s.createdAt).toLocaleString()}</td>
+                                <td className="py-3 px-4 text-xs text-gray-600">{(() => { try { return new Date(s.createdAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }); } catch { return String(s.createdAt); } })()}</td>
                                 <td className="py-3 px-4 font-medium">{s.studentName}</td>
                                 <td className="py-3 px-4 whitespace-nowrap">{s.defenderScore ?? '-'}</td>
                               </tr>

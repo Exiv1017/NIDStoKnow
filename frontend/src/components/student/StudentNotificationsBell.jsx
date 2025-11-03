@@ -140,9 +140,13 @@ const StudentNotificationsBell = ({ refreshIntervalMs = 30000, appearance = 'lig
 
   const formatTime = (t) => {
     if (!t) return '';
-    const d = new Date(t);
-    if (isNaN(d.getTime())) return String(t);
-    return d.toLocaleString();
+    try {
+      const d = new Date(t);
+      if (isNaN(d.getTime())) return String(t);
+      return d.toLocaleString('en-PH', { timeZone: 'Asia/Manila' });
+    } catch {
+      return String(t);
+    }
   };
 
   const iconColorClass = appearance === 'light' ? 'text-[#1E5780]' : 'text-white';
