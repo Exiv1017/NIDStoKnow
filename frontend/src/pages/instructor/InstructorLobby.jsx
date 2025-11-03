@@ -29,29 +29,25 @@ const InstructorLobby = () => {
   const [sending, setSending] = useState(false);
 
   const handleGenerateLobby = async () => {
-    // Generate a lobby without auto-creating a Room. If an instructor Room exists, reuse its code; otherwise use a random code.
+    // Generate a lobby without auto-creating a Room. Always use a random code independent from any Room code.
     try {
       const headers = user?.token ? { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
-      // Fetch instructor rooms to see if we can reuse an existing room code
-      let latestRoomCode = null;
-      try {
-        const resRooms = await fetch('/api/instructor/rooms', { headers });
-        if (resRooms.ok) {
-          const list = await resRooms.json();
-          setRooms(Array.isArray(list) ? list : []);
-          if (Array.isArray(list) && list.length > 0) {
-            // Use most recently created room (first in list is already sorted desc by backend)
-            latestRoomCode = list[0]?.code || null;
-            setLinkedRoomId(list[0]?.id || null);
-          }
-        }
-      } catch {}
-
-      const code = latestRoomCode || Math.random().toString(36).substring(2, 8).toUpperCase();
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       const resLobby = await fetch(`/api/create_lobby/${code}`, { method: 'POST', headers });
       if (!resLobby.ok) throw new Error('create lobby failed');
       setLobbyCode(code);
-      setHasLinkedRoom(Boolean(latestRoomCode));
+      setHasLinkedRoom(false);
+      setLinkedRoomId(null);
+      // Preload rooms so instructor can link a Room explicitly after lobby creation
+      try {
+        const resRooms = await fetch('/api/instructor/rooms', { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
+        if (resRooms.ok) {
+          const list = await resRooms.json();
+          setRooms(Array.isArray(list) ? list : []);
+        } else {
+          setRooms([]);
+        }
+      } catch { setRooms([]); }
       setGenerated(true);
     } catch (err) {
       console.error('handleGenerateLobby', err);
@@ -440,7 +436,47 @@ const InstructorLobby = () => {
                     </button>
                     {!hasLinkedRoom && (
                       <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                        Tip: To start a simulation, you need a Room. Go to Instructor → Rooms to create one, then open the Room and use "Generate Lobby" there. This prevents unwanted room auto-creation.
+                        Tip: To start a simulation, link this Lobby to a Room you created under Instructor → Rooms. Rooms are never auto-created.
+                      </div>
+                    )}
+                    {generated && (
+                      <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Link to Room</label>
+                        <div className="flex gap-2">
+                          <select
+                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                            value={linkedRoomId || ''}
+                            onChange={e => setLinkedRoomId(e.target.value ? Number(e.target.value) : null)}
+                          >
+                            <option value="">Select a Room…</option>
+                            {(rooms||[]).map(r => (
+                              <option key={r.id} value={r.id}>{r.name} (code: {r.code})</option>
+                            ))}
+                          </select>
+                          <button
+                            className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                            disabled={!linkedRoomId}
+                            onClick={async ()=>{
+                              if (!linkedRoomId || !lobbyCode) return;
+                              try {
+                                const headers = { 'Content-Type': 'application/json' };
+                                if (user?.token) headers['Authorization'] = `Bearer ${user.token}`;
+                                const res = await fetch(`/api/instructor/lobbies/${lobbyCode}/link-room`, { method:'POST', headers, body: JSON.stringify({ room_id: linkedRoomId })});
+                                if (!res.ok) throw new Error(await res.text());
+                                setHasLinkedRoom(true);
+                                alert('Lobby linked to Room successfully.');
+                              } catch (e) {
+                                console.error('link-room failed', e);
+                                alert('Failed to link lobby to room');
+                              }
+                            }}
+                          >
+                            Link
+                          </button>
+                        </div>
+                        {!rooms?.length && (
+                          <p className="text-xs text-gray-500 mt-2">No Rooms found. Create one under Instructor → Rooms first.</p>
+                        )}
                       </div>
                     )}
                   </div>

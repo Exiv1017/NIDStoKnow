@@ -572,13 +572,28 @@ def instructor_signup(req: InstructorSignupRequest):
 
 @router.post('/instructor/login')
 def instructor_login(req: InstructorLoginRequest):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    ensure_users_table(cursor)
-    cursor.execute('SELECT * FROM users WHERE email=%s AND userType=%s', (req.email, 'instructor'))
-    user = cursor.fetchone()
-    cursor.close()
-    conn.close()
+    # Guard DB access so reverse proxies return JSON instead of HTML 502 pages when DB is down
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        ensure_users_table(cursor)
+        cursor.execute('SELECT * FROM users WHERE email=%s AND userType=%s', (req.email, 'instructor'))
+        user = cursor.fetchone()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        # Mask internal details but provide actionable hint
+        try:
+            # Best effort cleanup if partially opened
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print(f"[ERROR] /instructor/login DB failure: {e}")
+        raise HTTPException(status_code=503, detail='Service temporarily unavailable. Please try again later.')
     if not user:
         raise HTTPException(status_code=404, detail='Email not found')
     if not check_password_hash(user['password_hash'], req.password):

@@ -104,6 +104,22 @@ try:
 except Exception:
     pass
 
+# Lightweight unauthenticated health check for API and DB connectivity
+@app.get("/api/healthz")
+def healthz():
+    api_status = "ok"
+    db_status = "error"
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.fetchone()
+        cur.close(); conn.close()
+        db_status = "ok"
+    except Exception as _e:
+        db_status = "error"
+    return {"api": api_status, "db": db_status, "time": int(time.time())}
+
 # Serve uploaded files (avatars, etc.)
 try:
     BASE_DIR = os.path.dirname(__file__)
@@ -975,9 +991,26 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
                 '''
             )
-            # Lookup room by code
-            cur.execute('SELECT id, instructor_id FROM simulation_rooms WHERE code=%s OR last_run_code=%s LIMIT 1', (lobby_code, lobby_code))
-            row = cur.fetchone()
+            # Resolve room by explicit lobby link first
+            row = None
+            try:
+                cur.execute('SELECT room_id FROM lobbies WHERE code=%s LIMIT 1', (lobby_code,))
+                lr = cur.fetchone()
+                if lr:
+                    try:
+                        linked_room_id = int(lr[0]) if isinstance(lr, tuple) else int(lr.get('room_id'))
+                    except Exception:
+                        linked_room_id = None
+                    if linked_room_id:
+                        cur.execute('SELECT id, instructor_id FROM simulation_rooms WHERE id=%s LIMIT 1', (linked_room_id,))
+                        row = cur.fetchone()
+            except Exception:
+                row = None
+
+            # If not linked, attempt by code or run code (legacy)
+            if not row:
+                cur.execute('SELECT id, instructor_id FROM simulation_rooms WHERE code=%s OR last_run_code=%s LIMIT 1', (lobby_code, lobby_code))
+                row = cur.fetchone()
             if not row:
                 # First attempt: try to remap this incoming lobby_code to a persisted room
                 # based on the connecting user's membership (students) or ownership (instructors).
@@ -1021,40 +1054,17 @@ async def simulation_websocket(websocket: WebSocket, lobby_code: str):
                     # ignore remap failures and proceed with original fallback
                     pass
 
-                # Defensive fallback: try to find a persisted lobby definition in `lobbies` table
                 if not row:
                     try:
-                        logging.warning(f"[simulation_ws] simulation_rooms row not found for code={lobby_code}, attempting fallback to lobbies table")
+                        logging.warning(f"[simulation_ws] no room mapped to lobby={lobby_code} and none found by code; deny connection")
                     except Exception:
                         pass
                     try:
-                        cur.execute('SELECT created_by FROM lobbies WHERE code=%s LIMIT 1', (lobby_code,))
-                        lobby_row = cur.fetchone()
-                        if lobby_row:
-                            # DO NOT automatically create simulation_rooms from lobbies.
-                            # Creation must be performed explicitly by an instructor via the UI/API.
-                            try:
-                                logging.warning(f"[simulation_ws] found lobby definition in 'lobbies' for code={lobby_code} but automatic creation is disabled")
-                            except Exception:
-                                pass
-                            # leave `row` as None so we fall through to the not-found handling
+                        cur.close(); conn.close()
                     except Exception:
-                        # If fallback attempt fails, proceed to close
-                        row = None
-                    except Exception:
-                        # If fallback attempt fails, proceed to close
-                        row = None
-                    if not row:
-                        try:
-                            logging.warning(f"[simulation_ws] lobby not found: {lobby_code}")
-                        except Exception:
-                            pass
-                        try:
-                            cur.close(); conn.close()
-                        except Exception:
-                            pass
-                        await websocket.close(code=4404)
-                        return
+                        pass
+                    await websocket.close(code=4404)
+                    return
             room_id = int(row[0] if isinstance(row, tuple) else row[0])
             instr_id = int(row[1] if isinstance(row, tuple) else row[1])
             # Enforce role rules

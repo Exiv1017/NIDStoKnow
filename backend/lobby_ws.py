@@ -23,13 +23,18 @@ def ensure_tables():
               code VARCHAR(32) PRIMARY KEY,
               difficulty VARCHAR(32) DEFAULT 'Beginner',
               created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-              created_by INT NULL
+              created_by INT NULL,
+              room_id INT NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """
         )
         # Backfill column on existing deployments (ignore if already present)
         try:
             cur.execute("ALTER TABLE lobbies ADD COLUMN created_by INT NULL")
+        except Exception:
+            pass
+        try:
+            cur.execute("ALTER TABLE lobbies ADD COLUMN room_id INT NULL")
         except Exception:
             pass
         cur.execute(
@@ -59,12 +64,12 @@ def hydrate_lobby_from_db(lobby_code: str) -> bool:
     """Load a lobby definition and participants from DB into memory if present."""
     try:
         conn = get_db_connection(); cur = conn.cursor(dictionary=True)
-        cur.execute("SELECT code, difficulty, created_by FROM lobbies WHERE code=%s", (lobby_code,))
+        cur.execute("SELECT code, difficulty, created_by, room_id FROM lobbies WHERE code=%s", (lobby_code,))
         row = cur.fetchone()
         if not row:
             cur.close(); conn.close(); return False
         # Create in-memory lobby
-        lobbies[lobby_code] = {"participants": [], "chat": [], "difficulty": row.get("difficulty") or "Beginner", "created_by": row.get("created_by")}
+        lobbies[lobby_code] = {"participants": [], "chat": [], "difficulty": row.get("difficulty") or "Beginner", "created_by": row.get("created_by"), "room_id": row.get("room_id")}
         cur.execute("SELECT name, role, ready FROM lobby_participants WHERE code=%s ORDER BY joined_at ASC", (lobby_code,))
         for p in cur.fetchall() or []:
             lobbies[lobby_code]["participants"].append({"name": p["name"], "role": p["role"], "ready": bool(p["ready"])})
@@ -149,7 +154,7 @@ async def lobby_websocket(websocket: WebSocket, lobby_code: str):
                     except Exception as e:
                         try: logging.error(f"[lobby_ws] persist join failed: {e}")
                         except Exception: pass
-                    # If the joining participant is a student, also add them to simulation_room_members
+                    # If the joining participant is a student and lobby is linked to a Room, add them to that Room's membership
                     try:
                         user_id = None
                         try:
@@ -183,32 +188,11 @@ async def lobby_websocket(websocket: WebSocket, lobby_code: str):
                                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
                                             '''
                                         )
-                                        # Find room id; do NOT auto-create a canonical simulation_rooms row here.
-                                        # Creating simulation_rooms during lobby joins caused duplicate/extra
-                                        # room records when backends restarted or clients reconnected.
-                                        cur2.execute('SELECT id FROM simulation_rooms WHERE code=%s LIMIT 1', (lobby_code,))
-                                        rr = cur2.fetchone()
-                                        if not rr:
-                                            try:
-                                                # Best-effort info for operators; skip creating a simulation_rooms row.
-                                                try:
-                                                    logging.warning(f"[lobby_ws] simulation_rooms row not found for code={lobby_code}; skipping member persistence")
-                                                except Exception:
-                                                    pass
-                                                rr = None
-                                            except Exception:
-                                                rr = None
-                                        if rr:
-                                            try:
-                                                room_id = int(rr[0])
-                                            except Exception:
-                                                try:
-                                                    room_id = int(rr.get('id'))
-                                                except Exception:
-                                                    room_id = None
-                                            if room_id:
-                                                cur2.execute('INSERT IGNORE INTO simulation_room_members (room_id, student_id) VALUES (%s, %s)', (room_id, user_id))
-                                                conn2.commit()
+                                        # Use explicit lobby->room link if present; do NOT match by code
+                                        room_id = lobby.get('room_id')
+                                        if room_id:
+                                            cur2.execute('INSERT IGNORE INTO simulation_room_members (room_id, student_id) VALUES (%s, %s)', (int(room_id), user_id))
+                                            conn2.commit()
                             except Exception:
                                 try:
                                     conn2.rollback()
@@ -338,13 +322,22 @@ async def broadcast_simulation_start(lobby_code: str):
     def _gen_run():
         return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     run_code = _gen_run()
-    # Best-effort persist: set last_run_code on simulation_rooms where code matches this lobby
+    # Best-effort persist: set last_run_code on the linked Room, if any
     try:
         conn = get_db_connection(); cur = conn.cursor()
         try:
-            # Try to update the canonical room row's last_run_code
-            cur.execute('UPDATE simulation_rooms SET last_run_code=%s WHERE code=%s', (run_code, lobby_code))
-            conn.commit()
+            # Load linked room_id from lobbies table
+            cur.execute('SELECT room_id FROM lobbies WHERE code=%s', (lobby_code,))
+            r = cur.fetchone()
+            room_id = None
+            if r:
+                try:
+                    room_id = int(r[0]) if isinstance(r, tuple) else int(r.get('room_id'))
+                except Exception:
+                    room_id = None
+            if room_id:
+                cur.execute('UPDATE simulation_rooms SET last_run_code=%s WHERE id=%s', (run_code, room_id))
+                conn.commit()
         except Exception:
             try:
                 conn.rollback()
@@ -435,6 +428,51 @@ async def api_create_lobby(lobby_code: str, request: Request):
         except Exception:
             pass
     return {"success": True, "code": lobby_code, "created_by": instructor_id}
+
+class _LinkRoomRequest:
+    def __init__(self, room_id: int | None = None):
+        self.room_id = room_id
+
+@router.post("/instructor/lobbies/{lobby_code}/link-room")
+async def instructor_link_lobby_room(lobby_code: str, request: Request):
+    # Require instructor and verify ownership of the room
+    payload = require_role(request, 'instructor')
+    instr_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+    if not instr_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        body = await request.json()
+        room_id = int(body.get('room_id'))
+    except Exception:
+        raise HTTPException(status_code=400, detail="room_id required")
+    ensure_tables()
+    try:
+        conn = get_db_connection(); cur = conn.cursor(dictionary=True)
+        # Verify room ownership
+        cur.execute('SELECT id FROM simulation_rooms WHERE id=%s AND instructor_id=%s', (room_id, instr_id))
+        own = cur.fetchone()
+        if not own:
+            cur.close(); conn.close()
+            raise HTTPException(status_code=403, detail="Forbidden")
+        # Persist link
+        cur.execute('UPDATE lobbies SET room_id=%s, created_by=COALESCE(created_by, %s) WHERE code=%s', (room_id, instr_id, lobby_code))
+        if cur.rowcount == 0:
+            # Create row if missing
+            cur.execute('INSERT INTO lobbies (code, difficulty, created_by, room_id) VALUES (%s,%s,%s,%s) ON DUPLICATE KEY UPDATE room_id=VALUES(room_id), created_by=VALUES(created_by)', (lobby_code, 'Beginner', instr_id, room_id))
+        conn.commit(); cur.close(); conn.close()
+        # Update in-memory lobby
+        l = lobbies.get(lobby_code)
+        if l:
+            l['room_id'] = room_id
+        return {"status": "linked", "code": lobby_code, "room_id": room_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail="Failed to link room")
 
 @router.post("/admin/lobbies/{lobby_code}/close")
 async def admin_close_lobby(lobby_code: str, request: Request):
