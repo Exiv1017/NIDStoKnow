@@ -1195,11 +1195,11 @@ def notify_room_members(request: Request, room_id: int, req: NotifyRoomRequest):
         own = cursor.fetchone()
         if not own:
             raise HTTPException(status_code=403, detail='Forbidden')
-    # Load room code and members
-    cursor.execute('SELECT code FROM simulation_rooms WHERE id=%s', (room_id,))
-    rowc = cursor.fetchone() or {}
-    room_code = (rowc.get('code') if isinstance(rowc, dict) else None) or None
-    cursor.execute('SELECT DISTINCT student_id FROM simulation_room_members WHERE room_id=%s', (room_id,))
+        # Load room code and members
+        cursor.execute('SELECT code FROM simulation_rooms WHERE id=%s', (room_id,))
+        rowc = cursor.fetchone() or {}
+        room_code = (rowc.get('code') if isinstance(rowc, dict) else None) or None
+        cursor.execute('SELECT DISTINCT student_id FROM simulation_room_members WHERE room_id=%s', (room_id,))
         rows = cursor.fetchall() or []
         member_ids = {int(r.get('student_id')) for r in rows if r and r.get('student_id') is not None}
         if not member_ids:
