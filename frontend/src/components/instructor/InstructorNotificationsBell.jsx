@@ -174,7 +174,7 @@ const InstructorNotificationsBell = ({ refreshIntervalMs = 30000, appearance = '
                     </div>
                   </div>
                   {!n.read && (
-                    <button onClick={() => markRead(n.id)} className="text-xs text-blue-600 hover:underline ml-auto whitespace-nowrap">Mark read</button>
+                    <button onClick={() => markRead(n.id)} className="text-xs text-blue-600 hover:underline ml-auto whitespace-nowrap">Mark as read</button>
                   )}
                 </li>
               ))}
