@@ -49,10 +49,13 @@ export default function Submissions() {
   };
 
   const practicalSubs = uniqueById(filtered.filter(s => s.submissionType === 'practical'));
-  const simSubs = uniqueById(filtered.filter(s => s.submissionType === 'simulation'));
-  // For attacker/defender we will show the same simulation submissions but different columns
-  const attackerSubs = simSubs;
-  const defenderSubs = simSubs;
+  // Split simulation rows by role using the presence of attackerScore/defenderScore
+  const attackerSubs = uniqueById(
+    filtered.filter(s => s.submissionType === 'simulation' && s.attackerScore !== null && s.attackerScore !== undefined)
+  );
+  const defenderSubs = uniqueById(
+    filtered.filter(s => s.submissionType === 'simulation' && s.defenderScore !== null && s.defenderScore !== undefined)
+  );
 
   return (
     <div className="min-h-screen bg-white">

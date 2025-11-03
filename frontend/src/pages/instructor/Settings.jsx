@@ -287,7 +287,7 @@ const Settings = () => {
       <main className="ml-64 overflow-y-auto">
         <div className="p-8">
           <div className="flex justify-between items-center mb-8">
-                <h1 className="text-2xl font-semibold text-black">Settigns</h1>
+                <h1 className="text-2xl font-semibold text-black">Settings</h1>
           </div>
 
           <div className="bg-white rounded-lg shadow-sm">

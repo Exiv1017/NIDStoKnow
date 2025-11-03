@@ -43,9 +43,10 @@ const ObserverSimulation = () => {
   const wsRef = useRef(null);
   const [scores, setScores] = useState({});
   const [obParticipants, setObParticipants] = useState(participants || []);
+  const normalizeRole = (r) => (r || '').toString().trim().toLowerCase();
   const [rolesByName, setRolesByName] = useState(() => {
     const map = {};
-    (participants || []).forEach(p => { if (p?.name) map[p.name] = p.role; });
+    (participants || []).forEach(p => { if (p?.name) map[p.name] = normalizeRole(p.role); });
     return map;
   });
   const [showGuide, setShowGuide] = useState(true);
@@ -66,6 +67,21 @@ const ObserverSimulation = () => {
     setChatInput('');
   };
   
+  // Helper to recompute role scores from the scoreboard with sensible fallbacks
+  const updateRoleScores = (scoresMap, rolesMap) => {
+    try {
+      const entries = Object.entries(scoresMap || {});
+      const values = entries.map(([, v]) => Number.isFinite(v) ? v : 0);
+      const maxOverall = values.length ? Math.max(...values) : 0;
+      const attVals = entries.filter(([n]) => (rolesMap[n] || '') === 'attacker').map(([, v]) => Number(v) || 0);
+      const defVals = entries.filter(([n]) => (rolesMap[n] || '') === 'defender').map(([, v]) => Number(v) || 0);
+      const attackerScore = attVals.length ? Math.max(...attVals) : maxOverall;
+      const defenderScore = defVals.length ? Math.max(...defVals) : maxOverall;
+      setAttackerView(prev => ({ ...prev, score: attackerScore }));
+      setDefenderView(prev => ({ ...prev, score: defenderScore }));
+    } catch {}
+  };
+
   useEffect(() => {
     if (!lobbyCode) {
       navigate('/student/lobby');
@@ -76,6 +92,9 @@ const ObserverSimulation = () => {
   wsRef.current = new WebSocket(buildWsUrl(`/simulation/${lobbyCode}`, user?.token));
     wsRef.current.onopen = () => {
   safeSend(wsRef.current, { type: MessageTypes.JOIN, name, role });
+      // Request an initial scoreboard snapshot so observer sees current scores even if
+      // attacker/defender joined earlier
+      try { safeSend(wsRef.current, { type: 'request_scoreboard' }); } catch {}
     };
     
     wsRef.current.onmessage = (event) => {
@@ -130,12 +149,14 @@ const ObserverSimulation = () => {
           const pname = data.name;
           const pscore = data.score;
           setScores(prev => ({ ...prev, [pname]: pscore }));
-          const role = rolesByName[pname];
-          if (role === 'Attacker') {
-            setAttackerView(prev => ({ ...prev, score: pscore }));
-          } else if (role === 'Defender') {
-            setDefenderView(prev => ({ ...prev, score: pscore }));
-          }
+          // Recompute role scores using current mapping; fall back to overall max
+          setTimeout(() => updateRoleScores({ ...scores, [pname]: pscore }, rolesByName), 0);
+          break;
+        }
+        case 'scoreboard': {
+          const s = data.scores || {};
+          setScores(s);
+          updateRoleScores(s, rolesByName);
           break;
         }
         case MessageTypes.SIMULATION_END:
@@ -158,7 +179,9 @@ const ObserverSimulation = () => {
         case MessageTypes.PARTICIPANT_JOINED: {
           const entry = { name: data.name, role: data.role };
           setObParticipants(prev => Array.isArray(prev) ? [...prev, entry] : [entry]);
-          setRolesByName(prev => ({ ...prev, [entry.name]: entry.role }));
+          setRolesByName(prev => ({ ...prev, [entry.name]: normalizeRole(entry.role) }));
+          // After learning a new participant role, recompute role scores
+          setTimeout(() => updateRoleScores(scores, { ...rolesByName, [entry.name]: normalizeRole(entry.role) }), 0);
           break;
         }
       }
@@ -175,6 +198,11 @@ const ObserverSimulation = () => {
       }
     };
   }, [lobbyCode, navigate]);
+
+  // Keep role scores in sync when either the scoreboard or role mapping changes
+  useEffect(() => {
+    updateRoleScores(scores, rolesByName);
+  }, [scores, rolesByName]);
 
   // Pause-aware timer
   useEffect(() => {

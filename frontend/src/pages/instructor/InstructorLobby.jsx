@@ -11,6 +11,8 @@ const InstructorLobby = () => {
   const [lobbyCode, setLobbyCode] = useState('');
   const [generated, setGenerated] = useState(false);
   const [participants, setParticipants] = useState([]);
+  const [hasLinkedRoom, setHasLinkedRoom] = useState(false);
+  const [rooms, setRooms] = useState([]);
   // difficulty/configuration removed from instructor lobby UI
   const [chat, setChat] = useState([]);
   const [chatInput, setChatInput] = useState('');
@@ -19,18 +21,28 @@ const InstructorLobby = () => {
   // Config modal/state removed
 
   const handleGenerateLobby = async () => {
-    // Ask backend to create a simulation room (server-generated code), then create a lobby with that same code.
+    // Generate a lobby without auto-creating a Room. If an instructor Room exists, reuse its code; otherwise use a random code.
     try {
       const headers = user?.token ? { 'Authorization': `Bearer ${user.token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
-      // Create a simulation room on the server so the room code is authoritative
-      const resRoom = await fetch('/api/instructor/rooms', { method: 'POST', headers, body: JSON.stringify({ name: 'Lobby' }) });
-      if (!resRoom.ok) throw new Error('failed to create simulation room');
-      const roomData = await resRoom.json();
-      const code = (roomData && roomData.code) ? roomData.code : (Math.random().toString(36).substring(2, 8).toUpperCase());
-      // Now persist a lobby entry that maps to this room code
+      // Fetch instructor rooms to see if we can reuse an existing room code
+      let latestRoomCode = null;
+      try {
+        const resRooms = await fetch('/api/instructor/rooms', { headers });
+        if (resRooms.ok) {
+          const list = await resRooms.json();
+          setRooms(Array.isArray(list) ? list : []);
+          if (Array.isArray(list) && list.length > 0) {
+            // Use most recently created room (first in list is already sorted desc by backend)
+            latestRoomCode = list[0]?.code || null;
+          }
+        }
+      } catch {}
+
+      const code = latestRoomCode || Math.random().toString(36).substring(2, 8).toUpperCase();
       const resLobby = await fetch(`/api/create_lobby/${code}`, { method: 'POST', headers });
       if (!resLobby.ok) throw new Error('create lobby failed');
       setLobbyCode(code);
+      setHasLinkedRoom(Boolean(latestRoomCode));
       setGenerated(true);
     } catch (err) {
       console.error('handleGenerateLobby', err);
@@ -111,13 +123,15 @@ const InstructorLobby = () => {
     const hasDefender = (roles.Defender || 0) >= 1;
     const allReady = participants.filter(p => p.role !== 'Instructor').every(p => p.ready);
     const hasMinimumParticipants = participants.filter(p => p.role !== 'Instructor').length >= 2;
+    const roomLinked = hasLinkedRoom; // must have a Room mapped for simulation WS authorization
     
     return {
-      canStart: hasAttacker && hasDefender && allReady && hasMinimumParticipants,
+      canStart: hasAttacker && hasDefender && allReady && hasMinimumParticipants && roomLinked,
       hasAttacker,
       hasDefender,
       allReady,
       hasMinimumParticipants,
+      roomLinked,
       roles
     };
   };
@@ -132,6 +146,7 @@ const InstructorLobby = () => {
       if (!readiness.hasDefender) message += "• Need at least 1 Defender\n";
       if (!readiness.allReady) message += "• All participants must be ready\n";
       if (!readiness.hasMinimumParticipants) message += "• Need minimum 2 participants\n";
+      if (!readiness.roomLinked) message += "• This lobby isn't linked to a Room yet (Rooms authorize the Simulation).\n    Go to Instructor → Rooms to create/select a Room and use its page to generate a lobby, or ensure a Room exists.\n";
       
       alert(message);
       return;
@@ -326,6 +341,10 @@ const InstructorLobby = () => {
                               <span>{readiness.hasMinimumParticipants ? '✓' : '✗'}</span>
                               <span>Minimum 2 participants</span>
                             </div>
+                            <div className={`flex items-center gap-2 ${readiness.roomLinked ? 'text-green-600' : 'text-red-600'}`}>
+                              <span>{readiness.roomLinked ? '✓' : '✗'}</span>
+                              <span>Linked to a Room (required to start)</span>
+                            </div>
                           </div>
                         </div>
                       );
@@ -335,6 +354,11 @@ const InstructorLobby = () => {
                     <button className="w-full bg-red-50 hover:bg-red-100 text-red-700 py-2 px-4 rounded-lg font-medium transition-colors duration-200 text-left" onClick={handleCloseLobby}>
                       Close Lobby
                     </button>
+                    {!hasLinkedRoom && (
+                      <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        Tip: To start a simulation, you need a Room. Go to Instructor → Rooms to create one, then open the Room and use "Generate Lobby" there. This prevents unwanted room auto-creation.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

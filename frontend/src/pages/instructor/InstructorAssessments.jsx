@@ -519,7 +519,7 @@ export default function InstructorAssessments() {
                     (() => {
                       const base = subs.filter(s => {
                         const matchesQ = subsSearchRaw.trim() === '' || `${s.studentName} ${s.moduleTitle} ${s.moduleSlug}`.toLowerCase().includes(subsSearchRaw.toLowerCase());
-                        return matchesQ && s.submissionType === 'simulation';
+                        return matchesQ && s.submissionType === 'simulation' && s.attackerScore !== null && s.attackerScore !== undefined;
                       });
                       const attackerSubs = sortSubs(uniqueById(base));
                       if (attackerSubs.length === 0) return <div className="py-6 text-center text-gray-400">No attacker submissions.</div>;
@@ -558,7 +558,7 @@ export default function InstructorAssessments() {
                     (() => {
                       const base = subs.filter(s => {
                         const matchesQ = subsSearchRaw.trim() === '' || `${s.studentName} ${s.moduleTitle} ${s.moduleSlug}`.toLowerCase().includes(subsSearchRaw.toLowerCase());
-                        return matchesQ && s.submissionType === 'simulation';
+                        return matchesQ && s.submissionType === 'simulation' && s.defenderScore !== null && s.defenderScore !== undefined;
                       });
                       const defenderSubs = sortSubs(uniqueById(base));
                       if (defenderSubs.length === 0) return <div className="py-6 text-center text-gray-400">No defender submissions.</div>;
