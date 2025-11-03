@@ -11,9 +11,8 @@ const InstructorLobby = () => {
   const [lobbyCode, setLobbyCode] = useState('');
   const [generated, setGenerated] = useState(false);
   const [participants, setParticipants] = useState([]);
-  const [hasLinkedRoom, setHasLinkedRoom] = useState(false);
-  const [linkedRoomId, setLinkedRoomId] = useState(null);
-  const [rooms, setRooms] = useState([]);
+  // Current Room context: inferred from Rooms "Enter Room" action
+  const [currentRoom, setCurrentRoom] = useState(null);
   // difficulty/configuration removed from instructor lobby UI
   const [chat, setChat] = useState([]);
   const [chatInput, setChatInput] = useState('');
@@ -36,18 +35,19 @@ const InstructorLobby = () => {
       const resLobby = await fetch(`/api/create_lobby/${code}`, { method: 'POST', headers });
       if (!resLobby.ok) throw new Error('create lobby failed');
       setLobbyCode(code);
-      setHasLinkedRoom(false);
-      setLinkedRoomId(null);
-      // Preload rooms so instructor can link a Room explicitly after lobby creation
+      // Auto-link this lobby to the current Room (if any)
       try {
-        const resRooms = await fetch('/api/instructor/rooms', { headers: user?.token ? { 'Authorization': `Bearer ${user.token}` } : {} });
-        if (resRooms.ok) {
-          const list = await resRooms.json();
-          setRooms(Array.isArray(list) ? list : []);
-        } else {
-          setRooms([]);
+        const stored = localStorage.getItem('instructor_current_room');
+        if (stored) {
+          const room = JSON.parse(stored);
+          setCurrentRoom(room);
+          if (room?.id) {
+            const linkHeaders = { 'Content-Type': 'application/json' };
+            if (user?.token) linkHeaders['Authorization'] = `Bearer ${user.token}`;
+            await fetch(`/api/instructor/lobbies/${code}/link-room`, { method:'POST', headers: linkHeaders, body: JSON.stringify({ room_id: room.id }) });
+          }
         }
-      } catch { setRooms([]); }
+      } catch (e) { /* linking optional; do not block lobby generation */ }
       setGenerated(true);
     } catch (err) {
       console.error('handleGenerateLobby', err);
@@ -128,7 +128,7 @@ const InstructorLobby = () => {
     const hasDefender = (roles.Defender || 0) >= 1;
     const allReady = participants.filter(p => p.role !== 'Instructor').every(p => p.ready);
     const hasMinimumParticipants = participants.filter(p => p.role !== 'Instructor').length >= 2;
-    const roomLinked = hasLinkedRoom; // must have a Room mapped for simulation WS authorization
+  const roomLinked = !!(currentRoom && currentRoom.id); // implicit link via current Room context
     
     return {
       canStart: hasAttacker && hasDefender && allReady && hasMinimumParticipants && roomLinked,
@@ -191,21 +191,21 @@ const InstructorLobby = () => {
   };
 
   const openNotifyAll = async () => {
-    if (!hasLinkedRoom || !linkedRoomId) return;
+  if (!currentRoom?.id) return;
     setNotifyMode('all');
     setNotifyMessage('');
     setNotifyOpen(true);
   };
 
   const openNotifySpecific = async () => {
-    if (!hasLinkedRoom || !linkedRoomId) return;
+  if (!currentRoom?.id) return;
     setNotifyMode('specific');
     setNotifyMessage('');
     setSelectedStudentIds([]);
     // Lazy load students for this room
     try {
       const headers = user?.token ? { 'Authorization': `Bearer ${user.token}` } : {};
-      const res = await fetch(`/api/instructor/students?room_id=${encodeURIComponent(linkedRoomId)}`, { headers });
+  const res = await fetch(`/api/instructor/students?room_id=${encodeURIComponent(currentRoom.id)}`, { headers });
       if (res.ok) {
         const list = await res.json();
         setRoomStudents(Array.isArray(list) ? list : []);
@@ -223,13 +223,13 @@ const InstructorLobby = () => {
   };
 
   const sendNotification = async () => {
-    if (!hasLinkedRoom || !linkedRoomId || !notifyMessage.trim()) return;
+  if (!currentRoom?.id || !notifyMessage.trim()) return;
     setSending(true);
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (user?.token) headers['Authorization'] = `Bearer ${user.token}`;
-      const body = notifyMode === 'specific' ? { message: notifyMessage.trim(), student_ids: selectedStudentIds } : { message: notifyMessage.trim() };
-      const res = await fetch(`/api/instructor/rooms/${linkedRoomId}/notify`, { method: 'POST', headers, body: JSON.stringify(body) });
+  const body = notifyMode === 'specific' ? { message: notifyMessage.trim(), student_ids: selectedStudentIds } : { message: notifyMessage.trim() };
+  const res = await fetch(`/api/instructor/rooms/${currentRoom.id}/notify`, { method: 'POST', headers, body: JSON.stringify(body) });
       if (!res.ok) {
         const t = await res.text();
         throw new Error(t || 'Failed to send');
@@ -316,7 +316,7 @@ const InstructorLobby = () => {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full mt-6">
               {/* Floating notify actions (visible only when a Room is linked) */}
-              {hasLinkedRoom && (
+              {currentRoom?.id && (
                 <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3">
                   <button
                     onClick={openNotifyAll}
@@ -434,51 +434,12 @@ const InstructorLobby = () => {
                     <button className="w-full bg-red-50 hover:bg-red-100 text-red-700 py-2 px-4 rounded-lg font-medium transition-colors duration-200 text-left" onClick={handleCloseLobby}>
                       Close Lobby
                     </button>
-                    {!hasLinkedRoom && (
+                    {!currentRoom?.id && (
                       <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
                         Tip: To start a simulation, link this Lobby to a Room you created under Instructor → Rooms. Rooms are never auto-created.
                       </div>
                     )}
-                    {generated && (
-                      <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Link to Room</label>
-                        <div className="flex gap-2">
-                          <select
-                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
-                            value={linkedRoomId || ''}
-                            onChange={e => setLinkedRoomId(e.target.value ? Number(e.target.value) : null)}
-                          >
-                            <option value="">Select a Room…</option>
-                            {(rooms||[]).map(r => (
-                              <option key={r.id} value={r.id}>{r.name} (code: {r.code})</option>
-                            ))}
-                          </select>
-                          <button
-                            className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-                            disabled={!linkedRoomId}
-                            onClick={async ()=>{
-                              if (!linkedRoomId || !lobbyCode) return;
-                              try {
-                                const headers = { 'Content-Type': 'application/json' };
-                                if (user?.token) headers['Authorization'] = `Bearer ${user.token}`;
-                                const res = await fetch(`/api/instructor/lobbies/${lobbyCode}/link-room`, { method:'POST', headers, body: JSON.stringify({ room_id: linkedRoomId })});
-                                if (!res.ok) throw new Error(await res.text());
-                                setHasLinkedRoom(true);
-                                alert('Lobby linked to Room successfully.');
-                              } catch (e) {
-                                console.error('link-room failed', e);
-                                alert('Failed to link lobby to room');
-                              }
-                            }}
-                          >
-                            Link
-                          </button>
-                        </div>
-                        {!rooms?.length && (
-                          <p className="text-xs text-gray-500 mt-2">No Rooms found. Create one under Instructor → Rooms first.</p>
-                        )}
-                      </div>
-                    )}
+                    {/* Manual link UI removed: lobby uses the current Room context automatically */}
                   </div>
                 </div>
               </div>

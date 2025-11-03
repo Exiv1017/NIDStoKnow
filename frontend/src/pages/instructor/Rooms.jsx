@@ -287,7 +287,13 @@ const Rooms = () => {
                     {/* Action Buttons */}
                     <div className="p-6 pt-0 flex items-center gap-3">
                       <button 
-                        onClick={() => navigate(`/instructor-dashboard?room_id=${encodeURIComponent(r.id)}`)} 
+                        onClick={() => {
+                          try {
+                            const payload = { id: r.id, code: r.code, name: r.name };
+                            localStorage.setItem('instructor_current_room', JSON.stringify(payload));
+                          } catch (e) { /* non-fatal */ }
+                          navigate(`/instructor-dashboard?room_id=${encodeURIComponent(r.id)}`)
+                        }} 
                         className="flex-1 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center gap-2"
                       >
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
