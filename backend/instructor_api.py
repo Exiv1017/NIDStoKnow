@@ -1185,6 +1185,7 @@ def create_simulation_room(request: Request, req: CreateRoomRequest):
 class NotifyRoomRequest(BaseModel):
     message: str
     student_ids: Optional[List[int]] = None  # when omitted/empty, notify all room members
+    lobby_code: Optional[str] = None  # optional: prefer this lobby code in message prefix if it is linked to the room
 
 
 @router.post('/instructor/rooms/{room_id}/notify')
@@ -1214,6 +1215,28 @@ def notify_room_members(request: Request, room_id: int, req: NotifyRoomRequest):
         cursor.execute('SELECT code FROM simulation_rooms WHERE id=%s', (room_id,))
         rowc = cursor.fetchone() or {}
         room_code = (rowc.get('code') if isinstance(rowc, dict) else None) or None
+        # Prefer lobby_code provided by the caller when valid (linked to this room); otherwise, use most recent linked lobby
+        lobby_code = None
+        provided = (req.lobby_code or '').strip().upper() if getattr(req, 'lobby_code', None) else None
+        if provided:
+            try:
+                cursor.execute('SELECT room_id FROM lobbies WHERE code=%s LIMIT 1', (provided,))
+                rl = cursor.fetchone()
+                linked_room_id = None
+                if rl:
+                    linked_room_id = int(rl[0]) if isinstance(rl, tuple) else int(rl.get('room_id') or 0)
+                if linked_room_id and linked_room_id == int(room_id):
+                    lobby_code = provided
+            except Exception:
+                lobby_code = None
+        if not lobby_code:
+            try:
+                cursor.execute('SELECT code FROM lobbies WHERE room_id=%s ORDER BY created_at DESC LIMIT 1', (room_id,))
+                rl = cursor.fetchone()
+                if rl:
+                    lobby_code = rl.get('code') if isinstance(rl, dict) else (rl[0] if isinstance(rl, tuple) and len(rl) > 0 else None)
+            except Exception:
+                lobby_code = None
         cursor.execute('SELECT DISTINCT student_id FROM simulation_room_members WHERE room_id=%s', (room_id,))
         rows = cursor.fetchall() or []
         member_ids = {int(r.get('student_id')) for r in rows if r and r.get('student_id') is not None}
@@ -1234,7 +1257,13 @@ def notify_room_members(request: Request, room_id: int, req: NotifyRoomRequest):
         sent = 0
         for sid in targets:
             try:
-                out_msg = f"[Lobby {room_code}] {msg}" if room_code else msg
+                # Prefer the actual lobby code when available; fall back to Room code; otherwise no prefix
+                if lobby_code:
+                    out_msg = f"[Lobby {lobby_code}] {msg}"
+                elif room_code:
+                    out_msg = f"[Room {room_code}] {msg}"
+                else:
+                    out_msg = msg
                 create_notification(cursor, 'student', out_msg, 'info', sid)
                 sent += 1
             except Exception:

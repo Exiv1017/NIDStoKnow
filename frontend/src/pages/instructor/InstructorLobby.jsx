@@ -228,7 +228,8 @@ const InstructorLobby = () => {
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (user?.token) headers['Authorization'] = `Bearer ${user.token}`;
-  const body = notifyMode === 'specific' ? { message: notifyMessage.trim(), student_ids: selectedStudentIds } : { message: notifyMessage.trim() };
+  const base = { message: notifyMessage.trim(), lobby_code: lobbyCode };
+  const body = notifyMode === 'specific' ? { ...base, student_ids: selectedStudentIds } : base;
   const res = await fetch(`/api/instructor/rooms/${currentRoom.id}/notify`, { method: 'POST', headers, body: JSON.stringify(body) });
       if (!res.ok) {
         const t = await res.text();
