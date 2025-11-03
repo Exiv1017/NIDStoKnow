@@ -1167,6 +1167,68 @@ def create_simulation_room(request: Request, req: CreateRoomRequest):
         cursor.close(); conn.close()
 
 
+class NotifyRoomRequest(BaseModel):
+    message: str
+    student_ids: Optional[List[int]] = None  # when omitted/empty, notify all room members
+
+
+@router.post('/instructor/rooms/{room_id}/notify')
+def notify_room_members(request: Request, room_id: int, req: NotifyRoomRequest):
+    """Send a notification to all or selected students who joined a specific Room.
+
+    - Auth: instructor; must own the room
+    - If req.student_ids is empty or missing, sends to all members in simulation_room_members
+    - Otherwise sends only to the provided student ids (intersection with members)
+    """
+    payload = require_role(request, 'instructor')
+    instr_id = int(payload.get('sub')) if payload and payload.get('sub') else None
+    if not instr_id:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    msg = (req.message or '').strip()
+    if not msg:
+        raise HTTPException(status_code=400, detail='message required')
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    try:
+        ensure_simulation_rooms_table(cursor)
+        # Verify ownership
+        cursor.execute('SELECT id FROM simulation_rooms WHERE id=%s AND instructor_id=%s LIMIT 1', (room_id, instr_id))
+        own = cursor.fetchone()
+        if not own:
+            raise HTTPException(status_code=403, detail='Forbidden')
+        # Load members
+        cursor.execute('SELECT DISTINCT student_id FROM simulation_room_members WHERE room_id=%s', (room_id,))
+        rows = cursor.fetchall() or []
+        member_ids = {int(r.get('student_id')) for r in rows if r and r.get('student_id') is not None}
+        if not member_ids:
+            return {'sent': 0}
+        # Restrict to provided ids when present
+        targets: List[int]
+        if req.student_ids:
+            targets = [int(sid) for sid in req.student_ids if int(sid) in member_ids]
+        else:
+            targets = list(member_ids)
+        if not targets:
+            return {'sent': 0}
+        # Insert notifications
+        from notifications_helper import ensure_notifications_table, create_notification, migrate_notifications_schema
+        ensure_notifications_table(cursor)
+        migrate_notifications_schema(cursor)
+        sent = 0
+        for sid in targets:
+            try:
+                create_notification(cursor, 'student', msg, 'info', sid)
+                sent += 1
+            except Exception:
+                pass
+        conn.commit()
+        return {'sent': int(sent)}
+    finally:
+        try:
+            cursor.close(); conn.close()
+        except Exception:
+            pass
+
+
 @router.get('/instructor/rooms')
 def list_instructor_rooms(request: Request):
     """List Rooms the authenticated instructor created, including member counts."""

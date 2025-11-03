@@ -12,6 +12,7 @@ const InstructorLobby = () => {
   const [generated, setGenerated] = useState(false);
   const [participants, setParticipants] = useState([]);
   const [hasLinkedRoom, setHasLinkedRoom] = useState(false);
+  const [linkedRoomId, setLinkedRoomId] = useState(null);
   const [rooms, setRooms] = useState([]);
   // difficulty/configuration removed from instructor lobby UI
   const [chat, setChat] = useState([]);
@@ -19,6 +20,13 @@ const InstructorLobby = () => {
   const chatEndRef = useRef(null);
   const wsRef = useRef(null);
   // Config modal/state removed
+  // Notifications UI state
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [notifyMode, setNotifyMode] = useState('all'); // 'all' | 'specific'
+  const [notifyMessage, setNotifyMessage] = useState('');
+  const [roomStudents, setRoomStudents] = useState([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+  const [sending, setSending] = useState(false);
 
   const handleGenerateLobby = async () => {
     // Generate a lobby without auto-creating a Room. If an instructor Room exists, reuse its code; otherwise use a random code.
@@ -34,6 +42,7 @@ const InstructorLobby = () => {
           if (Array.isArray(list) && list.length > 0) {
             // Use most recently created room (first in list is already sorted desc by backend)
             latestRoomCode = list[0]?.code || null;
+            setLinkedRoomId(list[0]?.id || null);
           }
         }
       } catch {}
@@ -185,6 +194,62 @@ const InstructorLobby = () => {
     if (wsRef.current) wsRef.current.close();
   };
 
+  const openNotifyAll = async () => {
+    if (!hasLinkedRoom || !linkedRoomId) return;
+    setNotifyMode('all');
+    setNotifyMessage('');
+    setNotifyOpen(true);
+  };
+
+  const openNotifySpecific = async () => {
+    if (!hasLinkedRoom || !linkedRoomId) return;
+    setNotifyMode('specific');
+    setNotifyMessage('');
+    setSelectedStudentIds([]);
+    // Lazy load students for this room
+    try {
+      const headers = user?.token ? { 'Authorization': `Bearer ${user.token}` } : {};
+      const res = await fetch(`/api/instructor/students?room_id=${encodeURIComponent(linkedRoomId)}`, { headers });
+      if (res.ok) {
+        const list = await res.json();
+        setRoomStudents(Array.isArray(list) ? list : []);
+      } else {
+        setRoomStudents([]);
+      }
+    } catch {
+      setRoomStudents([]);
+    }
+    setNotifyOpen(true);
+  };
+
+  const toggleStudent = (id) => {
+    setSelectedStudentIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const sendNotification = async () => {
+    if (!hasLinkedRoom || !linkedRoomId || !notifyMessage.trim()) return;
+    setSending(true);
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (user?.token) headers['Authorization'] = `Bearer ${user.token}`;
+      const body = notifyMode === 'specific' ? { message: notifyMessage.trim(), student_ids: selectedStudentIds } : { message: notifyMessage.trim() };
+      const res = await fetch(`/api/instructor/rooms/${linkedRoomId}/notify`, { method: 'POST', headers, body: JSON.stringify(body) });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t || 'Failed to send');
+      }
+      setNotifyOpen(false);
+      setNotifyMessage('');
+      setSelectedStudentIds([]);
+      alert('Notification sent');
+    } catch (e) {
+      console.error('sendNotification', e);
+      alert('Failed to send notification');
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <InstructorSidebar />
@@ -254,6 +319,25 @@ const InstructorLobby = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full mt-6">
+              {/* Floating notify actions (visible only when a Room is linked) */}
+              {hasLinkedRoom && (
+                <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3">
+                  <button
+                    onClick={openNotifyAll}
+                    className="px-4 py-3 rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium"
+                    title="Send a notification to all students in this Room"
+                  >
+                    Notify All Students
+                  </button>
+                  <button
+                    onClick={openNotifySpecific}
+                    className="px-4 py-3 rounded-full shadow-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium"
+                    title="Send a notification to selected students in this Room"
+                  >
+                    Notify Specific Students
+                  </button>
+                </div>
+              )}
               {/* Lobby Code Section */}
               <div className="lg:col-span-1">
                 <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
@@ -478,6 +562,62 @@ const InstructorLobby = () => {
             </div>
           )}
           {/* Settings modal removed */}
+          {/* Notify modal */}
+          {notifyOpen && (
+            <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+                <div className="p-4 border-b flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">{notifyMode === 'all' ? 'Notify All Students' : 'Notify Specific Students'}</h3>
+                  <button onClick={() => setNotifyOpen(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+                </div>
+                <div className="p-4 space-y-4">
+                  {notifyMode === 'specific' && (
+                    <div className="max-h-56 overflow-auto border rounded-lg">
+                      {roomStudents.length === 0 ? (
+                        <div className="p-3 text-sm text-gray-500">No students found in this Room yet.</div>
+                      ) : (
+                        <ul className="divide-y">
+                          {roomStudents.map(s => (
+                            <li key={s.id} className="flex items-center justify-between px-3 py-2">
+                              <div className="min-w-0">
+                                <div className="font-medium text-gray-900 truncate">{s.name || `Student ${s.id}`}</div>
+                                <div className="text-xs text-gray-500 truncate">ID: {s.id}</div>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={selectedStudentIds.includes(s.id)}
+                                onChange={() => toggleStudent(s.id)}
+                                className="w-4 h-4"
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                    <textarea
+                      value={notifyMessage}
+                      onChange={e => setNotifyMessage(e.target.value)}
+                      className="w-full border rounded-lg p-2 min-h-[100px]"
+                      placeholder="Type the notification message..."
+                    />
+                  </div>
+                </div>
+                <div className="p-4 border-t flex justify-end gap-2">
+                  <button className="px-3 py-2 border rounded" onClick={() => setNotifyOpen(false)}>Cancel</button>
+                  <button
+                    disabled={sending || !notifyMessage.trim() || (notifyMode==='specific' && selectedStudentIds.length===0)}
+                    onClick={sendNotification}
+                    className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                  >
+                    {sending ? 'Sending…' : 'Send Notification'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
   </div>
       </div>
     </div>
