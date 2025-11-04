@@ -1735,73 +1735,7 @@ def create_feedback(request: Request, req: FeedbackCreate):
     finally:
         cursor.close(); conn.close()
 
-@router.get('/instructor/notifications')
-def instructor_notifications():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        ensure_notifications_table(cursor)
-        # Return unread notifications targeted at instructors (broadcast if recipient_id is NULL)
-        cursor.execute(
-            '''
-            SELECT id, message, time, type, `read`
-            FROM notifications
-            WHERE (recipient_role = 'instructor' AND (recipient_id IS NULL OR recipient_id > 0))
-              AND `read` = 0
-            ORDER BY time DESC
-            LIMIT 10
-            '''
-        )
-        notifications = cursor.fetchall()
-        return notifications if notifications else []
-    except Exception as e:
-        print(f"[ERROR] Failed to fetch notifications: {e}")
-        return []
-    finally:
-        cursor.close(); conn.close()
-
-@router.get('/instructor/notifications/count')
-def instructor_notifications_count():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        ensure_notifications_table(cursor)
-        cursor.execute(
-            '''
-            SELECT COUNT(*) FROM notifications
-            WHERE (recipient_role = 'instructor' AND (recipient_id IS NULL OR recipient_id > 0))
-              AND `read` = 0
-            '''
-        )
-        row = cursor.fetchone()
-        return {"count": int(row[0]) if row else 0}
-    except Exception as e:
-        print(f"[ERROR] Failed to count notifications: {e}")
-        return {"count": 0}
-    finally:
-        cursor.close(); conn.close()
-
-@router.patch('/instructor/notifications/{notification_id}/read')
-def instructor_mark_notification_read(notification_id: int):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        ensure_notifications_table(cursor)
-        cursor.execute(
-            '''
-            UPDATE notifications SET `read`=1
-            WHERE id=%s AND (recipient_role='instructor' OR recipient_role IS NULL) AND `read`=0
-            ''', (notification_id,)
-        )
-        conn.commit()
-        if cursor.rowcount == 0:
-            return {"status": "noop"}
-        return {"status": "success"}
-    except Exception as e:
-        print(f"[ERROR] Failed to mark instructor notification read: {e}")
-        raise HTTPException(status_code=500, detail='Failed to mark notification as read')
-    finally:
-        cursor.close(); conn.close()
+# Removed legacy duplicate notification endpoints that shadowed the authenticated, per-instructor versions above.
 
 @router.get('/instructor/feedback-trend')
 def instructor_feedback_trend(request: Request):
