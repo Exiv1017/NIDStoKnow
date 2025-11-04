@@ -1057,7 +1057,12 @@ def instructor_modules(request: Request):
             total_students = int(total_row.get('totalStudents') or 0)
             cursor.execute('''
                 SELECT
-                    sp.module_name AS name,
+                    CASE
+                        WHEN LOWER(sp.module_name) LIKE '%anomaly%' THEN 'Anomaly-Based Detection'
+                        WHEN LOWER(sp.module_name) LIKE '%hybrid%' THEN 'Hybrid Detection'
+                        WHEN LOWER(sp.module_name) LIKE '%signature%' THEN 'Signature-Based Detection'
+                        ELSE sp.module_name
+                    END AS name,
                     COUNT(DISTINCT sp.student_id) AS students_with_progress,
                     SUM(CASE WHEN (
                         (COALESCE(sp.total_lessons,0) > 0 AND COALESCE(sp.lessons_completed,0) >= COALESCE(sp.total_lessons,0))
@@ -1067,7 +1072,7 @@ def instructor_modules(request: Request):
                 JOIN (
                     SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id=%s
                 ) s ON s.student_id = sp.student_id
-                GROUP BY sp.module_name
+                GROUP BY name
             ''', (room_id,))
             rows = cursor.fetchall() or []
             try:
@@ -1088,7 +1093,12 @@ def instructor_modules(request: Request):
             # Aggregate progress only for these students
             cursor.execute('''
                 SELECT
-                    sp.module_name AS name,
+                    CASE
+                        WHEN LOWER(sp.module_name) LIKE '%anomaly%' THEN 'Anomaly-Based Detection'
+                        WHEN LOWER(sp.module_name) LIKE '%hybrid%' THEN 'Hybrid Detection'
+                        WHEN LOWER(sp.module_name) LIKE '%signature%' THEN 'Signature-Based Detection'
+                        ELSE sp.module_name
+                    END AS name,
                     COUNT(DISTINCT sp.student_id) AS students_with_progress,
                     SUM(CASE WHEN (
                         (COALESCE(sp.total_lessons,0) > 0 AND COALESCE(sp.lessons_completed,0) >= COALESCE(sp.total_lessons,0))
@@ -1098,7 +1108,7 @@ def instructor_modules(request: Request):
                 JOIN (
                     SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
                 ) s ON s.student_id = sp.student_id
-                GROUP BY sp.module_name
+                GROUP BY name
             ''', (instr_id,))
             rows = cursor.fetchall() or []
             try:
