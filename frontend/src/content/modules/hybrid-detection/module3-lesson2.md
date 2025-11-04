@@ -1,4 +1,54 @@
-<card class="mb-8">
+## **_Model Routing Strategy_**
+
+Hybrid systems process thousands of logs, alerts, and packet streams. Not
+every event belongs in the same analysis path. Model routing distributes data
+to the most suitable detection models to maximize accuracy and efficiency.
+
+### Why model routing matters
+
+Without routing, every event might pass through every model, wasting compute
+and generating redundant alerts. Good routing ensures:
+- Events go to the most appropriate model.
+- Resources are used efficiently.
+- The system maintains both speed and accuracy.
+
+### How routing works
+
+Three common layers:
+- Pre‑processing & classification: normalize and tag events (web traffic,
+  login, file transfer) to decide fit for signature, anomaly, or hybrid.
+- Routing: assign to model(s).
+  - Signature model for known attack patterns (Snort/Suricata).
+  - Anomaly model for behavior that doesn’t match signatures.
+  - Correlation model for partial matches across systems.
+  Policies can adapt dynamically by load or recent results.
+- Fusion & feedback: aggregate results, check overlap, reinforce detections,
+  and feed learning back into routing policies.
+
+### Example
+
+Repeated access attempts to a finance server:
+- Signature model flags known brute‑force IP.
+- Anomaly model notes login frequency beyond baseline.
+- Routing merges both as a high‑priority hybrid alert.
+
+### Dynamic and policy‑based routing
+
+- Peak hours: prioritize fast signature checks.
+- Off hours: route more to anomaly for deeper learning.
+- Policy examples: “External IP touching a critical asset → send to both
+  engines.”
+
+### Benefits
+
+- Efficiency and scalability.
+- Higher accuracy via specialization.
+- Better collaboration: engines reinforce each other.
+
+### Key takeaway
+
+Routing is the decision‑making backbone of hybrid detection. It directs events
+to the right models so the system stays fast, adaptive, and confident.<card class="mb-8">
 
 <div style="padding:5px; border-radius:12px; max-width:800px; margin:auto; text-align:justify;">
 

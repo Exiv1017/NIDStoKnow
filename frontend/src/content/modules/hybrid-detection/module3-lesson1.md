@@ -1,4 +1,42 @@
-<card class="mb-8">
+## **_Feedback Loop Integration_**
+
+Threats evolve, so static defenses fall behind. Hybrid detection systems use
+feedback loops—continuous learning mechanisms—to improve accuracy over time and
+reduce false positives.
+
+### How feedback loops work
+
+- Detection: hybrid system (signature + anomaly) identifies a suspicious
+  event.
+- Verification: analysts confirm true/false positives.
+- Learning: outcomes adjust thresholds, rules, or ML models.
+- Deployment: updated configs push back into detection engines.
+
+This cycle repeats so the system adapts to real network behavior.
+
+### Types of feedback
+
+- Manual: analysts tag events; the system learns from expert decisions.
+- Automated: ML adjusts sensitivity and correlation weights from outcomes.
+- Hybrid: automation assists while humans prevent bias/overfitting.
+
+### Benefits
+
+- Continuous improvement of normal vs. malicious discrimination.
+- Environment‑specific thresholds (e.g., finance vs. education).
+- Analyst empowerment; system learns from the SOC, not over it.
+- Fewer false alarms and clearer signals.
+
+### In practice
+
+If 100 login anomalies occur and analysts mark 80 as benign and 20 as real,
+the next cycle lowers sensitivity for benign patterns and raises it for true
+intrusion indicators. After iterations, alerts become more precise.
+
+### Key takeaway
+
+Feedback loops turn static detection into adaptive defense. Each investigation
+teaches the system, making tomorrow’s detection stronger.<card class="mb-8">
 
 <div style="padding:5px; border-radius:12px; max-width:800px; margin:auto; text-align:justify;">
 

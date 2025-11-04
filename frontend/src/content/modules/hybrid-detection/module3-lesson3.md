@@ -34,83 +34,53 @@ Adjust fusion thresholds and logic.
 Feed labels back to both systems and fusion layer.
 </accordion>
 
-</card>
+## **_Combined Threshold Governance_**
 
-<key-points>
-- Measure both detection and operations.
-- Iterate using feedback.
-</key-points>
+Alert decisions in hybrid detection depend on multiple signals. Governance gives
+you a safe, transparent way to combine thresholds across engines, so you reduce
+noise without missing real attacks.
 
-<accordion title="Activity — reflection" open="true" class="mb-8">
-```activity
-{
-  "type": "reflection",
-  "question": "Which metric would you optimize first and why?"
-}
-```
-</accordion>
+### Why combine thresholds?
 
-**Objectives:**
+- Single thresholds drift or get gamed by attackers.
+- Signature and anomaly engines see different facets of risk.
+- A governed combo produces fewer false positives and clearer triage.
 
-- Understand the key ideas in this lesson
-- See one practical example
-- Check your understanding
+### Core signals to combine
 
-**Tabs:**
+- Signature confidence score (rule strength, hit context).
+- Anomaly score (statistical deviation, rarity, peer distance).
+- Context risk (asset criticality, user sensitivity, exposure).
+- Correlation weight (supporting events within a window).
 
-- Overview: Placeholder overview for this topic.
-- Examples: Placeholder examples relevant to this lesson.
-- Pitfalls: Common pitfalls and how to avoid them.
+### Decision policies
 
-**Steps:**
+- Conservative: alert if signature is high OR anomaly is very high.
+- Balanced: alert if (signature medium AND anomaly medium) OR any very high.
+- Aggressive: require multi‑source agreement for most alerts; escalate on
+  correlated bursts.
 
-1. Learn - Read the overview and key ideas.
-2. Apply - Try a simple exercise or scenario.
-3. Verify - Check your understanding.
+### Dynamic adjustment loop
 
-**Image:** [Placeholder](https://via.placeholder.com/960x400)
-| Visual placeholder
-| [Source](https://via.placeholder.com)
+1) Start with baseline thresholds per policy.
+2) Measure precision/recall, volume, MTTR weekly.
+3) Shift thresholds up/down by small deltas based on outcomes.
+4) Log changes with reason codes and approver.
 
-**Warning:** Align stakeholders on alert routing.
+### Example
 
-**Actions:**
+- Signature S1 = 0.6, Anomaly A1 = 0.55, Asset risk R = 0.8
+- Policy: alert if (S1 ≥ 0.6 AND A1 ≥ 0.5) boosted by R ≥ 0.7
+- Result: Alert fires with priority raised one level due to asset risk.
 
-- [View docs](https://example.com/docs)
-- [Try a demo](https://example.com/demo)
+### Governance controls
 
-```activity
-{
-  "type": "mcq",
-  "questions": [
+- Versioned policies, change approvals, and rollbacks.
+- Observability: show which thresholds triggered and why (decision trace).
+- Guardrails: min/max caps to avoid runaway tuning.
+
+### Summary
+
+Treat thresholds as a product: combine multiple signals, adapt safely, and keep
+auditable decisions.
     {
-      "q": "Placeholder knowledge check?",
-      "options": ["Yes", "No"],
-      "ans": 0
-    }
-  ]
-}
-```
-
-**Timeline:**
-
-- T-0 | Learn | Read the lesson highlights
-- T+10m | Apply | Do a small practice
-- T+15m | Review | Take the check
-
-**Checklist:**
-
-- I understand the definitions
-- I can cite a real example
-- I can avoid common pitfalls
-
-**Glossary:**
-
-- Term: Short definition here.
-
-**Resources:**
-
-- [Primary reference](https://example.com/reference)
-- [Related reading](https://example.com/related)
-
-**Video:** [Watch](https://www.youtube.com/embed/VIDEO_ID)

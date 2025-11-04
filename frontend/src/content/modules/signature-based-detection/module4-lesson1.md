@@ -38,9 +38,4 @@ SOAR Actions | High‑confidence alerts trigger blocks, tickets, or notification
  | SIEM + IDS = context and speed |
  | AI and automation raise coverage and efficiency |
 
----
-
-## **Media**
-
-Image: [Module 4 Lesson 1 Placeholder](https://placehold.co/960x540?text=Real-World+Application) | Replace with cloud/network diagram or SIEM dashboard. | [Source](https://placehold.co)
 

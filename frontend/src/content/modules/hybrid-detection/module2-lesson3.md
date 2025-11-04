@@ -1,4 +1,45 @@
-<card class="mb-8">
+## **_Risk Prioritization_**
+
+After correlation and enrichment, the system must decide which alerts deserve
+attention first. Risk prioritization assigns scores, severities, or priority
+tags so teams act on the most critical threats quickly.
+
+### What is risk prioritization?
+
+Scoring or ranking events by factors such as asset criticality, threat
+reputation, deviation strength, correlation confidence, and historical
+patterns. High scores surface first; low scores can be logged for tuning or
+trend analysis.
+
+### Key factors in risk scoring
+
+- Asset criticality: sensitive systems and data raise priority.
+- Threat reputation: known‑bad IPs/domains increase risk.
+- Behavioral deviation: distance from baseline.
+- Correlation confidence: agreement between engines.
+- History: repeated alerts from the same entity.
+
+### Using risk scores
+
+- High risk → immediate notification/automation.
+- Medium risk → analyst review during shift.
+- Low risk → logged, monitored, or auto‑closed after validation.
+
+### Example
+
+Suspicious file and network activity from a workstation:
+- Asset belongs to finance.
+- Destination IP appears on a blacklist.
+- Anomaly detector notes unusual writes and traffic.
+- Signature and anomaly engines flag the same session.
+
+Result: high risk score routed to incident response.
+
+### Summary
+
+Risk prioritization filters and ranks alerts by importance. By combining asset
+value, threat context, deviation, and correlation confidence, hybrid systems
+help teams act efficiently and avoid alert fatigue.<card class="mb-8">
 
 <div style="padding:5px; border-radius:12px; max-width:800px; margin:auto; text-align:justify;">
 

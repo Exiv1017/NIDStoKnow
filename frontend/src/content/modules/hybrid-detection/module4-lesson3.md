@@ -34,83 +34,33 @@ Retain alerts and decisions for audits.
 Map detection to policy requirements.
 </accordion>
 
-</card>
+## **_Continuous Hardening_**
 
-<key-points>
-- Use hybrid outputs for audits.
-- Align detections to policy.
-</key-points>
+Hybrid systems improve with disciplined, ongoing hardening. Make tuning,
+validation, and resilience part of your normal operations—not a one‑off project.
 
-<accordion title="Activity — reflection" open="true" class="mb-8">
-```activity
-{
-  "type": "reflection",
-  "question": "Which compliance control benefits most from hybrid NIDS?"
-}
-```
-</accordion>
+### Practices that move the needle
 
-**Objectives:**
+- Drift detection: watch for rule/model/threshold drift vs. baselines.
+- Canary detections: deploy safe test rules to measure sensitivity changes.
+- Adversary emulation: schedule purple‑team scenarios to validate coverage.
+- Chaos for detections: inject benign noise and failure to test stability.
+- Post‑incident reviews: capture what to change in rules, models, and playbooks.
 
-- Understand the key ideas in this lesson
-- See one practical example
-- Check your understanding
+### KPIs to track
 
-**Tabs:**
+- False‑positive rate, precision/recall, and alert re‑open rate.
+- Mean time to detect/respond; investigation cycle time.
+- Coverage health: rules without hits, models without feedback, orphan playbooks.
 
-- Overview: Placeholder overview for this topic.
-- Examples: Placeholder examples relevant to this lesson.
-- Pitfalls: Common pitfalls and how to avoid them.
+### Cadence
 
-**Steps:**
+- Weekly: threshold nudges, rule hygiene, feedback review.
+- Monthly: model retraining, gap analysis, control audits.
+- Quarterly: scenario‑based validation and end‑to‑end flow tests.
 
-1. Learn - Read the overview and key ideas.
-2. Apply - Try a simple exercise or scenario.
-3. Verify - Check your understanding.
+### Summary
 
-**Image:** [Placeholder](https://via.placeholder.com/960x400)
-| Visual placeholder
-| [Source](https://via.placeholder.com)
+Hardening is a habit. Small, regular improvements keep hybrid detection sharp,
+explainable, and resilient.
 
-**Warning:** Iterate on tuning after feedback.
-
-**Actions:**
-
-- [View docs](https://example.com/docs)
-- [Try a demo](https://example.com/demo)
-
-```activity
-{
-  "type": "mcq",
-  "questions": [
-    {
-      "q": "Placeholder knowledge check?",
-      "options": ["True", "False"],
-      "ans": 1
-    }
-  ]
-}
-```
-
-**Timeline:**
-
-- T-0 | Learn | Read the lesson highlights
-- T+10m | Apply | Do a small practice
-- T+15m | Review | Take the check
-
-**Checklist:**
-
-- I understand the definitions
-- I can cite a real example
-- I can avoid common pitfalls
-
-**Glossary:**
-
-- Term: Short definition here.
-
-**Resources:**
-
-- [Primary reference](https://example.com/reference)
-- [Related reading](https://example.com/related)
-
-**Video:** [Watch](https://www.youtube.com/embed/VIDEO_ID)

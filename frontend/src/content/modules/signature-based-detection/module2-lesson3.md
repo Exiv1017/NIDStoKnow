@@ -1,4 +1,4 @@
-### **Overview**
+## **_Overview_**
 
 While signature-based detection focuses on identifying known threats using predefined rules, modern intrusion detection systems (IDS) like **Suricata** and **Snort** extend this process through enhanced workflows. These techniques improve precision, reduce false positives, and provide deeper context about each event.
 
@@ -44,7 +44,7 @@ Scoped Rule Sets | Apply different rule packs by zone/asset criticality.
 
 ---
 
-## **Summary**
+## **_Summary_**
 
 [[Icons]]
  | Chain rules to capture stages |
@@ -54,12 +54,5 @@ Scoped Rule Sets | Apply different rule packs by zone/asset criticality.
 
 Next: Tooling — Snort vs Suricata in practice.
 
----
-
-## **Media**
-
-Image: [Module 2 Lesson 3 Placeholder](https://placehold.co/960x540?text=Extended+Workflow)
-| Replace with a flowbits/correlation schematic or SIEM screenshot. | [Source](https://placehold.co)
-This additional context improves **incident response efficiency** and **threat understanding**.
 
 

@@ -26,93 +26,44 @@ Deploying hybrid NIDS at scale.
 
 **Reliability**
 
-<accordion title="Backpressure" open="false">
-Handle spikes without data loss.
-</accordion>
+## **_Unified Alert Flow_**
 
-<accordion title="Failover" open="false">
-Redundant paths and hot standbys.
-</accordion>
+Hybrid detection becomes useful when its outputs flow through a single,
+understandable alert pipeline. This lesson shows how to unify signals into one
+incident stream that analysts can trust.
 
-</card>
+### End‑to‑end flow
 
-<key-points>
-- Plan for spikes and failures.
-- Keep SLOs for latency and loss.
-</key-points>
+1) Ingest: events from signature engine and anomaly engine enter a common bus.
+2) Normalize: map fields to a shared schema (src, dst, user, asset, tactic).
+3) De‑duplicate: collapse equivalent alerts with stable event IDs.
+4) Correlate: stitch related events within time windows and entity graphs.
+5) Enrich: add asset criticality, user role, threat intel, geo, and history.
+6) Score & route: apply combined thresholds to set priority and owner queue.
+7) Notify & track: open/merge incidents in the case system with status SLOs.
 
-<accordion title="Activity — multiple choice" open="true" class="mb-8">
-```activity
-{
-  "type": "mcq",
-  "questions": [
-    { "q": "What helps packet processing at high rates?", "options": ["Single queue NIC", "Multi-queue NIC", "Disable RSS"], "ans": 1 }
-  ]
-}
-```
-</accordion>
+### Design patterns
 
-**Objectives:**
+- Idempotency keys to avoid alert storms on retries.
+- Sliding windows per entity to group bursts (e.g., 5m by src IP).
+- Backpressure and buffering for spikes; shed low‑value telemetry
+	first.
+- Explicit lineage: store which detections and thresholds produced the alert.
 
-- Understand the key ideas in this lesson
-- See one practical example
-- Check your understanding
+### Example
 
-**Tabs:**
+Port‑scan signature hits 50 times in 2 minutes while anomaly detects rare
+east‑west connections. Unified flow correlates them as one “Reconnaissance”
+incident, not 51 separate alerts, and routes to the network queue with high
+priority due to asset risk.
 
-- Overview: Placeholder overview for this topic.
-- Examples: Placeholder examples relevant to this lesson.
-- Pitfalls: Common pitfalls and how to avoid them.
+### Outputs and SLOs
 
-**Steps:**
+- One incident object with evidence, entities, and decision trace.
+- SLOs: alerting latency, de‑duplication rate, merge accuracy, reopen rate.
 
-1. Learn - Read the overview and key ideas.
-2. Apply - Try a simple exercise or scenario.
-3. Verify - Check your understanding.
+### Summary
 
-**Image:** [Placeholder](https://via.placeholder.com/960x400)
-| Visual placeholder
-| [Source](https://via.placeholder.com)
+Unify first, then optimize. A clear, consistent alert flow turns hybrid signals
+into action.
 
-**Tip:** Monitor cost and latency impacts.
-
-**Actions:**
-
-- [View docs](https://example.com/docs)
-- [Try a demo](https://example.com/demo)
-
-```activity
-{
-  "type": "mcq",
-  "questions": [
-    {
-      "q": "Placeholder knowledge check?",
-      "options": ["A", "B", "C"],
-      "ans": 2
-    }
-  ]
-}
-```
-
-**Timeline:**
-
-- T-0 | Learn | Read the lesson highlights
-- T+10m | Apply | Do a small practice
-- T+15m | Review | Take the check
-
-**Checklist:**
-
-- I understand the definitions
-- I can cite a real example
-- I can avoid common pitfalls
-
-**Glossary:**
-
-- Term: Short definition here.
-
-**Resources:**
-
-- [Primary reference](https://example.com/reference)
-- [Related reading](https://example.com/related)
-
-**Video:** [Watch](https://www.youtube.com/embed/VIDEO_ID)

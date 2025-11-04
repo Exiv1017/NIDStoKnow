@@ -66,52 +66,42 @@ Audit trails and evidence for decisions.
 **Steps:**
 
 1. Learn - Read the overview and key ideas.
-2. Apply - Try a simple exercise or scenario.
-3. Verify - Check your understanding.
+## **_Composite Playbooks_**
 
-**Image:** [Placeholder](https://via.placeholder.com/960x400)
-| Visual placeholder
-| [Source](https://via.placeholder.com)
+Playbooks turn hybrid detections into consistent action. Composite playbooks use
+both signature context and anomaly strength to choose the right response—fast
+when confidence is high, cautious when it’s not.
 
-**Note:** Plan incident response handoffs.
+### Trigger matrix (example)
 
-**Actions:**
+- Low confidence: create case, add enrichment tasks, watch for correlation.
+- Medium confidence: add containment prep (isolate on repeat), notify owner.
+- High confidence: block IOC, isolate host/user, open P1 incident, page on‑call.
 
-- [View docs](https://example.com/docs)
-- [Try a demo](https://example.com/demo)
+### Common actions
 
-```activity
-{
-  "type": "mcq",
-  "questions": [
-    {
-      "q": "Placeholder knowledge check?",
-      "options": ["Yes", "No"],
-      "ans": 1
-    }
-  ]
-}
-```
+- Contain: quarantine endpoint, revoke tokens, disable account, block IP/domain.
+- Collect: acquire logs, memory, PCAP; snapshot cloud workload; preserve chain
+  of custody.
+- Coordinate: open ticket, assign responder, set SLOs, notify stakeholders.
+- Verify: run detection in validation mode on similar assets to catch spread.
 
-**Timeline:**
+### Guardrails
 
-- T-0 | Learn | Read the lesson highlights
-- T+10m | Apply | Do a small practice
-- T+15m | Review | Take the check
+- Rate limits and blast‑radius controls (per user, host, site).
+- Audit everything: who/what/why, including the hybrid decision trace.
 
-**Checklist:**
+### Example
 
-- I understand the definitions
-- I can cite a real example
-- I can avoid common pitfalls
+Anomaly flags data exfil volume, signature hits on known C2 domain, and
+correlation links VPN login from a new country. The composite playbook:
 
-**Glossary:**
+1) Blocks the domain and cuts the session.
+2) Disables the account and opens a P1 with evidence attached.
+3) Launches host triage tasks and notifies the incident commander.
 
-- Term: Short definition here.
+### Summary
 
-**Resources:**
+Design playbooks around hybrid confidence, with safety rails. The best response
+is the one you can execute reliably at 3 a.m.
 
-- [Primary reference](https://example.com/reference)
-- [Related reading](https://example.com/related)
-
-**Video:** [Watch](https://www.youtube.com/embed/VIDEO_ID)

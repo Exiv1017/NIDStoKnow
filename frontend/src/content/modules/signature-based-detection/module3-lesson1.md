@@ -37,10 +37,3 @@ Suricata Highlights | Multi‑threading across cores.<br>Automatic protocol dete
  | Security Onion: dashboards from both engines |
 
 Summary: Both rely on signatures; Suricata adds scale and telemetry. Pick per environment — or run both.
-
----
-
-## **Media**
-
-Image: [Module 3 Lesson 1 Placeholder](https://placehold.co/960x540?text=Snort+vs+Suricata) | Replace with logos/architecture diagram or Security Onion dashboard. | [Source](https://placehold.co)
-

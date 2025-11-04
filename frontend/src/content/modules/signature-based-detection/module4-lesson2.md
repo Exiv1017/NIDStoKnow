@@ -29,8 +29,3 @@ Summary: Signatures are essential but partial — plan for hybrid coverage.
 
 ---
 
-## **Media**
-
-Image: [Module 4 Lesson 2 Placeholder](https://placehold.co/960x540?text=Limitations)
-| Replace with a pros/cons visual or coverage diagram. | [Source](https://placehold.co)
-

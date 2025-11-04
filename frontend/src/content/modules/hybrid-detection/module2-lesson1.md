@@ -1,4 +1,75 @@
-<card class="mb-8">
+## **_Correlation Layers_**
+
+Hybrid detection relies on combining multiple engines and data sources to
+uncover both known and unknown threats. Detection alone isn’t enough—analysts
+must understand how events connect to form an attack pattern. Correlation
+layers link individual alerts, logs, and network events to reveal the complete
+story behind a potential incident.
+
+### What is correlation?
+
+Correlation connects events across systems to identify meaningful
+relationships that may indicate malicious activity. Instead of analyzing each
+signal in isolation, the system relates them by host, user, IP, or time.
+
+Example chain:
+- Suspicious login attempt
+- A new process starting on the same host
+- Unusual outbound traffic immediately after
+
+Individually they may look benign; together they signal a coordinated attack.
+
+### Why it matters in hybrid detection
+
+Hybrid detection combines signature- and anomaly-based outputs. Correlation
+layers ensure both engines reinforce each other. If a signature flags a known
+attack while anomaly detection reports unusual behavior nearby in time, the
+correlation layer links them into a single, higher-confidence event.
+
+### Structure of correlation layers
+
+- Data aggregation: collect alerts/logs from IDS, EDR, firewalls, anomaly
+  systems.
+- Normalization: convert formats into a common schema for comparison.
+- Event linking: match by shared attributes (IP, hostname, user, time).
+- Correlation rules/analytics: logical patterns or stats to detect sequences.
+  - Example: if an internal host triggers a port scan and unauthorized login
+    within 10 minutes, raise a high-priority alert.
+- Prioritization: rank by severity so analysts focus on the most critical
+  threats first.
+
+### Common correlation layers in practice
+
+- Network: connect traffic logs, packet data, and flows to spot scans or
+  lateral movement (e.g., spike in DNS queries then unusual HTTP requests).
+- Host: link process behavior, access logs, and system events (e.g., new user
+  plus registry edits or privilege escalation).
+- Temporal: track when events occur to reveal repeated patterns.
+- Behavioral: combine activity patterns to detect stealthy or distributed
+  attacks.
+
+### Benefits
+
+- Reduces alert fatigue by merging related events into one case.
+- Improves accuracy via multi-source validation.
+- Speeds response by connecting signals across systems and timelines.
+- Expands visibility across network, endpoint, and user layers.
+
+### Challenges
+
+- Data overload without careful scoping.
+- False relationships from poorly tuned rules.
+- Format inconsistency requiring strong normalization.
+- Ongoing rule maintenance to follow new techniques and topology changes.
+
+### Summary
+
+Correlation layers unify data, identify meaningful patterns, and turn raw
+alerts into actionable insights. Strong correlation logic deepens awareness of
+attack paths, reduces noise, and improves overall accuracy.
+
+Next: 2.2 Context Enrichment — augment correlated data with metadata and
+threat intelligence to add clarity and drive faster triage.<card class="mb-8">
 
 <div style="padding:5px; border-radius:12px; max-width:800px; margin:auto; text-align:justify;">
 

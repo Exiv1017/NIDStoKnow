@@ -1,4 +1,72 @@
-<card class="mb-8">
+## **_Context Enrichment_**
+
+Correlation connects signals, but even well-correlated data can lack clarity.
+Context enrichment adds information like asset value, user identity,
+geolocation, or threat intelligence so alerts become actionable.
+
+### What is context enrichment?
+
+Adding supplemental data to events and alerts to make them meaningful and easy
+to interpret. Instead of “failed login,” enriched context may include:
+- User: who attempted the login and department
+- Device: host criticality, OS, known vulnerabilities
+- Location: where the login originated
+- Reputation: whether the source IP/domain is on threat feeds
+
+### Why enrichment is essential
+
+- Adds clarity: explains why an alert matters.
+- Reduces noise: filters non‑critical or duplicate alerts.
+- Improves triage: prioritize by risk, asset criticality, correlation
+  confidence.
+- Enables automation: enriched data feeds SOAR workflows.
+
+### How enrichment works
+
+Typical stages (after correlation, before response):
+- Data normalization into a unified schema.
+- Attribute mapping to owners, business units, categories.
+- Threat intelligence integration (IPs, domains, hashes).
+- Environmental context (asset criticality, baselines).
+- Risk scoring and tagging for severity and confidence.
+
+### Common enrichment sources
+
+- Threat intel feeds: Anomali, AbuseIPDB, OTX.
+- Asset inventories and CMDBs.
+- Identity directories (IdP/LDAP) for user linkage.
+- Geolocation databases.
+- Cloud platform metadata (ownership, tags).
+
+### Benefits
+
+- Fewer false positives with risk context.
+- Prioritized response for critical assets and confirmed threats.
+- Faster investigations with all details at a glance.
+- Better automation in SOAR/playbooks.
+
+### Example
+
+Hybrid IDS correlates on a workstation:
+- Login failure and privilege escalation attempt.
+- Spike in traffic to an unknown IP.
+
+After enrichment:
+- Host belongs to a finance user.
+- Destination IP is flagged as malicious.
+- Risk becomes “High,” suggesting data exfiltration.
+
+### Challenges
+
+- Data quality: stale or inaccurate sources can mislead.
+- Over‑enrichment: too much detail overwhelms analysts.
+- Integration limits: validate external feeds.
+- Privacy: respect legal and policy constraints.
+
+### Summary
+
+Context enrichment turns raw alerts into intelligence. Combined with
+correlation, it accelerates triage and enables confident, automated response.<card class="mb-8">
 
 <div style="padding:5px; border-radius:12px; max-width:800px; margin:auto; text-align:justify;">
 

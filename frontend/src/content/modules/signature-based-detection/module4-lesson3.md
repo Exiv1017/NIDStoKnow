@@ -39,8 +39,3 @@ Guardrails | Keep humans‑in‑the‑loop and test before production rollout.
  | Use AI to accelerate coverage, not replace experts |
  | Turn findings into tuned, testable rules |
 
----
-
-## **Media**
-
-Image: [Module 4 Lesson 3 Placeholder](https://placehold.co/960x540?text=Future+%26+Hybrid) | Replace with a layered hybrid architecture diagram. | [Source](https://placehold.co)
