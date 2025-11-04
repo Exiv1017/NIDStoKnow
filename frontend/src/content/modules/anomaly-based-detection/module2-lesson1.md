@@ -1,131 +1,61 @@
-<!-- Module 2 - Lesson 1: How It Works -->
+## **_Correlation Layers_**
 
-[[Objectives]]
-- Identify high-signal network features
-- Distinguish raw vs engineered metrics
-- Map model choice to data shape
-- Apply robust statistics early
+Anomaly detection shines when it connects signals across entities, time, and
+systems—not when it examines each alert in isolation. Correlation layers link
+anomalous events to reveal attack patterns.
 
----
+### What is correlation?
 
-## **Why Features Matter**
-Better features shrink the search space: they encode structure (ratios, dispersion, categorical frequencies) so models focus on real deviation not raw volume swings.
+Correlation connects related events to expose meaningful relationships that may
+indicate malicious activity. For example:
 
----
+- A suspicious login attempt
+- A new process starting on the same host
+- Unusual outbound traffic immediately after
 
-## **Feature Categories**
+Individually these may look harmless; correlated, they can reveal a sequence of
+compromise.
 
-[[FlipCards]]
-Volume Metrics | Bytes, packets, flow duration
-Composition | Protocol / service frequency distribution
-Ratios & Derivatives | Bytes/packet, inbound/outbound skew
-Temporal Patterns | Inter-arrival variance, burstiness index
-Entity Relationships | Peer count, unique ports per host
+### Why correlation matters in anomaly detection
 
-[[Highlight: tone=indigo title=Robust Stats]]
-Median + MAD (median absolute deviation) tolerate heavy tails better than mean + std for network data.
+An anomaly engine detects deviations; correlation layers stitch them with other
+signals (auth logs, endpoint events, network flows). When an anomaly aligns in
+time and entity with corroborating signals, confidence rises and noise drops.
 
----
+### Structure of correlation layers
 
-## **Model Options**
+- Data aggregation: collect alerts/logs from IDS, EDR, firewalls, and anomaly
+	models.
+- Normalization: map formats into a shared schema for comparison.
+- Event linking: match by IP, host, user, or time window.
+- Correlation rules/analytics: logical or statistical patterns.
+	- Example: if a host triggers both a port scan and unauthorized login within
+		10 minutes, raise priority.
+- Prioritization: rank by severity for analyst focus.
 
-[[Expandables]]
-Histogram / Quantile :: Non-parametric, interpretable boundary estimation.
-Robust Z / MAD Scores :: Scale-invariant anomaly scoring.
-Isolation Forest :: Fast isolation through random partitioning.
-Clustering (DBSCAN) :: Density-based; flags sparse points.
-Autoencoder :: Learns compressed representation; high recon error → anomaly.
+### Common correlation layers
 
-[[Highlight: tone=indigo title=When to Add Complexity]]
-Escalate from robust statistics to tree / clustering when precision plateaus and remaining false positives share feature patterns a richer model could separate.
+- Network layer: connect traffic/flow records to detect scans or lateral move
+	(e.g., spike in DNS followed by unusual HTTP).
+- Host layer: link processes, access logs, system events (e.g., new user then
+	privilege escalation).
+- Temporal layer: detect periodic or bursty sequences (e.g., every 30
+	seconds).
+- Behavioral layer: combine activity patterns across departments to catch
+	stealthy or distributed attacks.
 
-[[Icons]]
-🧪 | Iterate Simply | Start statistical; justify ML complexity later.
-🧮 | Dimensionality | Avoid flooding early models with noisy fields.
-🔍 | Interpretability | Eases analyst adoption & threshold tuning.
-⚙️ | Maintainability | Favor methods needing fewer retune knobs.
+### Benefits
 
-[[Pitfalls]]
-- Overloading with redundant correlated metrics
-- Skipping scaling/normalization where required
-- Chasing deep models before baseline stability
+- Reduce alert fatigue by merging related events.
+- Improve accuracy through multi‑source validation.
+- Speed response by connecting dots across systems and timelines.
 
-Mitigation: baseline with robust stats, measure precision, then graduate complexity.
+### Challenges
 
----
+- Data overload and processing cost.
+- False relationships from weak rules.
+- Format inconsistency demanding heavy normalization.
+- Rule maintenance as environments and threats evolve.
 
-## **Activity**
-
-[[Poll: Which is a robust dispersion measure?]]
-- Standard Deviation
-- Median Absolute Deviation
-- Range
-
-Answer: Median Absolute Deviation.
-
-[[Match]]
-Need :: Example Feature
-Detect burstiness :: Inter-arrival variance
-Detect lateral spread :: Unique peers per host
-Detect data exfil ratio spike :: Outbound/inbound byte skew
-
-[[Scenario: Sudden Lateral Movement Pattern]]
-Within 15 minutes a host shows a 8× spike in unique peer connections and elevated outbound/inbound byte ratio but stable packet size distribution. How would feature attribution help decide if this is a scan or legitimate service discovery?
-
-[[Reflection: Which existing feature in your environment is most fragile to drift and why?]]
-
-[[Glossary]]
-Median :: Middle value of sorted distribution (robust center).
-MAD :: Median absolute deviation; robust spread estimator.
-Heavy Tail :: Distribution with higher probability of extreme values than Gaussian.
-Robust Z :: (Value - Median) / (1.4826 * MAD) scaling for heavy-tailed data.
-Feature Drift :: Change in the statistical properties of a feature over time.
-Inter-arrival Variance :: Variability in time gaps between consecutive events/packets.
-
----
-
-## **Mini Check**
-
-[[FlipCards]]
-Median+MAD over mean+std for heavy tails | True
-More features always increase signal | False
-
----
-
-## **Key Points**
-- Feature quality > model sophistication early.
-- Robust statistics tame heavy-tailed distributions.
-- Interpretability accelerates tuning cycles.
-- Gradual complexity scaling preserves trust.
-
----
-
-## **Next Lesson**
-We focus on scoring strategies and threshold design.
-
-## 2.1 How It Works
-
-Think of anomaly detection as a system that learns the usual rhythm of data
-and notices when something feels “off.”
-
-### Basic flow
-
-- Learning the normal behavior: observe historical data to understand
-	patterns, averages, and variations.
-- Monitoring new data: compare incoming observations to the learned
-	baseline.
-- Measuring deviations: quantify distance from normal (statistical distances,
-	probability scores, or density measures).
-- Flagging anomalies: mark values far outside normal bounds.
-- Refining the model: adjust to feedback; incorporate new patterns; keep
-	“normal” up to date.
-
-Through this cycle, anomaly detection adapts, separating harmless
-fluctuations from meaningful deviations.
-
----
-
-## Media
-
-Image: [Module 2 Lesson 1 Placeholder](https://placehold.co/960x540?text=How+It+Works)
-| Replace with a simple loop diagram. | [Source](https://placehold.co)
+With tuning and ML‑assisted correlation, anomaly detection moves from reactive
+signals to proactive narratives analysts can act on.

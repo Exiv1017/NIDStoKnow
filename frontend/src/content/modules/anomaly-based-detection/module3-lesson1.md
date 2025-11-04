@@ -1,33 +1,35 @@
-## 3.1 Types of Anomalies
+## **_Feedback Loop Integration_**
 
-Not all anomalies are alike. Recognizing types helps tailor strategies.
+Threats evolve, so static detectors fall behind. Anomaly programs use
+feedback loops—continuous learning from analyst outcomes and new data—to reduce
+false positives and sharpen detection.
 
-### Point anomalies
+### How feedback loops work
 
-A single data point differs sharply from the rest.
+- Detection: anomalies are flagged by models or statistics.
+- Verification: analysts confirm true/false positives.
+- Learning: outcomes adjust thresholds, features, or model parameters.
+- Deployment: updates roll out to scoring services and dashboards.
 
-- Example: readings near 30 °C and one at 100 °C.
+### Types of feedback
 
-### Contextual (conditional) anomalies
+- Manual: analysts label alerts; the system learns from expert judgment.
+- Automated: sensitivity and correlation weights adapt to outcomes.
+- Hybrid: automation proposes; humans approve to avoid bias/overfit.
 
-A point is anomalous only within a context (time, season, or role).
+### Benefits
 
-- Example: high traffic at 03:00 is abnormal; at 15:00 it is normal.
+- Continuous improvement of normal vs. malicious discrimination.
+- Environment‑specific thresholds for domains like finance or education.
+- Lower false alarms; clearer signals and faster triage.
 
-### Collective anomalies
+### In practice
 
-A group of points together is anomalous even if each alone is not.
+If 100 login anomalies occur and analysts mark 80 benign, 20 malicious,
+the next cycle lowers sensitivity for benign patterns and increases it where
+true intrusions appeared. Precision improves over iterations.
 
-- Example: a short sequence of error codes indicating failure.
+### Key takeaway
 
-These distinctions matter because different methods capture different types.
-Contextual and collective anomalies can be missed by point‑only methods.
-
----
-
-## Media
-
-Image:
-[Module 3 Lesson 1 Placeholder](https://placehold.co/960x540?text=Anomaly+Types)
-
-Replace with a visual showing point, contextual, and collective anomalies.
+Feedback loops turn anomaly detection into an adaptive defense. Each
+investigation teaches the system and strengthens tomorrow’s results.

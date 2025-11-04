@@ -1,27 +1,42 @@
-## 3.2 Advantages and Strengths
+## **_Model Routing Strategy_**
 
-Done well, anomaly detection offers:
+“Where should this data go?” Not every event should hit every model. Routing
+assigns data to the most suitable detector to keep anomaly systems efficient
+and accurate.
 
-- Early warning and prevention
-  - Issues often leave anomaly footprints before failure.
-- Adaptivity to new situations
-  - Finds previously unseen patterns or threats and learns as conditions
-    change.
-- Data‑driven decision support
-  - Uncovers subtle signals beyond manual rules or intuition.
-- Scalability and continuous monitoring
-  - Real‑time analysis across many metrics or sensors at volume.
-- Broad applicability
-  - Finance, operations, cybersecurity, healthcare, manufacturing, and more.
+### Why routing matters
 
-Together, these strengths help organizations stay resilient, proactive, and
-responsive.
+Without routing, every event passes through every model, wasting compute and
+producing redundant alerts. Smart routing:
 
----
+- Sends events to the best‑fit model (signature, anomaly, correlation).
+- Preserves speed at volume.
+- Improves precision by avoiding noisy paths.
 
-## Media
+### How routing works
 
-Image:
-[Module 3 Lesson 2 Placeholder](https://placehold.co/960x540?text=Advantages)
+- Pre‑processing and classification: normalize and tag events (e.g., “login,”
+  “web,” “file transfer”).
+- Routing layer: assign to model(s):
+  - Signature model for known patterns.
+  - Anomaly model for unknown, behavior‑based patterns.
+  - Correlation model when partial matches appear across sources.
+- Fusion and feedback: aggregate results; reinforce agreements; adjust
+  policies from outcomes.
 
-Replace with a concise graphic summarizing the benefits.
+### Dynamic/policy‑based routing
+
+- Peak hours: prioritize faster checks (e.g., signatures first).
+- Off‑hours: deeper anomaly passes for learning.
+- Policies: “If external IP touches critical asset, send to both engines.”
+
+### Example
+
+Repeated access attempts target a finance server. Signatures flag known brute
+force; anomaly flags login frequency well beyond baseline. Routing merges
+signals into a high‑priority alert.
+
+### Key takeaway
+
+Routing is the conductor: it balances specialization and coordination so each
+model does its best work.

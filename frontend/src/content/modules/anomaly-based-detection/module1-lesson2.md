@@ -36,8 +36,8 @@ When evaluating such flags, we consider:
 
 A robust detection system aims to maximize correct flags while minimizing both types of errors.
 
-[[Highlight: tone=indigo title=Analyst Note]]
-Thin or outdated baselines inflate false positives; align retraining with stable operating periods.
+> Analyst note: Thin or outdated baselines inflate false positives; align
+> retraining with stable operating periods.
 
 ## **_Summary_**
 Baselining lies at the heart of anomaly detection. It provides the standard against which deviations are judged. By defining, adapting, and refining this standard, we empower systems to detect when things stray from the ordinary.

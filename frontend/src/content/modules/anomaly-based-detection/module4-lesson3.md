@@ -1,50 +1,29 @@
-## 4.3 Summary and Review
+## **_Continuous Hardening_**
 
-Let us recap the essentials and tie them into a practical checklist.
+Anomaly systems improve with disciplined, ongoing hardening. Make tuning,
+validation, and resilience part of your normal operations—not a one‑off.
 
-### What you learned
+### Practices that move the needle
 
-- Baselines and features
-  - How to craft stable, context aware signals for detection.
+- Drift detection: watch for model/threshold drift vs. baselines.
+- Canary detections: safe test rules to measure sensitivity changes.
+- Adversary emulation: scheduled scenarios to validate coverage.
+- Chaos for detections: inject benign noise/failure to test stability.
+- Post‑incident reviews: feed changes to features, models, and playbooks.
 
-- Detection techniques
-  - From simple statistics to ML models and hybrid stacks.
+### KPIs to track
 
-- Evaluation and tuning
-  - Precision first, then expand recall with measured risk.
+- False‑positive rate, precision/recall, alert reopen rate.
+- Mean time to detect/respond; investigation cycle time.
+- Coverage health: rules without hits, models without feedback, orphan playbooks.
 
-- Drift and lifecycle
-  - Monitor distributions and respond with retune or retrain.
+### Cadence
 
-- Operations
-  - Feedback, playbooks, and dashboards for sustainable scaling.
+- Weekly: threshold nudges, feature hygiene, feedback review.
+- Monthly: retraining and gap analysis; control audits.
+- Quarterly: scenario validations and end‑to‑end flow tests.
 
-### Quick self check
+### Summary
 
-- Can you describe point, contextual, and collective anomalies?
-- Which metrics matter most for your analyst workload band?
-- How would you detect and respond to mild drift vs a sudden shift?
-- What guardrails prevent over automation from hiding incidents?
-
-### A simple playbook outline
-
-1. Triage the alert: confirm asset, owner, and business criticality.
-2. Corroborate signals: auth logs, flows, endpoint, and change calendar.
-3. Decide disposition: benign, true positive, or needs deeper look.
-4. Capture labels and evidence: feed outcomes back to the pipeline.
-5. Review thresholds and features if patterns repeat.
-
-### Takeaway
-
-Anomaly detection shines when paired with context, feedback loops, and a
-disciplined operational cadence. Keep iterations small, observable, and
-reversible.
-
----
-
-## Media
-
-Image:
-[Module 4 Lesson 3 Placeholder](https://placehold.co/960x540?text=Summary+%26+Review)
-
-Replace with a concise summary graphic or checklist visual.
+Hardening is a habit. Small, regular improvements keep anomaly detection sharp,
+explainable, and resilient.

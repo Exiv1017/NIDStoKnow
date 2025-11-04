@@ -1,71 +1,48 @@
-## 3.3 Limitations and Risks
+## **_Combined Threshold Governance_**
 
-Anomaly detection is powerful, but it is not a silver bullet. Knowing its
-limits helps you design safer systems and set realistic expectations.
+Alert decisions depend on multiple signals. Governance provides a safe,
+transparent way to combine thresholds so you reduce noise without missing real
+attacks.
 
-### Common limitations
+### Why combine thresholds?
 
-- False positives and alert fatigue
-  - Sensitive thresholds can overwhelm analysts with benign anomalies.
+- Single thresholds drift or get gamed by attackers.
+- Different detectors see different facets of risk.
+- A governed combo yields fewer false positives and clearer triage.
 
-- Data quality dependency
-  - Missing or inconsistent fields degrade feature stability and scores.
+### Signals to combine
 
-- Drift sensitivity
-  - Natural changes in behavior can look anomalous without context.
+- Anomaly score (deviation, rarity, peer distance).
+- Context risk (asset criticality, user sensitivity, exposure).
+- Correlation weight (supporting events within a window).
+- Optional signature confidence when available.
 
-- Interpretability gaps
-  - Complex models can be hard to explain during triage.
+### Decision policies
 
-- Cold start and warm‑up time
-  - Baselines need representative history to stabilize.
+- Conservative: alert if anomaly is very high or multi‑source strong.
+- Balanced: alert if anomaly medium + context risk medium, or any very high.
+- Aggressive: require multi‑source agreement; escalate on correlated bursts.
 
-- Cost and latency
-  - Feature pipelines and models add compute and operational overhead.
+### Dynamic adjustment loop
 
-- Adversarial adaptation
-  - Attackers can shape traffic to hug the baseline and evade detection.
+1) Baseline thresholds per policy.
+2) Measure precision/recall, volume, MTTR weekly.
+3) Adjust thresholds in small deltas based on outcomes.
+4) Log changes with reason codes and approvers.
 
-### Risks to manage
+### Example
 
-- Feedback loops gone wrong
-  - Poor or inconsistent labels can steer retrains in the wrong direction.
+- Anomaly A1 = 0.55, asset risk R = 0.8, correlation C = 0.6
+- Policy: alert if (A1 ≥ 0.5 AND C ≥ 0.5) boosted by R ≥ 0.7
+- Result: alert fires with priority raised due to asset risk.
 
-- Over‑automation
-  - Suppression rules that are too broad can hide new attack variants.
+### Governance controls
 
-- Overfitting to a short window
-  - Models tuned on narrow periods fail under seasonality.
+- Versioned policies, approvals, and rollbacks.
+- Observability: show which thresholds triggered (decision trace).
+- Guardrails: min/max caps to avoid runaway tuning.
 
-- Single‑model reliance
-  - One method rarely covers all anomaly types or contexts.
+### Summary
 
-- Privacy and compliance constraints
-  - Some telemetry cannot be retained or combined without safeguards.
-
-### Mitigations at a glance
-
-| Risk                  | Mitigation                                  |
-| --------------------- | ------------------------------------------- |
-| Alert fatigue         | Tune for precision first, then expand       |
-| Data quality issues   | Validation, schemas, feature hygiene        |
-| Drift sensitivity     | Drift dashboards and staged retune/retrain  |
-| Interpretability      | Simple features and top contributors        |
-| Cold start            | Seed with history and run in shadow mode    |
-| Over‑automation       | Expiring rules and regular audits           |
-| Single‑model reliance | Hybrid or ensemble approaches               |
-
-### Takeaway
-
-Treat anomaly detection as one layer in a defense‑in‑depth strategy. Pair it
-with signatures, heuristics, and human context to reduce blind spots and keep
-noise under control.
-
----
-
-## Media
-
-Image:
-[Module 3 Lesson 3 Placeholder](https://placehold.co/960x540?text=Limitations+%26+Risks)
-
-Replace with a concise risks vs mitigations graphic.
+Treat thresholds as a product: combine signals, adapt safely, and keep
+auditable decisions.

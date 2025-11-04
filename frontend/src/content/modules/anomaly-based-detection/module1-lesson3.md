@@ -35,8 +35,8 @@ Here’s a way to get data ready:
 - Set aside reference data: use historical periods known to be “normal” for baseline creation; reserve subsets for validation.
 - Validate and sanity-check: confirm that the cleaned data still retains meaningful behavior and did not discard real anomalies.
 
-[[Highlight: tone=indigo title=Why this matters]]
-Data hygiene directly improves baseline stability and reduces alert fatigue.
+> Why this matters: Data hygiene directly improves baseline stability and
+> reduces alert fatigue.
 
 ## **_How This Supports Anomaly Detection_**
 Well-prepared data leads to more stable baselines and sharper detection. When the input is trustworthy:

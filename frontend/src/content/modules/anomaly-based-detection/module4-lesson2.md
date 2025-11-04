@@ -1,60 +1,39 @@
-## 4.2 Future Directions
+## **_Composite Playbooks_**
 
-Anomaly detection continues to evolve. These trends and techniques are likely
-to shape the next few years of practice.
+Playbooks turn anomaly detections into consistent action. Composite playbooks
+use anomaly confidence and context to choose the right response—fast when
+confidence is high, cautious when it’s not.
 
-### Emerging approaches
+### Trigger matrix (example)
 
-- Self‑supervised representations
-  - Learn robust embeddings from unlabeled logs and flows.
+- Low confidence: create case, add enrichment tasks, watch for correlation.
+- Medium confidence: prep containment on repeat, notify owner.
+- High confidence: block IOC, isolate host/user, open P1, page on‑call.
 
-- Explainability by design
-  - Attribution and exemplars built into model outputs.
+### Common actions
 
-- Continual learning
-  - Incremental updates that adapt without full retrains.
+- Contain: quarantine endpoint, revoke tokens, disable account, block IP/domain.
+- Collect: acquire logs, memory, PCAP; snapshot cloud workload; preserve chain
+  of custody.
+- Coordinate: open ticket, assign responder, set SLOs, notify stakeholders.
+- Verify: run detection in validation mode on similar assets to catch spread.
 
-- Hybrid stacks
-  - Signatures, heuristics, and anomaly models for complementary coverage.
+### Guardrails
 
-- Causality cues
-  - Graph and temporal causal hints to reduce spurious correlations.
+- Human‑in‑the‑loop approvals for destructive steps.
+- Rate limits and blast‑radius controls.
+- Audit everything, including decision traces.
 
-### Platform patterns
+### Example
 
-- Feature stores
-  - Reusable, versioned features with validation and lineage.
+Anomaly flags data exfil volume; correlation ties a new country VPN login; intel
+marks the domain suspicious. The playbook:
 
-- Real time plus batch fusion
-  - Fast path for triage, batch for deeper retrospective scoring.
+1) Blocks the domain and cuts the session.
+2) Disables the account and opens a P1 with evidence attached.
+3) Launches host triage and notifies incident command.
 
-- Policy aware scoring
-  - Align thresholds with business risk and asset criticality.
+### Summary
 
-- Governance
-  - Model cards, audits, and change logs as first class artifacts.
-
-### Challenges ahead
-
-- Data privacy and compliance boundaries
-  - Federated or privacy preserving learning in sensitive domains.
-
-- Label scarcity
-  - Active learning and smarter feedback collection.
-
-- Adversarial pressure
-  - Robustness against slowly morphing attacker behaviors.
-
-### Takeaway
-
-Expect stronger emphasis on explainability, governance, and safe automation,
-with anomaly models embedded as services alongside traditional controls.
-
----
-
-## Media
-
-Image:
-[Module 4 Lesson 2 Placeholder](https://placehold.co/960x540?text=Future+Directions)
-
-Replace with a tasteful roadmap or trend landscape image.
+Design playbooks around anomaly confidence and context, with safety rails for
+automated steps.

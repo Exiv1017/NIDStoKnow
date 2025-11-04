@@ -1,49 +1,55 @@
-## 2.2 Detection Process Pipeline
+## **_Context Enrichment_**
 
-Anomaly detection typically flows through a pipeline. Each stage transforms
-raw inputs into insights that help identify irregularities.
+Correlation connects the dots; enrichment explains why they matter. Context
+enrichment augments raw anomalies with data like asset value, user identity,
+geo, and threat reputation to make alerts actionable.
 
-### Stages
+### What is context enrichment?
 
-- Data ingestion
-  - Collect raw streams from logs, sensors, or monitoring tools.
-  - Often large and continuous.
+Adding supplemental data to events and alerts so analysts can interpret them
+quickly. Instead of “failed login,” an enriched alert might include:
 
-- Preprocessing and cleaning
-  - Remove duplicates, fix missing values, standardize formats.
-  - Ensure consistent, usable inputs.
+- User info: who attempted it and department.
+- Device details: host criticality, OS, known vulnerabilities.
+- Location: where the attempt originated from.
+- Reputation: IP/domain reputation from threat intel.
 
-- Feature extraction
-  - Derive indicators that capture behavior (rates, intervals, averages).
-  - Highlight trends and patterns over raw values.
+### Why it’s essential
 
-- Model or baseline building
-  - Build a reference of expected behavior.
-  - Simple (statistics) or complex (ML forecasts or clustering).
+- Adds clarity: explains impact and urgency.
+- Reduces noise: filters non‑critical or duplicate alerts automatically.
+- Improves triage: prioritizes by risk and criticality.
+- Enables automation: provides the context SOAR needs to act safely.
 
-- Scoring and evaluation
-  - Assign "how unusual" scores to new observations.
-  - Flag high score outliers for review.
+### How enrichment works
 
-- Decision and thresholding
-  - Compare scores to thresholds (static, dynamic, or seasonal).
-  - Crossing the line marks a candidate anomaly.
+Often occurs after correlation and before incident response:
 
-- Alerting and feedback
-  - Trigger alerts and capture analyst feedback.
-  - Use outcomes to tune thresholds, features, and models.
+- Data normalization: standardize logs/telemetry into a shared format.
+- Attribute mapping: attach owner, business unit, threat category.
+- Threat intel integration: compare IPs/domains/hashes to feeds.
+- Environmental context: asset criticality and baseline activity.
+- Risk scoring and tags: assign severity/confidence to drive routing.
 
-### Why a pipeline?
+### Common enrichment sources
 
-- Modularity: improve one stage without breaking others.
-- Adaptability: swap in a new scaler or model as data evolves.
-- Governance: clearer audits and change control per stage.
+- Threat feeds (Anomali, AbuseIPDB, AlienVault OTX)
+- Asset inventory/CMDB
+- Identity directories (e.g., SSO/LDAP)
+- Geolocation databases
+- Cloud platform metadata (tags, owners, environment)
 
----
+### Benefits
 
-## Media
+- Fewer false positives via risk context.
+- Faster investigations: relevant details at a glance.
+- Better automation: safe triggers with sufficient evidence.
 
-Image:
-[Module 2 Lesson 2 Placeholder](https://placehold.co/960x540?text=Detection+Pipeline)
+### Challenges
 
-Replace with a diagram showing the pipeline stages above.
+- Data quality and staleness can mislead.
+- Over‑enrichment can overwhelm analysts.
+- Integration reliability and privacy compliance matter.
+
+Maintain trusted sources, validate regularly, and use role‑based access to
+protect sensitive attributes.

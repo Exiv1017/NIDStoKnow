@@ -1,54 +1,38 @@
-## 4.1 Best Practices
+## **_Unified Alert Flow_**
 
-The best anomaly programs blend careful engineering with operational
-discipline. Use these practices to improve signal quality and reduce noise.
+Anomaly detections are most useful when they feed a single, understandable
+alert pipeline. Unify signals into one incident stream analysts can trust.
 
-### Engineering patterns
+### End‑to‑end flow
 
-- Separate concerns
-  - Keep ingest, feature computation, scoring, and alerting decoupled.
+1) Ingest: anomalies and related alerts enter a common bus.
+2) Normalize: shared schema (src, dst, user, asset, tactic).
+3) De‑duplicate: collapse equivalent alerts with stable IDs.
+4) Correlate: stitch events in windows and entity graphs.
+5) Enrich: add asset criticality, user role, intel, geo, history.
+6) Score & route: combined thresholds set priority and owner.
+7) Notify & track: open/merge incidents with SLOs.
 
-- Favor stable features
-  - Prefer rates, deltas, and normalized measures over raw counts.
+### Design patterns
 
-- Version everything
-  - Models, feature schemas, thresholds, and calibration artifacts.
+- Idempotency keys to avoid alert storms on retries.
+- Sliding windows to group bursts (e.g., 5m by src IP).
+- Backpressure and buffering for spikes; shed low‑value telemetry
+  first.
+- Explicit lineage: store which detections and thresholds produced it.
 
-- Shadow before promote
-  - Compare metrics side by side before flipping traffic.
+### Example
 
-- Automate validation
-  - CI checks for schema drift, feature ranges, and scoring sanity.
+Port‑scan anomalies spike while rare east‑west connections appear. Unified
+flow correlates into one “Reconnaissance” incident and routes to the network
+queue with higher priority on critical assets.
 
-### Operational habits
+### Outputs and SLOs
 
-- Precision first
-  - Build analyst trust by curbing early false positives.
+- One incident object with evidence, entities, and decision trace.
+- SLOs: alerting latency, de‑dup rate, merge accuracy, reopen rate.
 
-- Document playbooks
-  - Standard steps reduce variance and speed up triage.
+### Summary
 
-- Label persistence
-  - Store analyst outcomes to inform retrains and tuning.
-
-- Drift watch
-  - Maintain dashboards for score ranges, precision, and alert volume.
-
-- Guardrails on automation
-  - Time boxed suppressions and change audits.
-
-### Collaboration
-
-- Share context
-  - Enrich alerts with asset criticality, owners, and recent changes.
-
-- Feedback loops
-  - Close the loop with platform and response teams on recurring patterns.
-
-- Training
-  - Upskill analysts on model basics and limitations.
-
-### Takeaway
-
-Consistency, observability, and human in the loop feedback are the foundation
-of sustainable anomaly detection operations.
+Unify first, then optimize. A clear alert flow turns anomaly signals into
+action.
