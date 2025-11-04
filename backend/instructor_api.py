@@ -1140,12 +1140,86 @@ def instructor_modules(request: Request):
 
         return modules
     except Exception as e:
-        # Avoid 500s leaking to the frontend; log and return empty data
+        # Fallback: aggregate in Python to avoid breaking the dashboard if SQL dialect causes errors
         try:
-            logging.error(f"[ERROR] instructor_modules failed: {e}")
+            logging.warning(f"[WARN] instructor_modules SQL path failed, using Python fallback: {e}")
         except Exception:
             pass
-        return []
+        try:
+            # Determine student ids scoped to this instructor (or room)
+            student_ids: List[int] = []
+            if room_id:
+                cursor.execute('SELECT DISTINCT student_id FROM simulation_room_members WHERE room_id=%s', (room_id,))
+                student_ids = [int(r['student_id']) for r in (cursor.fetchall() or []) if r.get('student_id') is not None]
+            else:
+                cursor.execute('''
+                    SELECT DISTINCT m.student_id
+                    FROM simulation_room_members m
+                    JOIN simulation_rooms r ON r.id = m.room_id
+                    WHERE r.instructor_id = %s
+                ''', (instr_id,))
+                student_ids = [int(r['student_id']) for r in (cursor.fetchall() or []) if r.get('student_id') is not None]
+            total_students = len(student_ids)
+            if total_students == 0:
+                return []
+
+            # Pull minimal progress rows and aggregate by canonical module name
+            placeholders = ','.join(['%s'] * len(student_ids))
+            cursor.execute(
+                f'''
+                SELECT student_id, module_name, total_lessons, lessons_completed,
+                       COALESCE(overview_completed,0) AS oc,
+                       COALESCE(practical_completed,0) AS pc,
+                       COALESCE(assessment_completed,0) AS ac
+                FROM student_progress
+                WHERE student_id IN ({placeholders})
+                ''', tuple(student_ids)
+            )
+            rows = cursor.fetchall() or []
+            # rows are dicts
+            def canon(name: Optional[str]) -> str:
+                s = (name or '').strip()
+                sl = s.lower()
+                if 'anomaly' in sl: return 'Anomaly-Based Detection'
+                if 'hybrid' in sl: return 'Hybrid Detection'
+                if 'signature' in sl: return 'Signature-Based Detection'
+                return s or 'Unknown'
+
+            agg: Dict[str, Dict[str, Any]] = {}
+            all_students = set()
+            for r in rows:
+                sid = int(r.get('student_id') or 0)
+                all_students.add(sid)
+                name = canon(r.get('module_name'))
+                ent = agg.setdefault(name, {'members': set(), 'finished': 0})
+                ent['members'].add(sid)
+                tl = int(r.get('total_lessons') or 0)
+                lc = int(r.get('lessons_completed') or 0)
+                oc = int(r.get('oc') or 0)
+                pc = int(r.get('pc') or 0)
+                ac = int(r.get('ac') or 0)
+                done = (tl > 0 and lc >= tl) or (oc == 1 and pc == 1 and ac == 1)
+                if done:
+                    ent['finished'] += 1
+
+            modules = []
+            for name, ent in agg.items():
+                finished = int(ent['finished'] or 0)
+                completion = round((finished / total_students) * 100) if total_students > 0 else 0
+                modules.append({
+                    'name': name,
+                    'students': total_students,
+                    'completion': completion,
+                    'finishedCount': finished,
+                    'studentsWithProgress': len(ent['members'])
+                })
+            return modules
+        except Exception as e2:
+            try:
+                logging.error(f"[ERROR] instructor_modules python fallback failed: {e2}")
+            except Exception:
+                pass
+            return []
     finally:
         cursor.close(); conn.close()
 
