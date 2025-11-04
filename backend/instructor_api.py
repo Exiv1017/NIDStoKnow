@@ -1139,6 +1139,13 @@ def instructor_modules(request: Request):
             pass
 
         return modules
+    except Exception as e:
+        # Avoid 500s leaking to the frontend; log and return empty data
+        try:
+            logging.error(f"[ERROR] instructor_modules failed: {e}")
+        except Exception:
+            pass
+        return []
     finally:
         cursor.close(); conn.close()
 
