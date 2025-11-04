@@ -768,25 +768,21 @@ def update_instructor_profile(request: Request, profile: Dict[str, Any] = Body(.
         avatar_val = avatar_in.strip() if isinstance(avatar_in, str) else avatar_in
         if isinstance(avatar_val, str) and len(avatar_val) > 512:
             avatar_val = avatar_val[:512]
-            cursor.execute('''
-                SELECT
-                    CASE
-                        WHEN LOCATE('anomaly', LOWER(COALESCE(sp.module_name,''))) > 0 THEN 'Anomaly-Based Detection'
-                        WHEN LOCATE('hybrid', LOWER(COALESCE(sp.module_name,''))) > 0 THEN 'Hybrid Detection'
-                        WHEN LOCATE('signature', LOWER(COALESCE(sp.module_name,''))) > 0 THEN 'Signature-Based Detection'
-                        ELSE COALESCE(sp.module_name, 'Unknown')
-                    END AS name,
-                    COUNT(DISTINCT sp.student_id) AS students_with_progress,
-                    SUM(CASE WHEN (
-                        (COALESCE(sp.total_lessons,0) > 0 AND COALESCE(sp.lessons_completed,0) >= COALESCE(sp.total_lessons,0))
-                        OR (COALESCE(sp.overview_completed,0)=1 AND COALESCE(sp.practical_completed,0)=1 AND COALESCE(sp.assessment_completed,0)=1)
-                    ) THEN 1 ELSE 0 END) AS finished_count
-                FROM student_progress sp
-                JOIN (
-                    SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id=%s
-                ) s ON s.student_id = sp.student_id
-                GROUP BY 1
-            ''', (room_id,))
+        cursor2.execute(
+            'INSERT INTO instructor_profiles (instructor_id, join_date, avatar_url) VALUES (%s, %s, %s) '
+            'ON DUPLICATE KEY UPDATE join_date=COALESCE(join_date, VALUES(join_date)), avatar_url=VALUES(avatar_url)',
+            (instr_id, effective_jd, avatar_val)
+        )
+        conn.commit(); cursor2.close()
+    finally:
+        cursor.close(); conn.close()
+
+    # Return the fresh, full profile
+    conn2 = get_db_connection(); cur2 = conn2.cursor(dictionary=True)
+    try:
+        cur2.execute('SELECT name, email FROM users WHERE id=%s', (instr_id,))
+        base = cur2.fetchone() or {}
+        cur2.execute('SELECT join_date, avatar_url FROM instructor_profiles WHERE instructor_id=%s', (instr_id,))
         prof = cur2.fetchone() or {}
         jd = prof.get('join_date')
         jd_str = ''
@@ -1077,7 +1073,7 @@ def instructor_modules(request: Request):
                 JOIN (
                     SELECT DISTINCT m.student_id FROM simulation_room_members m WHERE m.room_id=%s
                 ) s ON s.student_id = sp.student_id
-                GROUP BY name
+                GROUP BY 1
             ''', (room_id,))
             rows = cursor.fetchall() or []
             try:
@@ -1113,7 +1109,7 @@ def instructor_modules(request: Request):
                 JOIN (
                     SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
                 ) s ON s.student_id = sp.student_id
-                GROUP BY name
+                GROUP BY 1
             ''', (instr_id,))
             rows = cursor.fetchall() or []
             try:
@@ -2612,38 +2608,8 @@ def get_assignments(request: Request, instructor_id: Optional[int] = None):
                 mod_slug = (r.get('moduleSlug') or '').strip().lower()
                 if not mod_slug:
                     mod_slug = str(r.get('moduleName') or '').strip().lower().replace(' ', '-')
-                # Check student_progress for assessment/practical completion
-                try:
-                    cursor2 = conn.cursor(dictionary=True)
-                    # Attempt to read completion flags; if columns missing (legacy), treat as not completed
-                    cursor.execute('''
-                        SELECT
-                            CASE
-                                WHEN LOCATE('anomaly', LOWER(COALESCE(sp.module_name,''))) > 0 THEN 'Anomaly-Based Detection'
-                                WHEN LOCATE('hybrid', LOWER(COALESCE(sp.module_name,''))) > 0 THEN 'Hybrid Detection'
-                                WHEN LOCATE('signature', LOWER(COALESCE(sp.module_name,''))) > 0 THEN 'Signature-Based Detection'
-                                ELSE COALESCE(sp.module_name, 'Unknown')
-                            END AS name,
-                            COUNT(DISTINCT sp.student_id) AS students_with_progress,
-                            SUM(CASE WHEN (
-                                (COALESCE(sp.total_lessons,0) > 0 AND COALESCE(sp.lessons_completed,0) >= COALESCE(sp.total_lessons,0))
-                                OR (COALESCE(sp.overview_completed,0)=1 AND COALESCE(sp.practical_completed,0)=1 AND COALESCE(sp.assessment_completed,0)=1)
-                            ) THEN 1 ELSE 0 END) AS finished_count
-                        FROM student_progress sp
-                        JOIN (
-                            SELECT DISTINCT m.student_id FROM simulation_room_members m JOIN simulation_rooms r ON r.id=m.room_id WHERE r.instructor_id=%s
-                        ) s ON s.student_id = sp.student_id
-                        GROUP BY 1
-                    ''', (instr_id,))
-                            r['status'] = 'in-progress'
-                except Exception:
-                    # Missing table/columns: ignore and continue with stored status
-                    pass
-                finally:
-                    try:
-                        cursor2.close()
-                    except Exception:
-                        pass
+                # Optional: We could enrich status based on student_progress here, but keep stored status to avoid heavy joins.
+                pass
             except Exception:
                 pass
             # Compute overdue if dueDate passed and not completed
