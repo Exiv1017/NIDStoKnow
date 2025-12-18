@@ -1,4 +1,4 @@
-# What is a NIDS?
+## **_What is a NIDS?_**
 
 Network-based Intrusion Detection Systems (NIDS) monitor network traffic to detect suspicious activity. They analyze packet headers and payloads at network choke points to identify patterns that match known attack signatures or anomalies.
 

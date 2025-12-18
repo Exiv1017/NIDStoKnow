@@ -67,6 +67,10 @@ function normalizeVideoUrl(url) {
         rel: '0',
         modestbranding: '1',
         playsinline: '1',
+        controls: '0',        // hide native controls to prevent seeking
+        disablekb: '1',       // block keyboard seeking
+        fs: '0',              // disable fullscreen button (reduces skip paths)
+        iv_load_policy: '3',
       };
       if (start) params.start = start;
       const clean = withoutParams(base, params);
@@ -75,10 +79,16 @@ function normalizeVideoUrl(url) {
 
     // Handle Vimeo
     if (host.includes('vimeo.com')) {
-      // https://vimeo.com/VIDEO_ID -> https://player.vimeo.com/video/VIDEO_ID
+      // https://vimeo.com/VIDEO_ID -> https://player.vimeo.com/video/VIDEO_ID with control gating
       const parts = (u.pathname || '').split('/').filter(Boolean);
       const id = parts.find(p => /^(\d+)$/.test(p));
-      if (id) return `https://player.vimeo.com/video/${id}`;
+      if (id) return withoutParams(`https://player.vimeo.com/video/${id}`, {
+        controls: '0',      // hide controls to prevent seek
+        pip: '0',           // block picture-in-picture
+        keyboard: '0',      // disable keyboard shortcuts
+        dnt: '1',
+        playsinline: '1',
+      });
       // Already player domain? keep as-is
       if (host.includes('player.vimeo.com')) return url;
     }
@@ -248,7 +258,7 @@ export const ImageCaptionBlock = ({ src, alt, caption, source }) => (
 );
 export const VideoEmbedBlock = ({ url }) => (
   <div className="my-6">
-    <div className="aspect-video w-full rounded-xl overflow-hidden shadow">
+    <div className="aspect-video w-full rounded-xl overflow-hidden shadow relative">
       <iframe
         src={normalizeVideoUrl(url)}
         title="Lesson video"
@@ -256,9 +266,10 @@ export const VideoEmbedBlock = ({ url }) => (
         frameBorder="0"
         loading="lazy"
         referrerPolicy="strict-origin-when-cross-origin"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowFullScreen
+        allow="accelerometer; autoplay; encrypted-media; gyroscope"
+        aria-label="Embedded lesson video (controls hidden to prevent skipping)"
       ></iframe>
+      <div className="pointer-events-none absolute inset-0 border-4 border-transparent" aria-hidden="true" />
     </div>
   </div>
 );

@@ -1,4 +1,4 @@
-## 1.2 Scope & Alignment
+## **_1.2 Scope & Alignment_**
 
 In Lesson 1.1, we explored how **hybrid detection** blends signature-based and anomaly-based methods to create a more balanced and adaptive intrusion detection approach.
 

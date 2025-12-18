@@ -1,4 +1,4 @@
-# Types of IDS and Approaches
+## **_Types of IDS and Approaches_**
 
 - Host-based IDS (HIDS): runs on endpoints and inspects host logs and processes.
 - Network-based IDS (NIDS): monitors network traffic for suspicious patterns.

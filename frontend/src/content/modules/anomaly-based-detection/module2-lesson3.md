@@ -1,9 +1,9 @@
-## 2.3 Machine Learning Overview and Technical Implementation
+## **_2.3 Machine Learning Overview and Technical Implementation_**
 
 Machine learning is the "brain" of many anomaly detectors. It learns patterns,
 adjusts with new data, and improves over time.
 
-### How ML fits in
+### **_How ML fits in_**
 
 - Supervised learning
   - Labeled normal and anomalous examples.
@@ -17,7 +17,7 @@ adjusts with new data, and improves over time.
 Common algorithms include Isolation Forest, Local Outlier Factor (LOF), and
 Autoencoders.
 
-### What happens technically
+### **_What happens technically_**
 
 - Data collection
   - Gather from logs, packets, and metrics.
@@ -40,7 +40,7 @@ Attempts: 57 in 60 seconds
 Threshold: 10
 ```
 
-### Real‑world examples
+### **_Real‑world examples_**
 
 - Command anomaly in a honeypot
   - Normal: ls, cat /var/log/syslog, ping google.com
@@ -50,7 +50,7 @@ Threshold: 10
   - Admin typically logs in 08:00–17:00.
   - Event appears at 03:42 and is flagged for review.
 
-### Commonly detected patterns
+### **_Commonly detected patterns_**
 
 | Category       | Normal behavior          | Detected anomaly              |
 | -------------- | ------------------------ | ----------------------------- |
@@ -60,7 +60,7 @@ Threshold: 10
 | Web requests   | 100–200 per hour         | 5,000 sudden requests         |
 | Command input  | Routine maintenance cmds | Sensitive dirs / root access  |
 
-### A simple Python example (Z‑Score)
+### **_A simple Python example (Z‑Score)_**
 
 ```python
 import numpy as np
@@ -86,7 +86,7 @@ Output:
 Anomaly detected at index 5 with value 50.0
 ```
 
-### Takeaway
+### **_Takeaway_**
 
 ML lets detection go beyond static rules. Each step — data collection,
 feature engineering, model fitting, scoring, and alerting — combines into an
@@ -94,7 +94,7 @@ adaptive system.
 
 ---
 
-## Media
+## **_Media_**
 
 Image:
 [Module 2 Lesson 3 Placeholder](https://placehold.co/960x540?text=ML+Overview)

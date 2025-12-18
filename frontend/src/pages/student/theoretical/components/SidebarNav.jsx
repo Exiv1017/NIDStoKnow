@@ -83,9 +83,25 @@ export default function SidebarNav({ onOpenModuleQuiz, track='signature' }) {
           const localQuizPassed = moduleCode ? getModuleQuizPassed(moduleCode, user?.id || null, track) : false;
           const serverQuizPassed = !!(moduleCode && serverQuizPassMaps[parentSlug]?.[moduleCode]);
           const quizPassed = localQuizPassed || serverQuizPassed;
+          const completedLessonCount = g.lessons.reduce((count, l) => {
+            const id = ctxGetLessonId ? ctxGetLessonId(l, l.absoluteIndex) : (l.id || `${l.title}-${l.absoluteIndex}`);
+            return completedIds.includes(id) ? count + 1 : count;
+          }, 0);
+          const moduleTotalUnits = g.lessons.length + (quizExists ? 1 : 0);
+          const moduleCompletedUnits = completedLessonCount + (quizExists && quizPassed ? 1 : 0);
+          const moduleProgressPct = moduleTotalUnits > 0 ? Math.round((moduleCompletedUnits / moduleTotalUnits) * 100) : 0;
           return (
-          <div key={g.moduleNumber}>
-            <h4 className="text-xs font-semibold tracking-wide uppercase lms-text-faint mb-2">{g.moduleTitle}</h4>
+          <div key={g.moduleNumber} className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-semibold tracking-wide uppercase lms-text-faint">{g.moduleTitle}</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">{moduleCompletedUnits}/{moduleTotalUnits} completed</p>
+              </div>
+              <span className="text-xs font-semibold text-slate-600 tabular-nums">{moduleProgressPct}%</span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-[var(--lms-border)]/40 overflow-hidden" role="progressbar" aria-label={`${g.moduleTitle} progress`} aria-valuenow={moduleProgressPct} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full bg-[var(--lms-primary)] transition-all duration-300" style={{ width: `${moduleProgressPct}%` }} />
+            </div>
             <ul className="space-y-1">
               {g.lessons.map(({ absoluteIndex, title, id: explicitId }) => {
                 const active = absoluteIndex === currentLessonIdx;

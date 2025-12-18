@@ -1,4 +1,4 @@
-## 1.1 Introduction to Hybrid Detection
+## **_1.1 Introduction to Hybrid Detection_**
 
 In today’s fast-changing cybersecurity landscape, organizations face an overwhelming mix of **known** and **unknown threats**. Traditional defenses—like firewalls or signature-based systems—are no longer enough on their own. To stay secure, modern intrusion detection now relies on a **hybrid detection approach**, which combines the speed of signature-based detection with the adaptability of anomaly-based analysis.
 

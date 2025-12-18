@@ -1,13 +1,11 @@
-## **Module 3.2 — Traffic Capture & Rule Databases**
-
-### **Introduction**
+## **_Introduction_**
 
 Intrusion Detection Systems (IDS) rely on their ability to **capture and analyze network traffic** in real time. The heart of this process lies in how data packets are collected, processed, and compared with predefined **signature rules** that describe known attack patterns.
 Tools such as **Snort** and **Suricata** use these mechanisms to detect threats effectively and maintain network security.
 
 ---
 
-### **1. Traffic Capture: The First Step**
+## **_Traffic Capture: The First Step_**
 
 Traffic capture is the initial stage where the IDS monitors packets traveling through the network.
 
@@ -20,7 +18,7 @@ Snort uses *libpcap* to capture live traffic, while Suricata supports *AF_PACKET
 
 ---
 
-### **2. Preprocessing and Normalization**
+## **_Preprocessing and Normalization_**
 
 Once packets are captured, the IDS preprocesses the data to ensure accurate analysis:
 
@@ -32,7 +30,7 @@ This step ensures that the IDS views network traffic the same way an attacker in
 
 ---
 
-### **3. Rule Databases and Signature Matching**
+## **_Rule Databases and Signature Matching_**
 
 After preprocessing, packets are compared against **rule databases**, which store known threat patterns or behaviors.
 
@@ -61,7 +59,7 @@ This rule alerts the system if any TCP packet headed for port 80 contains the st
 
 ---
 
-### **4. Detection and Logging**
+## **_Detection and Logging_**
 
 When a packet matches a rule:
 
@@ -122,12 +120,6 @@ Tune Sets | Enable per‑zone packs to keep matching tight
 
 ---
 
-## **Summary**
+## **_Summary**
 
 Capture feeds the sensor; preprocessing makes data matchable; rules define what to look for; logging closes the loop — and performance work keeps it all fast.
-
----
-
-## **Media**
-
-Image: [Module 3 Lesson 2 Placeholder](https://placehold.co/960x540?text=Capture+%26+Rules) | Swap for capture diagram or rule snippet screenshot. | [Source](https://placehold.co)
