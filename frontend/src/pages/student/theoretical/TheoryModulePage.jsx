@@ -111,6 +111,7 @@ const TheoryModulePage = () => {
     return 'signature';
   })();
   const parentModuleSlug = currentTrack==='anomaly' ? 'anomaly-based-detection' : currentTrack==='hybrid' ? 'hybrid-detection' : 'signature-based-detection';
+  const currentModuleSlug = toSlug(currentModule?.slug || currentModule?.title || '');
   const currentModuleTimeSpent = useModuleTimeSpent({ studentId: user?.id, moduleSlug: parentModuleSlug, initialSeconds: moduleSummaries[parentModuleSlug]?.time_spent, realtime: true });
 
   // Time accumulation for the Overview (lesson index -1) once at mount if first lesson index is 0 and user hasn't started lessons yet.
@@ -308,10 +309,6 @@ const TheoryModulePage = () => {
 
   // Loading state sourced from lesson server progress (module progress has independent loading for quiz flag)
   const isLoading = lessonServerProgress.loading;
-
-  // Normalized current module slug & track (used widely below)
-  const currentModuleSlug = toSlug(currentModule?.slug || currentModule?.title || '');
-  // currentTrack already declared earlier based on route param; reuse it here to avoid redeclaration.
 
   // Listen for quiz pass events to refresh quiz-derived UI (badges, counts) since localStorage changes don't re-render automatically.
   useEffect(()=>{
