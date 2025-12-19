@@ -95,8 +95,3 @@ adaptive system.
 ---
 
 ## **_Media_**
-
-Image:
-[Module 2 Lesson 3 Placeholder](https://placehold.co/960x540?text=ML+Overview)
-
-Replace with a model diagram or workflow image.

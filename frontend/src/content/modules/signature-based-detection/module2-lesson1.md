@@ -63,10 +63,6 @@ Hybrid | Runs both approaches together to balance coverage, precision, and noise
 
 ## **Media**
 
-Image: [Module 2 Lesson 1 Placeholder](https://placehold.co/960x540?text=Module+2+Lesson+1) | Replace with the final diagram/screenshot for this lesson. | [Source](https://placehold.co)
-
-
-
 ## **_Quick Comparison_**
 
 | Feature | Signature-Based | Anomaly-Based |

@@ -140,9 +140,7 @@ Combine scores/labels via logic or learning.
 2. Apply - Try a simple exercise or scenario.
 3. Verify - Check your understanding.
 
-**Image:** [Placeholder](https://via.placeholder.com/960x400)
-| Visual placeholder
-| [Source](https://via.placeholder.com)
+<!-- placeholder image removed -->
 
 **Tip:** Keep evaluation metrics clear.
 

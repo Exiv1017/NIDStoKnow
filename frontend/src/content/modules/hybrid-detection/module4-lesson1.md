@@ -1,3 +1,5 @@
+## **_Unified Alert Flow_**
+
 <card class="mb-8">
 
 <div style="padding:5px; border-radius:12px; max-width:800px; margin:auto; text-align:justify;">
@@ -25,8 +27,6 @@ Deploying hybrid NIDS at scale.
 <card style="background:#F0FDFA;">
 
 **Reliability**
-
-## **_Unified Alert Flow_**
 
 Hybrid detection becomes useful when its outputs flow through a single,
 understandable alert pipeline. This lesson shows how to unify signals into one

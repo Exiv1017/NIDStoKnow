@@ -98,6 +98,8 @@ const TheoryModulePage = () => {
   const [currentLessonIdx, setCurrentLessonIdx] = useState(0); // will be replaced by hook below once lessons known
   const [toast, setToast] = useState(null);
   const [quizPassTick, setQuizPassTick] = useState(0); // increments when a quiz is passed to trigger re-render
+  const [videoRequired, setVideoRequired] = useState(false);
+  const [videoCompleted, setVideoCompleted] = useState(false);
   // Option B: no inline quiz rendering; quiz handled by dedicated route.
   const lessonRef = useRef(null);
 
@@ -131,6 +133,24 @@ const TheoryModulePage = () => {
     const found = seedModules.find(m => toSlug(m.slug || m.title) === slugged);
     if (found) setCurrentModule(found);
   }, [moduleSlug]);
+
+  // Reset video requirement tracking on lesson change
+  useEffect(() => {
+    setVideoRequired(false);
+    setVideoCompleted(false);
+  }, [currentLessonIdx, currentModuleSlug]);
+
+  // Listen for video requirement/completion events emitted by VideoEmbedBlock
+  useEffect(() => {
+    const onReq = () => setVideoRequired(true);
+    const onDone = () => setVideoCompleted(true);
+    window.addEventListener('lessonVideoRequired', onReq);
+    window.addEventListener('lessonVideoCompleted', onDone);
+    return () => {
+      window.removeEventListener('lessonVideoRequired', onReq);
+      window.removeEventListener('lessonVideoCompleted', onDone);
+    };
+  }, []);
 
   // Seed cached totals (lessons + quizzes) for dashboard denominator accuracy.
   useEffect(()=>{
@@ -537,7 +557,14 @@ const TheoryModulePage = () => {
                   <span className="flex items-center gap-1"><span aria-hidden="true">🗓</span>Updated {new Date().toLocaleDateString()}</span>
                   {Array.isArray(currentLesson.tags) && currentLesson.tags.map(t=> <span key={t} className="lms-pill">{t}</span>)}
                   <button
-                    onClick={()=>{ const id=getLessonId(currentLesson,currentLessonIdx); if(!lessonServerProgress.completedIds.includes(id)){ lessonServerProgress.markComplete(currentLessonIdx); setToast({id:Date.now(), message:`Marked "${currentLesson.title}" complete`}); } }}
+                    onClick={()=>{
+                      const id=getLessonId(currentLesson,currentLessonIdx);
+                      if(videoRequired && !videoCompleted){ setToast({id:Date.now(), message:'Finish the video to complete this lesson'}); return; }
+                      if(!lessonServerProgress.completedIds.includes(id)){
+                        lessonServerProgress.markComplete(currentLessonIdx);
+                        setToast({id:Date.now(), message:`Marked "${currentLesson.title}" complete`});
+                      }
+                    }}
                     className="ml-auto text-[11px] font-medium px-2.5 py-1 rounded-md border border-[var(--lms-border)] hover:bg-[var(--lms-primary-muted)] hover:text-[var(--lms-primary)] transition"
                   >
                     {(()=>{const id=getLessonId(currentLesson,currentLessonIdx); return lessonServerProgress.completedIds.includes(id) ? 'Completed' : 'Mark Complete';})()}
@@ -573,6 +600,7 @@ const TheoryModulePage = () => {
                 </Suspense>
                 <ActivityPanel
                   onComplete={() => { 
+                    if(videoRequired && !videoCompleted){ setToast({ id: Date.now(), message: 'Finish the video to complete this lesson' }); return; }
                     lessonServerProgress.markComplete(currentLessonIdx); 
                     setToast({ id: Date.now(), message: `Marked "${currentLesson.title}" complete` });
                   }}

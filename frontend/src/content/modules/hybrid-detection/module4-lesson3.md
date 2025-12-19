@@ -1,3 +1,5 @@
+## **_Continuous Hardening_**
+
 <card class="mb-8">
 
 <div style="padding:5px; border-radius:12px; max-width:800px; margin:auto; text-align:justify;">
@@ -33,8 +35,6 @@ Retain alerts and decisions for audits.
 <accordion title="Policies" open="false">
 Map detection to policy requirements.
 </accordion>
-
-## **_Continuous Hardening_**
 
 Hybrid systems improve with disciplined, ongoing hardening. Make tuning,
 validation, and resilience part of your normal operations—not a one‑off project.

@@ -71,6 +71,7 @@ function normalizeVideoUrl(url) {
         disablekb: '1',       // block keyboard seeking
         fs: '0',              // disable fullscreen button (reduces skip paths)
         iv_load_policy: '3',
+        enablejsapi: '1',     // allow player API for completion tracking
       };
       if (start) params.start = start;
       const clean = withoutParams(base, params);
@@ -88,6 +89,8 @@ function normalizeVideoUrl(url) {
         keyboard: '0',      // disable keyboard shortcuts
         dnt: '1',
         playsinline: '1',
+        api: '1',           // allow postMessage events
+        autopause: '1'
       });
       // Already player domain? keep as-is
       if (host.includes('player.vimeo.com')) return url;
@@ -256,23 +259,115 @@ export const ImageCaptionBlock = ({ src, alt, caption, source }) => (
       </figcaption>) }
   </figure>
 );
-export const VideoEmbedBlock = ({ url }) => (
-  <div className="my-6">
-    <div className="aspect-video w-full rounded-xl overflow-hidden shadow relative">
-      <iframe
-        src={normalizeVideoUrl(url)}
-        title="Lesson video"
-        className="w-full h-full"
-        frameBorder="0"
-        loading="lazy"
-        referrerPolicy="strict-origin-when-cross-origin"
-        allow="accelerometer; autoplay; encrypted-media; gyroscope"
-        aria-label="Embedded lesson video (controls hidden to prevent skipping)"
-      ></iframe>
-      <div className="pointer-events-none absolute inset-0 border-4 border-transparent" aria-hidden="true" />
+export const VideoEmbedBlock = ({ url }) => {
+  const [completed, setCompleted] = useState(false);
+  const iframeRef = React.useRef(null);
+  const playerId = useMemo(() => `lesson-video-${Math.random().toString(36).slice(2, 9)}`, []);
+  const normalizedUrl = useMemo(() => normalizeVideoUrl(url), [url]);
+
+  useEffect(() => {
+    // Signal that this lesson has a required video
+    try { window.dispatchEvent(new CustomEvent('lessonVideoRequired')); } catch {}
+  }, []);
+
+  useEffect(() => {
+    const node = iframeRef.current;
+    if (!node) return;
+    // Attach id for YouTube API
+    node.id = playerId;
+
+    // YouTube completion listener via iframe API
+    const maybeAttachYouTube = () => {
+      if (!node.src.includes('youtube')) return;
+      const ensureAPI = () => new Promise((resolve) => {
+        if (window.YT && window.YT.Player) return resolve(window.YT);
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        document.head.appendChild(tag);
+        window.onYouTubeIframeAPIReady = () => resolve(window.YT);
+      });
+      ensureAPI().then((YT) => {
+        try {
+          const player = new YT.Player(node, {
+            events: {
+              onStateChange: (e) => {
+                if (e.data === YT.PlayerState.ENDED) {
+                  if (!completed) {
+                    setCompleted(true);
+                    try { window.dispatchEvent(new CustomEvent('lessonVideoCompleted')); } catch {}
+                  }
+                }
+              }
+            }
+          });
+          return player;
+        } catch {
+          return null;
+        }
+      });
+    };
+
+    // Vimeo completion listener via postMessage
+    const maybeAttachVimeo = () => {
+      if (!node.src.includes('vimeo')) return;
+      const onMsg = (evt) => {
+        if (!evt || !evt.data) return;
+        try {
+          const data = typeof evt.data === 'string' ? JSON.parse(evt.data) : evt.data;
+          if (data && (data.event === 'ended' || data.event === 'finish')) {
+            if (!completed) {
+              setCompleted(true);
+              try { window.dispatchEvent(new CustomEvent('lessonVideoCompleted')); } catch {}
+            }
+          }
+        } catch {
+          /* ignore parse errors */
+        }
+      };
+      window.addEventListener('message', onMsg);
+      return () => window.removeEventListener('message', onMsg);
+    };
+
+    const cleanupVimeo = maybeAttachVimeo();
+    maybeAttachYouTube();
+    return () => {
+      if (typeof cleanupVimeo === 'function') cleanupVimeo();
+    };
+  }, [playerId, normalizedUrl, completed]);
+
+  return (
+    <div className="my-6">
+      <div className="aspect-video w-full rounded-xl overflow-hidden shadow relative">
+        <iframe
+          ref={iframeRef}
+          src={normalizedUrl}
+          title="Lesson video"
+          className="w-full h-full"
+          frameBorder="0"
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+          allow="accelerometer; autoplay; encrypted-media; gyroscope"
+          aria-label="Embedded lesson video (controls hidden to prevent skipping)"
+        ></iframe>
+        {!completed && (
+          <div className="pointer-events-none absolute inset-0 border-4 border-transparent" aria-hidden="true" />
+        )}
+        {completed && (
+          <div className="absolute top-2 right-2 bg-emerald-600 text-white text-[11px] font-semibold px-2 py-1 rounded shadow">Video complete</div>
+        )}
+      </div>
+      {!completed && (
+        <button
+          type="button"
+          className="mt-3 text-xs font-semibold text-[var(--lms-primary)] underline"
+          onClick={() => { setCompleted(true); try { window.dispatchEvent(new CustomEvent('lessonVideoCompleted')); } catch {} }}
+        >
+          I finished watching
+        </button>
+      )}
     </div>
-  </div>
-);
+  );
+};
 export const InfographicBlock = ({ src, caption }) => (
   <figure className="my-8 p-4 rounded-xl border border-[#E3E3E3] bg-gradient-to-br from-[#E3E3E3]/20 to-[#E3E3E3]/10 shadow-sm">
     {src && <img src={src} alt={caption||'infographic'} className="mx-auto max-h-96 object-contain rounded-lg shadow" />}

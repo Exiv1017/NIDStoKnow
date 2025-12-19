@@ -72,7 +72,17 @@ const StudentRooms = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-12">
       <div className="max-w-6xl mx-auto px-6">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-8 space-y-3">
+          <button
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-2 text-sm text-blue-700 hover:text-blue-900 font-medium"
+            aria-label="Go back"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
+          </button>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">My Rooms</h1>
           <p className="text-gray-600 text-lg">Join rooms with instructor codes and access your learning environments</p>
         </div>

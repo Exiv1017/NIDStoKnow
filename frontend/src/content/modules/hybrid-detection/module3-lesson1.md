@@ -107,9 +107,7 @@ Auto-ticket creation and routing.
 2. Apply - Try a simple exercise or scenario.
 3. Verify - Check your understanding.
 
-**Image:** [Placeholder](https://via.placeholder.com/960x400)
-| Visual placeholder
-| [Source](https://via.placeholder.com)
+<!-- placeholder image removed -->
 
 **Tip:** Think about alert deduplication.
 

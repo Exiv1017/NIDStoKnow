@@ -138,9 +138,7 @@ Use labeled data; beware of bias and drift.
 2. Apply - Try a simple exercise or scenario.
 3. Verify - Check your understanding.
 
-**Image:** [Placeholder](https://via.placeholder.com/960x400)
-| Visual placeholder
-| [Source](https://via.placeholder.com)
+<!-- placeholder image removed -->
 
 **Note:** Consider data latency effects.
 

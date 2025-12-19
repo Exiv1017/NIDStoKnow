@@ -58,5 +58,3 @@ Next: extended workflow techniques that chain rules, enrich alerts, and automate
 
 ## **Media**
 
-Image: [Module 2 Lesson 2 Placeholder](https://placehold.co/960x540?text=Signature+Pipeline) | Swap for a pipeline diagram (capture → preprocess → match → alert → update). | [Source](https://placehold.co)
-

@@ -24,6 +24,8 @@ According to **IBM**, IDS plays a crucial role in a layered defense strategy, of
 
 ## **_IDS vs. IPS (Intrusion Prevention System)_**
 
+**Video:** [Watch the overview](https://youtu.be/OUmBimnGrC8)
+
 While **IDS** and **IPS** are closely related, they serve different purposes.
 
 | **Feature**      | **IDS (Intrusion Detection System)**          | **IPS (Intrusion Prevention System)**          |

@@ -1,3 +1,5 @@
+## **_Combined Threshold Governance_**
+
 <card class="mb-8">
 
 <div style="padding:5px; border-radius:12px; max-width:800px; margin:auto; text-align:justify;">
@@ -33,8 +35,6 @@ Adjust fusion thresholds and logic.
 <accordion title="Feedback" open="false">
 Feed labels back to both systems and fusion layer.
 </accordion>
-
-## **_Combined Threshold Governance_**
 
 Alert decisions in hybrid detection depend on multiple signals. Governance gives
 you a safe, transparent way to combine thresholds across engines, so you reduce

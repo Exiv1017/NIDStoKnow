@@ -109,9 +109,7 @@ Validate inputs to both systems; avoid drift from upstream changes.
 2. Apply - Try a simple exercise or scenario.
 3. Verify - Check your understanding.
 
-**Image:** [Placeholder](https://via.placeholder.com/960x400)
-| Visual placeholder
-| [Source](https://via.placeholder.com)
+<!-- placeholder image removed -->
 
 **Note:** Ensure feedback loops are in place.
 

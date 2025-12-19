@@ -1,3 +1,5 @@
+## **_Composite Playbooks_**
+
 <card class="mb-8">
 
 <div style="padding:5px; border-radius:12px; max-width:800px; margin:auto; text-align:justify;">
@@ -66,8 +68,6 @@ Audit trails and evidence for decisions.
 **Steps:**
 
 1. Learn - Read the overview and key ideas.
-## **_Composite Playbooks_**
-
 Playbooks turn hybrid detections into consistent action. Composite playbooks use
 both signature context and anomaly strength to choose the right response—fast
 when confidence is high, cautious when it’s not.
