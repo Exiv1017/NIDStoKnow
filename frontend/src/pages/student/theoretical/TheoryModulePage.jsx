@@ -135,11 +135,17 @@ const TheoryModulePage = () => {
     if (found) setCurrentModule(found);
   }, [moduleSlug]);
 
-  // Reset video requirement tracking on lesson change
+  // Reset video requirement tracking on lesson change and pre-flag lessons with video blocks
   useEffect(() => {
-    setVideoRequired(false);
+    const raw = currentModule?.lessons?.[currentLessonIdx]?.content;
+    let text = '';
+    if (typeof raw === 'string') text = raw;
+    else if (Array.isArray(raw)) text = raw.join('\n\n');
+    else if (raw && typeof raw === 'object' && typeof raw.default === 'string') text = raw.default;
+    const hasVideo = /\*\*Video:?\*\*/i.test(text) || /<VideoEmbedBlock/i.test(text) || /https?:\/\/(?:www\.)?(?:youtu\.be|youtube\.com|vimeo\.com)\//i.test(text);
+    setVideoRequired(hasVideo);
     setVideoCompleted(false);
-  }, [currentLessonIdx, currentModuleSlug]);
+  }, [currentLessonIdx, currentModuleSlug, currentModule]);
 
   // Listen for video requirement/completion events emitted by VideoEmbedBlock
   useEffect(() => {
@@ -562,7 +568,9 @@ const TheoryModulePage = () => {
                         setToast({id:Date.now(), message:`Marked "${currentLesson.title}" complete`});
                       }
                     }}
-                    className="ml-auto text-[11px] font-medium px-2.5 py-1 rounded-md border border-[var(--lms-border)] hover:bg-[var(--lms-primary-muted)] hover:text-[var(--lms-primary)] transition"
+                    disabled={videoRequired && !videoCompleted}
+                    className={`ml-auto text-[11px] font-medium px-2.5 py-1 rounded-md border border-[var(--lms-border)] transition ${videoRequired && !videoCompleted ? 'opacity-60 cursor-not-allowed' : 'hover:bg-[var(--lms-primary-muted)] hover:text-[var(--lms-primary)]'}`}
+                    title={videoRequired && !videoCompleted ? 'Watch the video to unlock completion' : ''}
                   >
                     {(()=>{const id=getLessonId(currentLesson,currentLessonIdx); return lessonServerProgress.completedIds.includes(id) ? 'Completed' : 'Mark Complete';})()}
                   </button>
@@ -601,6 +609,7 @@ const TheoryModulePage = () => {
                     lessonServerProgress.markComplete(currentLessonIdx); 
                     setToast({ id: Date.now(), message: `Marked "${currentLesson.title}" complete` });
                   }}
+                  disabled={videoRequired && !videoCompleted}
                   completed={(() => { const id = getLessonId(currentLesson, currentLessonIdx); return lessonServerProgress.completedIds.includes(id); })()}
                 />
                 <div>

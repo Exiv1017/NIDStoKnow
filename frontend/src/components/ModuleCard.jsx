@@ -98,7 +98,12 @@ export default function ModuleCard({ module, progress, isAssigned, assignedOnly,
           <div className="w-32 bg-gray-200 rounded-full h-2.5 mt-1 relative group">
             <div className="bg-[#206EA6] h-2.5 rounded-full" style={{ width: `${canonicalPercent}%` }} />
             {/* Optional custom tooltip bubble (CSS only, appears on hover) */}
-            <div className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity absolute left-1/2 -translate-x-1/2 -top-7 whitespace-nowrap bg-gray-800 text-white text-xs px-2 py-1 rounded shadow" role="tooltip">{tooltip}</div>
+            <div
+              className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity absolute left-1/2 -translate-x-1/2 -top-8 max-w-xs whitespace-normal break-words text-center bg-gray-800 text-white text-xs px-2 py-1 rounded shadow"
+              role="tooltip"
+            >
+              {tooltip}
+            </div>
           </div>
         </div>
       </div>
