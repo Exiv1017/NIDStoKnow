@@ -418,6 +418,20 @@ function App() {
     setUser(null);
     // Reset modules to empty state
     setModules([]);
+
+    // After logout, force navigation back to the appropriate login screen and replace history
+    try {
+      if (user?.role === 'instructor') {
+        navigate('/instructor-login', { replace: true });
+      } else if (user?.role === 'admin') {
+        navigate('/admin-login', { replace: true });
+      } else {
+        // Default to student login
+        navigate('/login', { replace: true });
+      }
+    } catch (err) {
+      console.warn('post-logout redirect failed', err);
+    }
   };
 
   // Persist user updates (e.g., avatar) to localStorage so UI like sidebars reflects changes
