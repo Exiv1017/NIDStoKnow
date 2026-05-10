@@ -18,7 +18,7 @@ RUN npm config set fetch-retries 5 \
 COPY . .
 # Ensure Vite uses the ESM config (vite.config.mjs) automatically
 ENV NODE_ENV=production
-RUN npm run build
+RUN NODE_OPTIONS="--max-old-space-size=2048" npm run build
 
 # --- Runtime image with Nginx reverse proxy ---
 FROM nginx:alpine
