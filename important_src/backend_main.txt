@@ -414,20 +414,6 @@ def load_signatures_from_db():
             {"pattern": "chown ", "description": "Ownership change detected", "type": "Privilege Escalation", "regex": False},
             {"pattern": "dd if=", "description": "Disk overwrite/read with dd", "type": "Destruction", "regex": False},
             {"pattern": "tar czf", "description": "Archive creation (potential data staging)", "type": "Exfiltration", "regex": False},
-            
-                        # --- New Advanced Detections & Defense Evasion ---
-            {"pattern": "history -c", "description": "Cleared command history", "type": "Defense Evasion", "regex": False},
-            {"pattern": "rm ~/.bash_history", "description": "Deleted bash history file", "type": "Defense Evasion", "regex": False},
-            {"pattern": "export HISTFILE=/dev/null", "description": "Disabled history logging", "type": "Defense Evasion", "regex": False},
-            {"pattern": "touch -t", "description": "File timestomping", "type": "Defense Evasion", "regex": False},
-            {"pattern": "touch -m", "description": "File timestomping", "type": "Defense Evasion", "regex": False},
-            {"pattern": "echo \"ssh-rsa", "description": "Adding SSH backdoor key", "type": "Persistence", "regex": False},
-            {"pattern": "arp -a", "description": "ARP network discovery", "type": "Recon", "regex": False},
-            {"pattern": "ip neigh", "description": "IP neighbor discovery", "type": "Recon", "regex": False},
-            
-            # --- Benign Commands (False Positive testing) ---
-            {"pattern": "apt-get update", "description": "System package update", "type": "Benign", "regex": False},
-            {"pattern": "systemctl restart", "description": "Service restart", "type": "Benign", "regex": False},
 
             # Regex-based flexible patterns
             {"pattern": r"curl\s+.*-u\s+[^ ]+", "description": "Curl with basic auth (possible credential use)", "type": "Network", "regex": True},
